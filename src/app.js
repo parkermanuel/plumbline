@@ -114,6 +114,7 @@ function buildFlow(role, ctx) {
       B.COUPLE_AREAS.forEach((a) => a.items.filter((i) => i.guess).forEach((it) => S.push({ t: "likert", chapter: "together", id: it.id, text: it.t, bucket: "guess", sub: `How do you think ${sp} answered?` })));
     }
     netQuestions(S, ctx, "planter");
+    contextSteps(S, "planter", ctx);
     chapter("story", "Your story", married ? "Chapter 6" : "Chapter 5", "A few facts about your experience and preparation, plus links to your work if you have them.", 3);
     B.FACTS.forEach((f) => S.push({ t: "fact", chapter: "story", id: f.id }));
     S.push({ t: "work", chapter: "story" });
@@ -134,6 +135,7 @@ function buildFlow(role, ctx) {
     B.SPOUSE_SEES.forEach((it) => S.push({ t: "likert", chapter: "sees", id: it.id, text: it.t, bucket: "spouseSees", na: true, sub: `${pl}…`, freq: true }));
     wired(S, "wired", "Chapter 4", ctx);
     netQuestions(S, ctx, "spouse");
+    contextSteps(S, "spouse", ctx);
     S.push({ t: "private", chapter: "private" });
   }
 
@@ -156,6 +158,21 @@ function netQuestions(S, ctx, role) {
   S.push({ t: "intro", chapter: "network", name: `From ${ctx.network || "your network"}`, kicker: "A few more", text: `${ctx.network || "Your network"} added ${qs.length === 1 ? "a question" : "a few questions"} of its own.`, minutes: Math.max(1, Math.ceil(qs.length / 2)) });
   qs.forEach((q) => S.push(q.kind === "likert" ? { t: "likert", chapter: "network", id: q.id, text: q.t, bucket: "netq" } : { t: "netqText", chapter: "network", id: q.id, text: q.t }));
 }
+// Context: one yes/no question; a "yes" adds the city-fit questions right after it.
+function contextSteps(S, role, ctx) {
+  const C = B.CONTEXT;
+  S.push({ t: "cityAsk", chapter: "context" });
+  if (!ctx.hasCity) return;
+  S.push({ t: "cityName", chapter: "context" });
+  C.choices.filter((c) => role === "planter" || c.both).forEach((c) => S.push({ t: "cx", chapter: "context", id: c.id }));
+  (role === "planter" ? C.planter.filter((i) => ctx.married || !i.married) : C.spouse).forEach((it) => S.push({ t: "likert", chapter: "context", id: it.id, text: it.t, bucket: "cxl", sub: "Your city" }));
+  C.texts[role].forEach((x) => S.push({ t: "cxText", chapter: "context", id: x.id, text: x.q }));
+}
+function rebuildFlow() {
+  take.ctx.hasCity = take.resp.context?.has === true;
+  take.steps = buildFlow(take.role, take.ctx);
+  take.i = Math.min(take.i, take.steps.length - 2);
+}
 const allBeliefs = (ctx) => [...B.BELIEFS, ...((ctx && ctx.beliefs) || [])];
 
 function wired(S, ch, kicker, ctx = {}) {
@@ -167,6 +184,7 @@ function wired(S, ch, kicker, ctx = {}) {
   const ordered = [0, 1, 2].flatMap((i) => gi.filter((x) => x.i === i));
   ordered.forEach((x) => S.push({ t: "gift", chapter: ch, g: x.g, i: x.i, text: x.t }));
   B.FIVEFOLD_BLOCKS.forEach((_, i) => S.push({ t: "fivefold", chapter: ch, i }));
+  S.push({ t: "other", chapter: ch });
 }
 
 // ---------------- app state & routing ----------------
@@ -181,14 +199,25 @@ function render() {
   $("#top").innerHTML = `<div class="top-in"><button class="brand" data-act="nav" data-to="home" aria-label="Plumbline home">${mark(28)}<span class="brand-word">plumbline</span></button>
     <nav>${nav.map(([k, l], i) => `<button class="navbtn ${k === "about" ? "opt-hide" : i === 0 ? "home-hide" : ""}" data-act="nav" data-to="${k}" ${cur === k ? 'aria-current="page"' : ""}>${l}</button>`).join("")}${L.LIVE && L.state.session && ["leader", "case", "newcase", "settings", "admin"].includes(view.name) ? `<button class="navbtn opt-hide" data-act="signout">Sign out</button>` : ""}</nav></div>`;
   const foot = $("#foot");
-  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span>Plumbline is free for every network.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by Parker Manuel</a></span></div>`;
+  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span>Plumbline is free for every network.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="leaders">For network leaders</button><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by Parker Manuel</a></span></div>`;
   const r = { home: renderHome, leader: renderLeader, newcase: renderNewCase, case: renderCase, join: renderJoin, take: renderTake, about: renderAbout, addresult: renderAddResult, message: renderMessage, refjoin: renderRefJoin, myreport: renderMyReport,
-    settings: () => (L.LIVE ? (L.state.session ? T.settings() : T.login()) : renderHome()), teamjoin: T.join, admin: T.admin, privacy: renderPrivacy, terms: renderTerms }[view.name] || renderHome;
+    settings: () => (L.LIVE ? (L.state.session ? T.settings() : T.login()) : renderHome()), teamjoin: T.join, admin: T.admin, privacy: renderPrivacy, terms: renderTerms, leaders: renderLeaders }[view.name] || renderHome;
   app().innerHTML = r();
   if (view.name === "take") afterTake();
 }
 
 // ---------------- home ----------------
+// Free for networks, not free to run. Links go to Parker's Stripe pages.
+function partnerBox(strong) {
+  const P = B.PARTNER, a = (u, l, cls) => `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>`;
+  return `<section class="partner${strong ? " strong" : ""}" aria-label="Partner with Plumbline">
+    <div class="stack" style="gap:8px"><span class="kicker">Free for you. Not free for me.</span>
+      <h2>${strong ? "If Plumbline serves your network, help keep it free." : "Plumbline is free for every network."}</h2>
+      <p class="read" style="margin:0">${strong ? "Every planter, spouse and reference you send through Plumbline costs nothing. Behind it are servers, email, a database and many hours of building and keeping it safe. A one-time or monthly gift from your network keeps it free for the next one." : "No fees, no seats, no upsell. It isn't free to build and run, though. If it helps you, you can partner with Parker once or monthly."}</p></div>
+    <div class="row" style="gap:10px">${a(P.once, "Give once", "btn")}${P.monthly.map(([amt, u]) => a(u, `${amt} a month`, "btn ghost")).join("")}</div>
+    <p class="small" style="margin:0">Secure checkout through Stripe. Already giving monthly? ${a(P.manage, "Change or cancel", "")}.</p>
+  </section>`;
+}
 function renderHome() {
   return `<div class="wrap">
   <section class="hero">
@@ -199,6 +228,7 @@ function renderHome() {
         <button class="btn" data-act="nav" data-to="leader">Start as a network leader</button>
         <button class="btn ghost" data-act="open-sample">See a sample report</button>
       </div>
+      <p class="small" style="margin:0"><button class="link" data-act="nav" data-to="leaders">How it's built, and how it compares →</button></p>
       <dl class="entry" aria-label="Definition of plumb line">
         <dt><span class="hw">plumb·line</span> <span class="pr">&#92; ˈpləm-ˌlīn &#92;</span> <span class="pos">noun</span></dt>
         <dd><ol>
@@ -216,6 +246,7 @@ function renderHome() {
     <button class="path" data-act="nav" data-to="join"><span class="who pill-ref">R</span><h3>I'm a reference</h3><p>Someone asked you to speak into their readiness to plant. It takes about 8 minutes.</p><span class="go">Enter my code</span></button>`}
   </section>
   ${aboutBody(true)}
+  ${partnerBox(false)}
   </div>`;
 }
 
@@ -255,6 +286,98 @@ function renderAbout() {
   </div>`;
 }
 
+// The pitch page for network leaders: how it's built, how it compares, and how the process runs. Counts come from the question bank.
+function renderLeaders() {
+  const n = (a) => a.reduce((x, y) => x + y, 0);
+  const planterItems = n(Object.values(B.SCALES).map((x) => x.items.length));
+  const spouseItems = n(Object.values(B.SPOUSE_SCALES).map((x) => x.items.length));
+  const coupleItems = n(B.COUPLE_AREAS.map((a) => a.items.length));
+  const giftItems = n(B.GIFTS.map((g) => g.items.length));
+  const stat = (num, label, how) => `<div class="lstat"><b>${num}</b><span>${label}</span><small>${how}</small></div>`;
+  const yes = `<span class="ck" aria-label="Yes">●</span>`, part = `<span class="ck part" aria-label="Partly">◐</span>`, no = `<span class="ck no" aria-label="No">–</span>`;
+  const rows = [
+    ["Character, calling and health", yes, no, no, no, part],
+    ["Marriage, both spouses separately", yes, no, no, yes, part],
+    ["Leadership and planting capacity", yes, part, part, no, yes],
+    ["Personality and work style", yes, yes, yes, no, part],
+    ["Spiritual gifts and fivefold", yes, no, no, no, part],
+    ["References' 360 view", yes, no, no, no, yes],
+    ["Fit with a specific city", yes, no, no, no, part],
+    ["Honesty and consistency checks", yes, part, part, part, no],
+    ["Graded report and interview guide", yes, no, no, no, yes],
+    ["Cost to your network", "Free", "Paid", "Paid", "Paid", "Paid"],
+  ];
+  const steps = [
+    ["Set it up", "5 minutes", "Enter the couple's names, emails and city. Plumbline emails each person a private link."],
+    ["They answer on their own", "About 35 and 25 minutes", "Planter and spouse answer separately, one question at a time, with two progress bars. Answers save as they go, so they can stop and finish on any device."],
+    ["References weigh in", "About 8 minutes each", "Three to five people who know them rate what they've actually seen and say whether they'd join the launch team."],
+    ["You watch it come together", "Live", "Your dashboard shows each person's progress, and you can send reminders with one click."],
+    ["Read the report", "About 20 minutes", "A graded report with a recommendation, strengths, growth areas, concerns, couple gaps, blind spots and context."],
+    ["Have the conversation", "About 90 minutes", "An interview guide built from their answers, with questions to ask, what to listen for, and a place for your team to score."],
+    ["Release their reports", "When you're ready", "Each of them gets a personal report written to encourage and to name next steps."],
+  ];
+  return `<div class="deck">
+  <section class="slide hero-slide"><div class="wrap">
+    <span class="kicker">For network leaders</span>
+    <h1>The planter assessment your network can trust. Free.</h1>
+    <p class="lede">Plumbline hears from four people separately: the planter, the spouse, their references and you. Then it shows you where they agree, where they don't, and what to talk about. Built by a church planter, for the people who send them.</p>
+    <div class="row"><button class="btn" data-act="nav" data-to="leader">Start as a network leader</button><button class="btn ghost" data-act="open-sample">See a sample report</button></div>
+  </div></section>
+
+  <section class="slide"><div class="wrap stack-lg">
+    <div class="stack"><span class="kicker">What's inside</span><h2>Built to see the whole person, and the whole couple.</h2></div>
+    <div class="lstats">
+      ${stat(B.PILLARS.length, "graded pillars", `${Object.keys(B.SCALES).length} scales, each graded A to D`)}
+      ${stat(planterItems, "planter statements", "Rated 1 to 5, about character, calling, health, leadership, mission and capacity")}
+      ${stat(spouseItems + coupleItems, "spouse and couple statements", `${spouseItems} about the spouse's own life, ${coupleItems} the couple answer separately`)}
+      ${stat(B.REF_ITEMS.length, "reference items", "What 3 to 5 people have actually seen")}
+      ${stat(B.GIFTS.length, "spiritual gifts", `${giftItems} statements from Romans 12, 1 Corinthians 12, Ephesians 4 and 1 Peter 4`)}
+      ${stat(B.SCENARIOS.length, "real planting scenarios", "Pick the best and worst response; scored against experienced planters' choices")}
+    </div>
+    <p class="small muted" style="margin:0">Every count on this page is read straight from the question set Plumbline uses today (version ${esc(B.BANK_VERSION)}).</p>
+  </div></section>
+
+  <section class="slide"><div class="wrap stack-lg">
+    <div class="stack"><span class="kicker">How it's built</span><h2>Nothing hidden. Every number shows its work.</h2></div>
+    <div class="two">
+      <div class="stack">
+        <div class="lpoint"><b>Plain scoring</b><p>Each answer is 1 to 5, scaled to 0–100. Strength is 80 and up, Solid 65–79, Developing 50–64, and Growth Area below 50. The report shows how every grade was reached.</p></div>
+        <div class="lpoint"><b>Non-negotiables come first</b><p>Integrity, devotion, current load and marriage partnership can hold back the recommendation on their own, however strong the rest is.</p></div>
+        <div class="lpoint"><b>Honesty checks</b><p>Questions that catch a too-good-to-be-true picture, a few that test attention, pairs that should agree, and timing that shows rushing. You see the result, not a hidden penalty.</p></div>
+      </div>
+      <div class="stack">
+        <div class="lpoint"><b>Four recommendations</b><p>Ready, Ready with Conditions, Development Needed, or Pause & Talk. It can't say Ready until the spouse and at least two references have answered.</p></div>
+        <div class="lpoint"><b>Optional extras</b><p>Context asks how well they fit the city they've named. Other assessments lets them add DISC, Myers-Briggs, CliftonStrengths and more, and Plumbline checks those against its own Wiring.</p></div>
+        <div class="lpoint"><b>Grounded in research</b><p>Drawing on Charles Ridley's planter competencies, published planter-assessment criteria from Send Network, PCA Mission to North America and Acts 29, and church planting survivability research. Every question is original.</p></div>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="slide"><div class="wrap stack-lg">
+    <div class="stack"><span class="kicker">How it compares</span><h2>One assessment instead of five.</h2><p class="muted" style="margin:0">What each kind of tool is designed to cover. ● yes · ◐ partly · – no</p></div>
+    <div class="scroll-x"><table class="tbl compare"><thead><tr><th></th><th>Plumbline</th><th>DISC or Myers-Briggs</th><th>CliftonStrengths or Predictive Index</th><th>PREPARE/ENRICH</th><th>Assessment retreat</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td>${r.slice(1).map((c, i) => `<td class="${i === 0 ? "us" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <p class="small muted" style="margin:0">Based on what each tool says it measures. A retreat with trained assessors is still the gold standard for many networks. Plumbline can be the first step before one, or the whole process for networks that can't afford one.</p>
+  </div></section>
+
+  <section class="slide"><div class="wrap stack-lg">
+    <div class="stack"><span class="kicker">The process</span><h2>From invite to conversation.</h2></div>
+    <ol class="lsteps">${steps.map(([t, time, d]) => `<li><div><b>${esc(t)}</b><span class="small">${esc(time)}</span></div><p>${esc(d)}</p></li>`).join("")}</ol>
+  </div></section>
+
+  <section class="slide"><div class="wrap stack-lg">
+    <div class="stack"><span class="kicker">Trust</span><h2>Their answers stay where they belong.</h2></div>
+    <div class="two">
+      <div class="lpoint"><b>Only your network sees them</b><p>The database itself blocks every other network, row by row. Spouses never see each other's individual answers, private notes or safety answers.</p></div>
+      <div class="lpoint"><b>Deleted on schedule</b><p>You choose 12, 24 or 36 months, and assessments delete themselves after that. No ads, no tracking, and nothing is ever sold.</p></div>
+    </div>
+    <p class="small" style="margin:0"><button class="link" data-act="nav" data-to="privacy">Read the privacy page</button></p>
+  </div></section>
+
+  <div class="wrap">${partnerBox(true)}
+    <div class="row" style="margin:40px 0 0"><button class="btn" data-act="nav" data-to="leader">Start as a network leader</button><button class="btn ghost" data-act="open-sample">See a sample report</button></div></div>
+  </div>`;
+}
 function renderPrivacy() {
   return `<div class="wrap stack-lg legal" style="max-width:46rem"><div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Privacy</h1><p class="muted" style="margin:0">Last updated October 2026</p></div>
   <div class="read stack">
@@ -326,6 +449,7 @@ function renderLeader() {
         <div>${r ? `<span class="outcome tone-${r.outcome.tone}">${r.outcome.name}</span>` : `<span class="sdot">In progress</span>`}</div></button>`;
     }).join("")}</div>
     <div class="notice chalk">This is the free pilot. Everything stays in this browser. Each person finishes on their own device and sends you a results code, and you paste it in with <b>Add results</b>. A shared online version with email invites is next.</div>
+    ${partnerBox(true)}
   </div>`;
 }
 
@@ -485,6 +609,7 @@ function leaderReport(c, r) {
 
     ${c.married && r.couple ? coupleSection(c, r) : ""}
     ${wiredSection(c, r, true)}
+    ${contextSection(c, r)}
     ${refsSection(c, r)}
     ${experienceSection(c, r, notes)}
     ${networkSection(c, r)}
@@ -554,6 +679,44 @@ const FIVEFOLD_TEAM = {
   S: "Caretakers build deep community but can struggle to push outward. Add a pioneer or evangelist voice.",
   T: "Explainers build depth but can drift inward. Partner with a pioneer or evangelist.",
 };
+function otherBlock(o, name, you) {
+  if (!o) return "";
+  const tone = { agree: "a", middle: "b", differ: "c" }, word = { agree: "Agrees with Wiring", middle: "Wiring shows the middle", differ: "Differs from Wiring" };
+  const who = you ? "you" : esc(name);
+  return `<div class="panel flat stack"><h3>${you ? "Your other assessments" : `${esc(name)}'s other assessments`}</h3>
+    <p class="small" style="margin:0">Typed in by ${who}${o.when ? `, taken ${esc(o.when.toLowerCase())}` : ""}. Plumbline didn't give these tests; it shows the results next to Wiring.</p>
+    ${o.entries.length ? `<ul class="list-clean">${o.entries.map((e) => `<li><b>${esc(e.tool)}</b><span>${esc(e.value)}</span></li>`).join("")}</ul>` : ""}
+    ${o.checks.length ? `<div class="stack" style="gap:8px">${o.checks.map((c) => `<div><span class="chip tone-${tone[c.result]}">${word[c.result]}</span> <span class="small">${esc(c.tool)} ${esc(c.letter)} points to <b>${esc(c.theirs)}</b>. Wiring has ${who} at ${esc(c.ours.toLowerCase())} (${c.pos} of 100 on ${esc(c.trackName)}).</span></div>`).join("")}
+      <p class="small muted" style="margin:0">How this is checked: a Wiring score of 65 or more counts as the right-hand end, 35 or less as the left, and anything between as the middle. ${[...new Set(o.checks.map((c) => c.basis))].map(esc).join(" ")}${o.checks.some((c) => c.result === "differ") && !you ? " A difference is a question to ask, not a problem: people change, and older results may reflect another season." : ""}</p></div>` : ""}
+    ${o.files.length ? `<div class="row" style="gap:8px">${o.files.map((f) => `<button class="btn ghost small" data-act="open-file" data-path="${esc(f.path)}">${esc(f.name)}</button>`).join("")}</div>` : ""}
+  </div>`;
+}
+function contextSection(c, r) {
+  const P = r.context, S = r.spouseContext;
+  if (!P && !S) return "";
+  const pn = first(c.planterName), sn = first(c.spouseName);
+  if (P?.has === false && (!S || S.has === false)) return `<section class="stack"><div class="section-head"><h2>Context</h2><p class="muted">${esc(pn)} hasn't identified a city yet.</p></div></section>`;
+  const card = (x, name, tone) => !x ? "" : x.has === false ? `<div class="panel flat"><h3>${esc(name)}</h3><p class="muted" style="margin:0">Says no city has been identified yet.</p></div>` : `<div class="panel flat stack">
+      <div class="spread"><h3 style="margin:0">${esc(name)}${x.city ? `: ${esc(x.city)}` : ""}</h3>${x.band ? `<span class="chip tone-${x.band.letter.toLowerCase()}">City fit ${x.pct} · ${x.band.name}</span>` : ""}</div>
+      ${x.band ? `<p class="small" style="margin:0">Average of ${x.n} fit statements, rated 1 to 5 and scaled to 0–100. Same bands as the rest of the report.</p>` : ""}
+      <ul class="list-clean">${x.picks.map((p) => `<li><b>${esc(p.q)}</b><span>${esc(p.a)}${p.watch ? ` <span class="chip tone-c">Watch</span>` : ""}</span></li>`).join("")}</ul>
+      ${x.low.length ? `<div><b class="small">Rated low (1–2)</b><ul class="list-clean small" style="margin-top:4px">${x.low.map((t) => `<li><span>${esc(t)}</span></li>`).join("")}</ul></div>` : ""}
+      ${x.texts.map((t) => `<div><b class="small">${esc(t.q)}</b><p class="read" style="margin:4px 0 0;font-size:1rem">${esc(t.a)}</p></div>`).join("")}
+    </div>`;
+  const pk = (x, id) => x?.picks?.find((p) => p.id === id);
+  const talk = [];
+  const ps = pk(P, "cx_stay"), ss = pk(S, "cx_stay");
+  if (ps && ss && Math.abs(ps.i - ss.i) >= 2) talk.push(`${pn} plans to stay ${ps.a.toLowerCase()}; ${sn} says ${ss.a.toLowerCase()}. Ask them to talk this through together.`);
+  if (P?.city && S?.city && P.city.toLowerCase() !== S.city.toLowerCase()) talk.push(`They named different places: "${P.city}" and "${S.city}". Ask whether they mean the same city.`);
+  if (S?.has && S.low.some((t) => /excited/.test(t))) talk.push(`${sn} isn't yet excited about this city. Ask what would help, and don't move forward on ${pn}'s excitement alone.`);
+  if (pk(P, "cx_known")?.watch) talk.push(`${pn} knows few people there who don't go to church. Ask how they'd meet the first 50.`);
+  if (pk(P, "cx_church")?.watch) talk.push(`${pn} doesn't know how many people there go to church. Ask them to find out before the next conversation.`);
+  if (pk(P, "cx_cost")?.watch) talk.push(`${pn} isn't sure the household can afford the city. Work through a budget together.`);
+  return `<section class="stack"><div class="section-head"><h2>Context</h2><p class="muted">How well they fit the place they've named. Described, not part of the overall recommendation.</p></div>
+    <div class="two">${card(P, pn)}${c.married ? card(S, sn) : ""}</div>
+    ${talk.length ? `<div class="panel flat"><h3 style="margin-bottom:8px">Talk about</h3><ul class="list-clean">${talk.map((t) => `<li><span>${esc(t)}</span></li>`).join("")}</ul></div>` : ""}
+    <p class="small muted" style="margin:0">Check their answers against the real numbers: ${B.CONTEXT.checkWith.map(([n, u, d]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)}</a> (${esc(d.toLowerCase())})`).join(" and ")}.</p></section>`;
+}
 function wiredSection(c, r, leader) {
   const pn = first(c.planterName), sn = first(c.spouseName);
   const ins = wiringInsights(r.wiring, r.spouseWiring, pn, sn);
@@ -564,6 +727,7 @@ function wiredSection(c, r, leader) {
   return `<section class="stack"><div class="section-head"><h2>How they're wired</h2><p class="muted">Described, not graded. Every combination can plant a healthy church.</p></div>
     <div class="panel flat"><h3 style="margin-bottom:8px">Wiring</h3>${wiringRows(r.wiring, r.spouseWiring, pn, sn)}
       ${ins.length ? `<ul class="list-clean" style="margin-top:14px">${ins.map((t) => `<li><span>${esc(t)}</span></li>`).join("")}</ul>` : ""}</div>
+    ${r.other || r.spouseOther ? `<div class="two">${otherBlock(r.other, pn)}${otherBlock(r.spouseOther, sn)}</div>` : ""}
     <div class="two">
       <div class="panel flat stack"><h3>Fivefold</h3><p class="small" style="margin:0">From Ephesians 4:11, drawing on Alan Hirsch's APEST work. Our own questions.</p>${radar(ffAxes, series, { size: 380 })}
         <p class="small" style="margin:0">${esc(pn)}: ${r.fivefold?.primary.name}, then ${r.fivefold?.secondary.name}.${r.spouseFivefold ? ` ${esc(sn)}: ${r.spouseFivefold.primary.name}, then ${r.spouseFivefold.secondary.name}.` : ""}</p>
@@ -661,6 +825,7 @@ function personReport(c, r, who) {
     <section class="stack"><div class="section-head"><h2>Your wiring</h2><p class="muted">Five dimensions of your natural style.${C ? ` ${esc(other)} is shown too, so you can see how you fit together.` : ""}</p></div>
       <div class="panel flat">${wiringRows(W, C ? (isP ? r.spouseWiring : r.wiring) : null, nm, other)}
       <ul class="list-clean" style="margin-top:14px">${W.map((d) => `<li><b>${esc(d.label)}</b><span>${esc(d.pos == null ? "" : d.pos >= 65 ? d.rightDesc : d.pos <= 35 ? d.leftDesc : `You can move between ${d.left.toLowerCase()} and ${d.right.toLowerCase()} as the moment needs.`)}</span></li>`).join("")}</ul></div></section>
+    ${(isP ? r.other : r.spouseOther) ? `<section>${otherBlock(isP ? r.other : r.spouseOther, nm, true)}</section>` : ""}
 
     <section class="two">
       <div class="panel flat stack"><h3>Your spiritual gifts</h3>${giftFan(G.list)}<p class="small" style="margin:0">Top five: ${G.top.map((g) => `${esc(g.name)} (${esc(g.ref)})`).join(", ")}. Gifts are confirmed by fruit and by the church over time. Treat this as a starting point.</p></div>
@@ -689,8 +854,9 @@ function personReport(c, r, who) {
 function startTake(c, role, refIdx = null) {
   const key = `${c.id}:${role}`;
   const ctx = { planterName: c.planterName, spouseName: c.spouseName, married: c.married, city: c.city, network: c.network?.name, signGifts: c.network?.signGifts !== false };
-  const steps = buildFlow(role, ctx);
   const draft = db.drafts[key];
+  ctx.hasCity = draft?.resp?.context?.has === true;
+  const steps = buildFlow(role, ctx);
   take = { caseId: c.id, role, refIdx, ctx, steps, i: draft?.i || 0, resp: draft?.resp || blankResp(role, c), key };
   go({ name: "take" });
 }
@@ -707,11 +873,12 @@ function startTakeLive(token, data) {
   const cs = data.case, p = data.participant;
   const c = { id: cs.id, planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: { name: cs.network, signGifts: cs.signGifts } };
   const ctx = { planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: cs.network, signGifts: cs.signGifts !== false, beliefs: cs.beliefs || [], questions: cs.questions || [], logoUrl: cs.logoUrl };
-  const steps = buildFlow(p.role, ctx);
   let resp = p.answers && Object.keys(p.answers).length ? p.answers : blankResp(p.role, c);
   let i = p.step || 0;
   const b = L.backup(token);
   if (b && b.step > i) { resp = b.answers; i = b.step; }
+  ctx.hasCity = resp.context?.has === true;
+  const steps = buildFlow(p.role, ctx);
   if (p.role === "reference" && !resp.meta?.name && p.name) resp.meta = { ...(resp.meta || {}), name: p.name };
   if (p.role !== "reference") { resp.meta = resp.meta || {}; resp.meta.pageTimes = resp.meta.pageTimes || {}; }
   take = { caseId: cs.id, role: p.role, ctx, steps, i: Math.min(i, steps.length - 2), resp, key: token, token };
@@ -736,7 +903,7 @@ function chapterBar() {
 }
 function chapterLabel(s) {
   const named = take.steps.filter((x) => x.t === "intro" && x.chapter === s.chapter);
-  return named.length ? named[0].name : s.chapter === "private" ? "Anything else" : "";
+  return named.length ? named[0].name : s.chapter === "private" ? "Anything else" : s.chapter === "context" ? "Context" : "";
 }
 
 function renderTake() {
@@ -744,7 +911,16 @@ function renderTake() {
   const total = take.steps.length;
   const showTop = s.t !== "welcome" && s.t !== "done";
   return `<div class="wrap"><div class="take">
-    ${showTop ? `<div class="take-top"><div class="chapters">${chapterBar()}</div><div class="chapter-name"><span>${esc(chapterLabel(s))}</span><span class="num">${Math.round((take.i / (total - 1)) * 100)}%</span></div></div>` : ""}
+    ${showTop ? (() => {
+      const qs = take.steps.map((x, i) => (x.chapter === s.chapter && x.t !== "intro" ? i : -1)).filter((i) => i >= 0);
+      const at = qs.filter((i) => i < take.i).length, secPct = qs.length ? Math.round((at / qs.length) * 100) : 0;
+      const allPct = Math.round((take.i / (total - 1)) * 100);
+      return `<div class="take-top">
+        <div class="pbar"><div class="pbar-label"><span>This section: <b>${esc(chapterLabel(s))}</b></span><span>${s.t === "intro" ? `${qs.length} questions` : `${Math.min(at + 1, qs.length)} of ${qs.length}`}</span></div>
+          <div class="pbar-track" role="progressbar" aria-label="This section" aria-valuenow="${secPct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${secPct}%"></i></div></div>
+        <div class="pbar"><div class="chapter-name"><span>Whole assessment</span><span class="num">${allPct}%</span></div>
+          <div class="chapters" role="progressbar" aria-label="Whole assessment" aria-valuenow="${allPct}" aria-valuemin="0" aria-valuemax="100">${chapterBar()}</div></div></div>`;
+    })() : ""}
     ${screen(s)}
     ${showTop && s.t !== "intro" ? `<div class="take-nav"><button class="link" data-act="back">← Back</button><span class="keys">Use keys <span class="kbd">1</span>–<span class="kbd">5</span></span>${take.token ? `<span class="keys" id="savestate" aria-live="polite">${saveLabel()}</span>` : `<button class="link" data-act="save-exit">Save and finish later</button>`}</div>` : ""}
   </div></div>`;
@@ -771,7 +947,7 @@ function screen(s) {
     const labels = s.freq ? B.OBS : B.LIKERT;
     const opts = labels.map((l, i) => `<button class="opt" aria-pressed="${val === i + 1}" data-act="ans" data-v="${i + 1}"><b>${i + 1}</b>${esc(l)}</button>`).join("");
     const na = s.na ? `<button class="opt na" aria-pressed="${val === 0}" data-act="ans" data-v="0"><b>–</b>Not seen</button>` : "";
-    return `<div class="qcard"><div class="stack" style="gap:10px">${s.sub ? `<span class="qsub">${esc(s.sub)}</span>` : ""}<div class="qtext">${esc(s.text)}</div></div><div class="${s.na ? "scale6" : "scale5"}" role="group">${opts}${na}</div></div>`;
+    return `<div class="qcard"><div class="stack" style="gap:10px">${s.sub ? `<span class="qsub">${esc(s.bucket === "cxl" ? R.context?.city || s.sub : s.sub)}</span>` : ""}<div class="qtext">${esc(s.text)}</div></div><div class="${s.na ? "scale6" : "scale5"}" role="group">${opts}${na}</div></div>`;
   }
   if (s.t === "pair") {
     const v = R.wiring[s.dim]?.[s.i];
@@ -813,6 +989,42 @@ function screen(s) {
       <div class="stack">${B.WORK_SAMPLES.map((w) => `<label class="field">${esc(w.q)}<input id="work-${w.id}" type="url" placeholder="${esc(w.hint)}" value="${esc(R.work[w.id] || "")}"></label>`).join("")}</div>
       <div><button class="btn" data-act="work-next">Finish</button></div></div>`;
   }
+  if (s.t === "other") {
+    const o = R.other || {}, O = B.OTHER;
+    const sel = (id, opts, v, ph) => `<select id="${id}"><option value="">${ph}</option>${opts.map(([val, l]) => `<option value="${esc(val)}" ${v != null && String(v) === String(val) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+    const discOpts = O.disc.styles.map(([k, n]) => [k, `${k}: ${n}`]);
+    const files = o.files || [];
+    return `<div class="qcard" id="other-form"><div class="stack" style="gap:10px"><span class="qsub">Optional · about 2 minutes</span><div class="qtext">Taken any of these before? Add your results.</div>
+        <p class="small" style="margin:0">Type them in, or upload the report or a photo of it. Your network leader sees them next to your Wiring. Skip anything you haven't taken.</p></div>
+      <div class="stack" style="gap:14px">
+        <div class="two" style="gap:12px"><label class="field">DISC: highest style${sel("o-disc", discOpts, o.disc, "Haven't taken it")}</label><label class="field">DISC: second style${sel("o-disc2", discOpts, o.disc2, "None")}</label></div>
+        <label class="field">${esc(O.mbti.name)}${sel("o-mbti", O.mbti.types.map((t) => [t, t]), o.mbti, "Haven't taken it")}</label>
+        <label class="field">${esc(O.strengths.name)}<input id="o-strengths" maxlength="220" placeholder="${esc(O.strengths.hint)}" value="${esc((o.strengths || []).join(", "))}"></label>
+        <div class="two" style="gap:12px"><label class="field">${esc(O.ennea.name)}${sel("o-ennea", O.ennea.types.map((t, i) => [i + 1, t]), o.ennea, "Haven't taken it")}</label>
+          <label class="field">${esc(O.pi.name)}<input id="o-pi" maxlength="60" placeholder="${esc(O.pi.hint)}" value="${esc(o.pi || "")}"></label></div>
+        <label class="field">Anything else <span class="hint">Working Genius, Birkman, a coach's assessment…</span><textarea id="o-notes" maxlength="1000" style="min-height:70px">${esc(o.notes || "")}</textarea></label>
+        <label class="field">When did you take most of these?${sel("o-when", O.when.map((w, i) => [i, w]), o.when, "Choose one")}</label>
+        <div class="field" style="font-weight:600">Upload results <span class="hint" style="font-weight:400">PDF or photo, up to ${O.maxFiles} files, ${O.maxMb} MB each</span>
+          ${files.length ? `<ul class="list-clean" style="margin:4px 0 0">${files.map((f, i) => `<li><span>${esc(f.name)} <span class="muted small">${Math.max(1, Math.round((f.size || 0) / 1024))} KB</span></span><button class="link" data-act="other-rm" data-i="${i}">Remove</button></li>`).join("")}</ul>` : ""}
+          ${files.length < O.maxFiles ? `<label class="btn ghost" style="justify-self:start;cursor:pointer">${take.uploading ? "Uploading…" : "Choose files or take a photo"}<input id="o-files" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/heic,image/heif" multiple style="position:absolute;width:1px;height:1px;opacity:0" ${take.uploading ? "disabled" : ""}></label>` : ""}
+          ${!take.token ? `<span class="small muted" style="font-weight:400">In this demo, files aren't stored. Only their names are kept.</span>` : ""}</div>
+      </div>
+      <div class="row"><button class="btn" data-act="other-next" ${take.uploading ? "disabled" : ""}>Save and continue</button><button class="link" data-act="other-skip">Skip, I haven't taken any</button></div></div>`;
+  }
+  if (s.t === "cityAsk") {
+    const v = R.context?.has;
+    return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Context</span><div class="qtext">${role === "spouse" ? "Has your family identified a city or place to plant?" : "Have you identified a city or place to plant?"}</div>
+      <p class="small" style="margin:0">If yes, a few questions about the place will help your network leader see how well you fit it. If not, just keep going.</p></div>
+      <div class="choice-list">${[[true, "Yes"], [false, "Not yet"]].map(([k, l]) => `<button class="choice" data-act="city-has" data-v="${k}" aria-pressed="${v === k}"><span class="tag">${k ? "✓" : "–"}</span><span>${l}</span></button>`).join("")}</div></div>`;
+  }
+  if (s.t === "cityName") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Context</span><div class="qtext">Which city, town or neighborhood?</div></div>
+      <label class="field">City and state<input id="cx-city" maxlength="120" placeholder="Boulder, Colorado" value="${esc(R.context?.city ?? ctx.city ?? "")}"></label><div><button class="btn" data-act="city-name">Next</button></div></div>`;
+  if (s.t === "cx") {
+    const c = B.CONTEXT.choices.find((x) => x.id === s.id), v = R.context?.pick?.[s.id];
+    return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">${esc(R.context?.city || "Your city")}</span><div class="qtext">${esc(c.q)}</div></div><div class="choice-list">${c.opts.map((o, i) => `<button class="choice" data-act="cx" data-i="${i}" aria-pressed="${v === i}"><span class="tag">${i + 1}</span><span>${esc(o)}</span></button>`).join("")}</div></div>`;
+  }
+  if (s.t === "cxText") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">${esc(R.context?.city || "Your city")}</span><div class="qtext">${esc(s.text)}</div><p class="small" style="margin:0">Optional. A few sentences is plenty.</p></div>
+      <textarea class="input" id="cx-text" maxlength="1500">${esc(R.context?.text?.[s.id] || "")}</textarea><div><button class="btn" data-act="cx-text">Next</button></div></div>`;
   if (s.t === "netqText") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">From ${esc(ctx.network || "your network")}</span><div class="qtext">${esc(s.text)}</div></div>
       <textarea class="input" id="netq-text" maxlength="2000" placeholder="Your answer">${esc((R.netqText || {})[s.id] || "")}</textarea><div><button class="btn" data-act="netq-next">Next</button></div></div>`;
   if (s.t === "safetyIntro") return `<div class="intro-card"><span class="kicker">Private</span><h2>Three private questions</h2><p>These go only to your network leader. They are never shown to ${esc(pn)} or in any shared report. If you are ever in danger, call 911. In the US, you can reach the National Domestic Violence Hotline at 1-800-799-7233 or by texting START to 88788.</p><button class="btn" data-act="next">Continue</button></div>`;
@@ -891,6 +1103,33 @@ function ensureLocalCase() {
   return ensureCase({ c: take.caseId, l: take.ctx.planterName, pn: take.ctx.planterName, sn: take.ctx.spouseName, m: take.ctx.married, city: take.ctx.city, net: take.ctx.network, sg: take.ctx.signGifts });
 }
 
+function captureOther() {
+  if (!$("#other-form")) return;
+  const v = (id) => ($("#" + id)?.value || "").trim();
+  const o = take.resp.other || {};
+  o.disc = v("o-disc") || null; o.disc2 = v("o-disc2") || null; o.mbti = v("o-mbti") || null;
+  o.ennea = v("o-ennea") ? +v("o-ennea") : null; o.when = v("o-when") !== "" ? +v("o-when") : null;
+  o.strengths = v("o-strengths").split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean).slice(0, 5);
+  o.pi = v("o-pi").slice(0, 60); o.notes = v("o-notes").slice(0, 1000);
+  o.files = o.files || [];
+  take.resp.other = o;
+}
+async function addOtherFiles(list) {
+  captureOther();
+  const o = take.resp.other, O = B.OTHER;
+  const ok = ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"];
+  const files = [...list].slice(0, O.maxFiles - o.files.length);
+  const bad = files.filter((f) => !ok.includes(f.type) || f.size > O.maxMb * 1048576);
+  if (bad.length) toast(`${bad.map((f) => f.name).join(", ")}: use a PDF or photo under ${O.maxMb} MB.`);
+  const good = files.filter((f) => !bad.includes(f));
+  if (!good.length) { render(); return; }
+  take.uploading = true; render();
+  for (const f of good) {
+    try { o.files.push(take.token ? await L.uploadResult(take.token, f) : { path: "demo/" + f.name, name: f.name, size: f.size }); }
+    catch (err) { toast(`Couldn't upload ${f.name}. Check your connection and try again.`); }
+  }
+  take.uploading = false; saveDraft(); render();
+}
 function advance() {
   const s = take.steps[take.i];
   if (s && ["likert", "pair", "gift", "follow"].includes(s.t) && take.shownAt) {
@@ -918,6 +1157,12 @@ document.addEventListener("click", async (e) => {
   const act = el.dataset.act;
   if (act === "nav") { e.preventDefault(); if (el.dataset.to === "admin") { go({ name: "admin" }); L.platformStats().then((st) => { if (view.name === "admin") { view.stats = st; render(); } }); return; } go({ name: el.dataset.to }); return; }
   if (act === "print") { window.print(); return; }
+  if (act === "open-file") {
+    if (!L.LIVE || el.dataset.path.startsWith("demo/")) { toast("Files aren't stored in the demo."); return; }
+    const w = window.open("", "_blank");
+    L.resultUrl(el.dataset.path).then((u) => { if (w) w.location = u; else location.href = u; }).catch(() => { if (w) w.close(); toast("That file is no longer available."); });
+    return;
+  }
   if (L.LIVE && (await T.onClick(act, el))) return;
   if (act === "jump") { e.preventDefault(); document.getElementById(el.dataset.to)?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
   if (act === "open-sample") { go({ name: "case", id: "kim", tab: "leader" }); return; }
@@ -1011,6 +1256,24 @@ document.addEventListener("click", async (e) => {
     else { arr = arr.filter((x) => !f.opts[x].none); arr = arr.includes(i) ? arr.filter((x) => x !== i) : [...arr, i]; }
     take.resp.facts[s.id] = arr; saveDraft(); render(); return;
   }
+  if (act === "other-next" || act === "other-skip") {
+    if (act === "other-next") captureOther();
+    advance(); return;
+  }
+  if (act === "other-rm") {
+    captureOther();
+    const o = take.resp.other || {}, f = (o.files || [])[+el.dataset.i];
+    if (!f) return;
+    o.files.splice(+el.dataset.i, 1);
+    saveDraft(); render(); return;
+  }
+  if (act === "city-has") {
+    take.resp.context = { ...(take.resp.context || {}), has: el.dataset.v === "true" };
+    rebuildFlow(); clearTimeout(advanceTimer); advanceTimer = setTimeout(advance, 220); render(); return;
+  }
+  if (act === "city-name") { const v = $("#cx-city").value.trim().slice(0, 120); if (!v) { toast("Type the city name, or go back and choose Not yet."); return; } take.resp.context.city = v; advance(); return; }
+  if (act === "cx") { ((take.resp.context ||= {}).pick ||= {})[s.id] = +el.dataset.i; render(); clearTimeout(advanceTimer); advanceTimer = setTimeout(advance, 220); return; }
+  if (act === "cx-text") { ((take.resp.context ||= {}).text ||= {})[s.id] = $("#cx-text").value.trim().slice(0, 1500); advance(); return; }
   if (act === "netq-next") { (take.resp.netqText ||= {})[s.id] = $("#netq-text").value.trim().slice(0, 2000); advance(); return; }
   if (act === "work-next") { B.WORK_SAMPLES.forEach((w) => { const v = $("#work-" + w.id).value.trim(); if (v) take.resp.work[w.id] = v; }); advance(); return; }
   if (act === "private-next") { take.resp.privateNote = $("#priv").value; advance(); return; }
@@ -1065,7 +1328,7 @@ function submitLocal(e) {
     advance();
   }
 }
-document.addEventListener("change", (e) => { if (L.LIVE) T.onChange(e.target); });
+document.addEventListener("change", (e) => { if (e.target.id === "o-files" && take) { addOtherFiles(e.target.files); return; } if (L.LIVE) T.onChange(e.target); });
 
 document.addEventListener("keydown", (e) => {
   if (view.name !== "take" || !take) return;
@@ -1079,7 +1342,7 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "Enter" && s.t === "intro") { e.preventDefault(); advance(); }
 });
 
-T.init({ esc, first, go, render: () => render(), toast, copy, progressBar, ago, roleName, view: () => view, SAMPLES, scoreCase, safeUrl });
+T.init({ esc, first, go, partnerBox, render: () => render(), toast, copy, progressBar, ago, roleName, view: () => view, SAMPLES, scoreCase, safeUrl });
 
 // ---------------- live routing ----------------
 async function route() {
@@ -1110,7 +1373,7 @@ async function route() {
     return;
   }
   if ((m = h.match(/^#\/case\/([0-9a-f-]{36})$/))) { go({ name: "case", id: m[1], after: m[1] }); return; }
-  if ((m = h.match(/^#\/(privacy|terms|about)$/))) { go({ name: m[1] }); return; }
+  if ((m = h.match(/^#\/(privacy|terms|about|leaders)$/))) { go({ name: m[1] }); return; }
   if ((m = h.match(/^#\/r\/([a-f0-9]{20,})$/))) {
     const refToken = m[1];
     let mine = null; try { mine = localStorage.getItem("pl.ref." + refToken); } catch {}
@@ -1141,7 +1404,7 @@ if (L.LIVE) {
     const qs = new URLSearchParams(location.search);
     const join = qs.get("join"), caseId = qs.get("case");
     if (qs.has("code") || join || caseId) history.replaceState(null, "", location.pathname + (join ? "#/join/" + join : caseId ? "#/case/" + caseId : location.hash));
-    if (/^#\/(t|r|join|case|privacy|terms|about)/.test(location.hash)) route();
+    if (/^#\/(t|r|join|case|privacy|terms|about|leaders)/.test(location.hash)) route();
     else if (L.state.session && qs.has("code")) go({ name: "leader" });
     else render();
   });

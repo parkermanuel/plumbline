@@ -70,6 +70,26 @@ async function rest(route) {
 }
 
 // The email function, run against the same database with the same rules
+// Storage: run the same insert/select the real storage server would, under the caller's role, so the bucket policies decide.
+async function storage(route) {
+  const req = route.request(); const url = new URL(req.url()); const uid = uidFrom(req.headers()["authorization"] || "");
+  const json = (s, b) => route.fulfill({ status: s, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(b) });
+  const up = url.pathname.match(/^\/storage\/v1\/object\/results\/(.+)$/), sign = url.pathname.match(/^\/storage\/v1\/object\/sign\/results\/(.+)$/);
+  try {
+    if (req.method() === "POST" && up) {
+      const name = decodeURIComponent(up[1]);
+      await asUser(uid, () => db.query(`insert into storage.objects(bucket_id, name) values ('results', $1)`, [name]));
+      calls.push({ upload: name }); return json(200, { Key: "results/" + name });
+    }
+    if (req.method() === "POST" && sign) {
+      const name = decodeURIComponent(sign[1]);
+      const n = await asUser(uid, () => db.query(`select 1 from storage.objects where bucket_id='results' and name=$1`, [name]));
+      if (!n.rows.length) return json(400, { error: "not_found", message: "Object not found" });
+      calls.push({ signed: name }); return json(200, { signedURL: "/object/sign/results/" + name + "?token=t" });
+    }
+    return json(404, { message: "not mocked" });
+  } catch (e) { return json(403, { error: "Unauthorized", message: e.message }); }
+}
 async function fnEmail(route) {
   const req = route.request(); const uid = uidFrom(req.headers()["authorization"] || ""); const body = JSON.parse(req.postData() || "{}");
   const json = (s, b) => route.fulfill({ status: s, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(b) });
@@ -97,6 +117,7 @@ async function device(who, width = 1100) {
   await ctx.route(SITE + "/**", (r) => r.fulfill({ status: 200, contentType: "text/html", body: HTML }));
   await ctx.route("https://test.supabase.co/rest/**", rest);
   await ctx.route("https://test.supabase.co/functions/**", fnEmail);
+  await ctx.route("https://test.supabase.co/storage/**", storage);
   await ctx.route("https://test.supabase.co/auth/**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
   await ctx.route("https://test.supabase.co/realtime/**", (r) => r.abort());
   await ctx.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
@@ -127,6 +148,11 @@ async function answer(p, maxSteps, stopAtPct = 101) {
       if (/Finished and sealed|Thank you/.test(app) && !document.querySelector(".qcard")) return "done";
       const intro = document.querySelector('.intro-card [data-act="next"]'); if (intro) { intro.click(); return "intro"; }
       const wf = document.querySelector("#welcome"); if (wf) { const n = document.querySelector("#w-name"); if (!n.value) n.value = "Test Person"; const r = document.querySelector("#w-rel"); if (r) r.selectedIndex = 2; document.querySelector("#w-consent").checked = true; wf.requestSubmit(); return "welcome"; }
+      const ca = q('[data-act="city-has"]'); if (ca.length) { const pick = window.__city === false ? ca[1] : ca[0]; if (pick.getAttribute("aria-pressed") === "true") return "wait"; pick.click(); return "city"; }
+      const cn = document.querySelector('[data-act="city-name"]'); if (cn) { const f = document.querySelector("#cx-city"); if (!f.value) f.value = "Boulder, Colorado"; cn.click(); return "cityname"; }
+      const cx = q('[data-act="cx"]'); if (cx.length) { cx[Math.min(2, cx.length - 1)].click(); return "cx"; }
+      const ct = document.querySelector('[data-act="cx-text"]'); if (ct) { document.querySelector("#cx-text").value = "CITY-WHY-ANSWER"; ct.click(); return "cxtext"; }
+      const of = document.querySelector("#other-form"); if (of) { if (window.__wantUpload && !document.querySelector('[data-act="other-rm"]')) return "upload"; const m = document.querySelector("#o-mbti"); if (m) m.value = "ENFP"; const d = document.querySelector("#o-disc"); if (d) d.value = "I"; document.querySelector('[data-act="other-next"]').click(); return "other"; }
       const nt = document.querySelector("#netq-text"); if (nt) { nt.value = "BOULDER-CALLING-ANSWER"; document.querySelector('[data-act="netq-next"]').click(); return "netq"; }
       const ans = q('[data-act="ans"]'); if (ans.length) { const o = [...ans].filter((b) => b.dataset.v !== "0"); o[3 % o.length].click(); return "ans"; }
       const ff = q(".ff-row"); if (ff.length) { if (!document.querySelector('.ff-row .m[aria-pressed="true"]')) ff[0].querySelector(".m").click(); else if (!document.querySelector('.ff-row .l[aria-pressed="true"]')) ff[1].querySelector(".l").click(); else document.querySelector('.qcard [data-act="next"]').click(); return "ff"; }
@@ -143,8 +169,9 @@ async function answer(p, maxSteps, stopAtPct = 101) {
       return "stuck";
     });
     if (t === "done") return "done";
-    if (t === "stuck") { await wait(300); continue; }
-    await wait(["ans", "fact", "rr"].includes(t) ? 260 : 60);
+    if (t === "stuck" || t === "wait") { await wait(300); continue; }
+    if (t === "upload") { await p.setInputFiles("#o-files", { name: "my-disc-report.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") }); await wait(900); continue; }
+    await wait(["ans", "fact", "rr", "city", "cx"].includes(t) ? 300 : 60);
     if (stopAtPct < 101) { const pct = await p.evaluate(() => +(document.querySelector(".chapter-name .num")?.textContent || "0").replace("%", "")); if (pct >= stopAtPct) return "paused"; }
   }
   return "limit";
@@ -202,6 +229,7 @@ await shot(owner, "dashboard");
 const laptop = await device(null);
 await laptop.goto(joshLink); await wait(1200);
 ok(+(await laptop.evaluate(() => document.querySelector(".chapter-name .num")?.textContent || "0").then((x) => x.replace("%", ""))) >= prog.progress - 1, "resumes on another device");
+await laptop.evaluate(() => { window.__wantUpload = true; });
 ok((await answer(laptop, 900)) === "done", "planter finishes (network belief and question included)");
 await wait(800);
 ok(emails.filter((e) => e.kind === "finished").length === 2, "owner and assessor told the planter finished");
@@ -209,7 +237,8 @@ ok(emails.filter((e) => e.kind === "finished").length === 2, "owner and assessor
 // 6. Spouse, then references (one added by email, one through the shared link)
 const sp = await device(null);
 await sp.goto(hannahLink); await wait(1000);
-ok((await answer(sp, 700)) === "done", "spouse finishes");
+await sp.evaluate(() => { window.__city = false; });
+ok((await answer(sp, 700)) === "done", "spouse finishes (no city yet)");
 await sam.evaluate(() => document.querySelector('[data-to="leader"]').click()); await wait(500);
 await click(sam, ".case-row.live"); await wait(800);
 await click(sam, '[data-tab="status"]').catch(() => {}); await wait(500);
@@ -228,6 +257,11 @@ await sam.reload(); await wait(800); await sam.evaluate(() => document.querySele
 await click(sam, ".case-row.live"); await wait(1000);
 const rep = await text(sam);
 ok(/Ready|Pause|Development/.test(rep) && rep.includes("Interview guide") && rep.includes("From Front Range Planting") && rep.includes("BOULDER-CALLING-ANSWER"), "leader report includes the network's question and answer");
+ok(rep.includes("Context") && rep.includes("Boulder, Colorado") && rep.includes("CITY-WHY-ANSWER") && /City fit \d+/.test(rep), "leader report shows the planter's city fit");
+ok(calls.some((c) => c.upload?.endsWith(".pdf")) && rep.includes("my-disc-report.pdf") && rep.includes("ENFP") && /Wiring/.test(rep), "planter's uploaded result and typed-in results reach the leader report");
+await sam.evaluate(() => { window.open = () => ({ close() {}, set location(u) { window.__opened = u; } }); });
+await click(sam, '[data-act="open-file"]'); await wait(700);
+ok(calls.some((c) => c.signed) && /sign\/results/.test(await sam.evaluate(() => window.__opened || "")), "the team opens the uploaded file through a short-lived link");
 ok(rep.includes("We baptize believers"), "leader report includes the network's belief");
 await click(sam, '.rubric button[data-n="4"]'); await wait(900);
 await owner.reload(); await wait(800); await owner.evaluate(() => document.querySelector('[data-to="leader"]').click()); await wait(500);

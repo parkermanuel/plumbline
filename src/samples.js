@@ -74,6 +74,12 @@ const rivera = () => {
   S.guess = {}; P.guess = {};
   COUPLE_AREAS.forEach((a) => a.items.filter((i) => i.guess).forEach((i) => { P.guess[i.id] = S.couple[i.id]; S.guess[i.id] = P.couple[i.id]; }));
   P.guess.ct1 = 5;
+  P.other = { disc: "I", disc2: "D", mbti: "ENFP", strengths: ["Activator", "Woo", "Communication", "Strategic", "Belief"], when: 0, files: [] };
+  S.other = { disc: "C", disc2: "S", mbti: "ISFJ", ennea: 2, when: 1, files: [] };
+  P.context = { has: true, city: "Denver, Colorado", pick: { cx_type: 0, cx_live: 1, cx_known: 2, cx_church: 0, cx_stay: 2, cx_cost: 1 }, text: { why: "We've lived in Five Points for two years and the neighborhood has changed fast. Most of our neighbors moved here for work and have no church background.", who: "Young professionals and new families in Five Points and RiNo." } };
+  P.cxl = { cx1: 4, cx2: 3, cx3: 4, cx4: 4, cx5: 5, cx6: 4, cx7: 4, cx8: 3 };
+  S.context = { has: true, city: "Denver, Colorado", pick: { cx_live: 1, cx_stay: 1 }, text: { feel: "I love our block and our neighbors. I worry about the cost of housing once we have a second child." } };
+  S.cxl = { cxs1: 4, cxs2: 4, cxs3: 4, cxs4: 3, cxs5: 2 };
   const refs = [
     makeRef(21, { name: "Pastor Dan Whitfield", relationship: "Sending or supervising pastor", years: "6", level: { _: 4.4, systems: 3.5 }, follow: 5, ready: 0, gifts: ["leadership", "evangelism", "teaching"], strength: "Marcus has a rare ability to rally people around a vision and then actually develop them. Half our current leaders came through his groups.", growth: "He moves fast; he needs a strong ops partner so details don't fall through." }),
     makeRef(22, { name: "Jordan Ellis", relationship: "Ministry peer", years: "4", level: { _: 4.3 }, follow: 4, ready: 0, gifts: ["leadership", "faith"], strength: "Genuinely loves people far from God. Our softball league knows him by name.", growth: "Sometimes says yes to too much." }),

@@ -199,8 +199,22 @@ export async function setReleased(id, released) {
   must(await sb.from("cases").update({ reports_released: released }).eq("id", id));
   state.cases = state.cases.map((c) => (c.id === id ? { ...c, reports_released: released } : c)); emit("case");
 }
+// Results people upload from other tools live in the private "results" bucket at <their link token>/<random name>.
+export async function uploadResult(token, file) {
+  const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "pdf";
+  const path = `${token}/${crypto.randomUUID()}.${ext}`;
+  must(await sb.storage.from("results").upload(path, file, { contentType: file.type, upsert: false }));
+  return { path, name: file.name.slice(0, 120), size: file.size };
+}
+export async function resultUrl(path) {
+  const { data, error } = await sb.storage.from("results").createSignedUrl(path, 600);
+  if (error) throw error;
+  return data.signedUrl;
+}
 export async function deleteCase(id) {
-  must(await sb.from("cases").delete().eq("id", id));
+  const full = state.full[id];
+  const paths = (full || []).flatMap((p) => p.answers?.other?.files || []).map((f) => f.path).filter((x) => typeof x === "string" && x.includes("/"));
+  if (paths.length) await sb.storage.from("results").remove(paths).catch(() => {});
   state.cases = state.cases.filter((c) => c.id !== id); delete state.full[id]; emit("cases");
 }
 export async function updatePerson(id, patch) {

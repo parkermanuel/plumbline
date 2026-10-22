@@ -144,11 +144,17 @@ label.field { display: grid; gap: 6px; font-weight: 600; font-size: 15px; }
 
 /* ---------- take ---------- */
 .take { max-width: 46rem; margin: 0 auto; }
-.take-top { display: grid; gap: 10px; margin-bottom: 28px; }
+.take-top { display: grid; gap: 14px; margin-bottom: 28px; }
+.pbar { display: grid; gap: 6px; }
+.pbar-label { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--ink-3); }
+.pbar-label b { color: var(--ink); font-weight: 600; }
+.pbar-track { height: 8px; border-radius: 8px; background: var(--rule); overflow: hidden; }
+.pbar-track i { display: block; height: 100%; background: var(--ink); border-radius: 8px; transition: width .25s ease; }
+@media (prefers-reduced-motion: reduce) { .pbar-track i { transition: none; } }
 .chapters { display: flex; gap: 6px; }
 .chapters span { flex: 1; height: 4px; border-radius: 4px; background: var(--rule); overflow: hidden; position: relative; }
 .chapters span i { position: absolute; inset: 0 auto 0 0; background: var(--brass); }
-.chapter-name { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-3); font-weight: 500; }
+.chapter-name { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-3); font-weight: 500; order: -1; }
 .qcard { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r); padding: clamp(22px, 4vw, 40px); box-shadow: var(--shadow); min-height: 340px; display: grid; align-content: space-between; gap: 28px; }
 .qtext { font-family: var(--read); font-size: clamp(1.3rem, 2.6vw, 1.65rem); line-height: 1.35; color: var(--ink); text-wrap: pretty; }
 .qsub { font-size: 14px; color: var(--ink-3); font-weight: 600; }
@@ -398,3 +404,34 @@ details[open] > summary::before { content: "− "; }
 .entry ol { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; font-size: 1rem; line-height: 1.5; }
 .entry ol li::marker { font-family: var(--display); font-weight: 700; font-size: .85em; color: var(--ink-3); }
 .entry .see { margin: 8px 0 0; font-size: .9rem; font-style: italic; color: var(--ink-3); }
+
+.partner { margin-top: 64px; padding: 28px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); display: grid; gap: 18px; }
+.partner h2 { font-size: clamp(1.4rem, 3vw, 1.9rem); }
+.partner.strong { border: 2px solid var(--brass); background: var(--brass-soft); }
+.partner .kicker { color: var(--brass-text); font-weight: 700; font-size: 15px; }
+@media print { .partner { display: none; } }
+
+.deck .slide { padding: 72px 0; border-bottom: 1px solid var(--rule); }
+.deck .slide:nth-child(even) { background: var(--paper-2); }
+.deck .hero-slide { padding: 96px 0 80px; }
+.deck .hero-slide h1 { max-width: 18ch; margin: 12px 0 18px; }
+.deck .kicker { color: var(--brass-text); font-weight: 700; font-size: 15px; }
+.deck h2 { font-size: clamp(1.6rem, 3.6vw, 2.4rem); max-width: 24ch; }
+.lstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.lstat { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r); padding: 20px; display: grid; gap: 4px; }
+.lstat b { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+.lstat span { font-weight: 600; }
+.lstat small { color: var(--ink-3); font-size: 13px; line-height: 1.4; }
+.lpoint { display: grid; gap: 4px; }
+.lpoint b { font-size: 1.05rem; }
+.lpoint p { margin: 0; font-family: var(--read); color: var(--ink-2); }
+.compare td, .compare th { text-align: center; }
+.compare td:first-child, .compare th:first-child { text-align: left; }
+.compare .us { background: var(--brass-soft); font-weight: 700; }
+.ck { color: var(--band-a); font-size: 18px; } .ck.part { color: var(--band-b); } .ck.no { color: var(--ink-3); }
+.lsteps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 14px; }
+.lsteps li { counter-increment: s; display: grid; grid-template-columns: 44px 220px 1fr; gap: 16px; align-items: baseline; padding: 14px 0; border-top: 1px solid var(--rule); }
+.lsteps li::before { content: counter(s); font-weight: 800; font-size: 1.4rem; color: var(--brass-text); }
+.lsteps li div { display: grid; } .lsteps li p { margin: 0; font-family: var(--read); color: var(--ink-2); }
+@media (max-width: 760px) { .lstats { grid-template-columns: 1fr 1fr; } .lsteps li { grid-template-columns: 32px 1fr; } .lsteps li p { grid-column: 2; } }
+@media (max-width: 460px) { .lstats { grid-template-columns: 1fr; } }

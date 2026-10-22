@@ -880,3 +880,73 @@ export const REF_ITEMS = [
 export const FOLLOW_TEST = "If they planted a church in your city, how likely would you be to join the launch team?";
 export const FOLLOW_SCALE = ["Not likely", "Unlikely", "Maybe", "Likely", "I'd be the first one there"];
 export const REF_READY = ["Ready now", "Ready within a year", "Not yet", "I'm not sure"];
+
+// ---------- OTHER ASSESSMENTS (optional; results people already have) ----------
+// Plumbline never asks these tools' questions. People type in, or upload, results they already have,
+// and the leader report sets them beside Wiring. Names belong to their owners.
+export const OTHER = {
+  disc: { name: "DISC", styles: [["D", "Dominance"], ["I", "Influence"], ["S", "Steadiness"], ["C", "Conscientiousness"]] },
+  mbti: { name: "Myers-Briggs (MBTI) or 16Personalities", types: ["ISTJ", "ISFJ", "INFJ", "INTJ", "ISTP", "ISFP", "INFP", "INTP", "ESTP", "ESFP", "ENFP", "ENTP", "ESTJ", "ESFJ", "ENFJ", "ENTJ"] },
+  strengths: { name: "CliftonStrengths (StrengthsFinder)", hint: "Your top five, separated by commas" },
+  ennea: { name: "Enneagram", types: ["1 Reformer", "2 Helper", "3 Achiever", "4 Individualist", "5 Investigator", "6 Loyalist", "7 Enthusiast", "8 Challenger", "9 Peacemaker"] },
+  pi: { name: "Predictive Index", hint: "Your reference profile, like Maverick or Collaborator" },
+  when: ["In the last year", "1 to 3 years ago", "More than 3 years ago"],
+  maxFiles: 5, maxMb: 5,
+};
+// How another tool's result is compared with Wiring. Only links with published research or a direct definitional match.
+export const OTHER_LINKS = [
+  { tool: "disc", match: "D", track: "drive", side: "right", basis: "DISC's D (Dominance) describes someone direct who takes charge, the Independent end of Drive." },
+  { tool: "disc", match: "I", track: "people", side: "right", basis: "DISC's I (Influence) describes someone outgoing and people-energized, the Social end of People." },
+  { tool: "disc", match: "S", track: "pace", side: "left", basis: "DISC's S (Steadiness) describes a patient, consistent pace, the Steady end of Pace." },
+  { tool: "disc", match: "C", track: "structure", side: "right", basis: "DISC's C (Conscientiousness) describes careful, detail-minded work, the Precise end of Structure." },
+  { tool: "mbti", match: "E", pos: 0, track: "people", side: "right", basis: "MBTI's E–I scale lines up closely with extraversion (McCrae & Costa, 1989, Journal of Personality)." },
+  { tool: "mbti", match: "I", pos: 0, track: "people", side: "left", basis: "MBTI's E–I scale lines up closely with extraversion (McCrae & Costa, 1989, Journal of Personality)." },
+  { tool: "mbti", match: "J", pos: 3, track: "structure", side: "right", basis: "MBTI's J–P scale lines up with conscientiousness (McCrae & Costa, 1989, Journal of Personality)." },
+  { tool: "mbti", match: "P", pos: 3, track: "structure", side: "left", basis: "MBTI's J–P scale lines up with conscientiousness (McCrae & Costa, 1989, Journal of Personality)." },
+];
+
+// ---------- CONTEXT (optional city fit) ----------
+// Asked only if the couple has identified a city. Plumbline doesn't show a city profile; it asks what the planter
+// and spouse know and feel about the place. The leader report sets their answers beside public data to check.
+export const CONTEXT = {
+  choices: [
+    { id: "cx_type", q: "What kind of place is it?", opts: ["Urban core", "Suburb", "Small town", "Rural", "College town", "Somewhere else"] },
+    { id: "cx_live", q: "Do you live there now?", both: true, opts: ["Yes, for 3 years or more", "Yes, for less than 3 years", "No, but we live within an hour", "No, we'd move there"], flag: [3] },
+    { id: "cx_known", q: "How many people there who don't go to church do you know by name?", opts: ["None yet", "1 to 4", "5 to 14", "15 or more"], flag: [0, 1] },
+    { id: "cx_church", q: "About what share of people there do you think are in church on a typical weekend?", opts: ["Under 10%", "10 to 20%", "20 to 35%", "Over 35%", "I don't know"], flag: [4] },
+    { id: "cx_stay", q: "How long do you plan to stay?", both: true, opts: ["Less than 5 years", "5 to 10 years", "More than 10 years", "The rest of our lives"], flag: [0] },
+    { id: "cx_cost", q: "Could your household afford to live there on a planter's pay for the first three years?", opts: ["Yes, comfortably", "Yes, but it would be tight", "Only with a second income or a bivocational job", "I'm not sure yet"], flag: [3] },
+  ],
+  planter: [
+    { id: "cx1", t: "The people who live there are a lot like me in age, education and way of life." },
+    { id: "cx2", t: "I've lived in a place like this before." },
+    { id: "cx3", t: "I understand what most people there believe about God and the church." },
+    { id: "cx4", t: "I can name the city's biggest needs and tensions." },
+    { id: "cx5", t: "I enjoy the things people there do for fun." },
+    { id: "cx6", t: "I've talked with pastors already serving there about what God is doing." },
+    { id: "cx7", t: "I'd still want to plant there if growth came slowly." },
+    { id: "cx8", t: "My family would thrive there: schools, friends and distance from relatives.", married: true },
+  ],
+  spouse: [
+    { id: "cxs1", t: "I can picture our family thriving there." },
+    { id: "cxs2", t: "I'm excited about this city myself, not just going along." },
+    { id: "cxs3", t: "I have friends there, or I can see how I'd make them." },
+    { id: "cxs4", t: "The pace and culture of the city suit me." },
+    { id: "cxs5", t: "I understand what living there will cost us." },
+  ],
+  texts: {
+    planter: [{ id: "why", q: "Why this city? What has God shown you about it?" }, { id: "who", q: "Who there do you most want to reach?" }],
+    spouse: [{ id: "feel", q: "What excites you about this city, and what worries you?" }],
+  },
+  checkWith: [
+    ["U.S. Census QuickFacts", "https://www.census.gov/quickfacts", "Age, education, income, housing cost"],
+    ["U.S. Religion Census (ARDA)", "https://www.thearda.com/us-religion/census/congregational-membership", "How many people belong to a congregation, by county"],
+  ],
+};
+
+// ---------- PARTNER (Parker's Stripe links) ----------
+export const PARTNER = {
+  once: "https://buy.stripe.com/28E7sL4r2d9j5FM6Ux9R600",
+  monthly: [["$10", "https://buy.stripe.com/14A4gze1C7OZc4afr39R601"], ["$25", "https://buy.stripe.com/28EdR92iU5GR7NUceR9R602"], ["$50", "https://buy.stripe.com/8x25kD1eQ9X70lsfr39R603"]],
+  manage: "https://billing.stripe.com/p/login/28E7sL4r2d9j5FM6Ux9R600",
+};

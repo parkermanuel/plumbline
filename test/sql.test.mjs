@@ -10,6 +10,12 @@ export async function makeDb() {
     create table auth.users (id uuid primary key, email text);
     create or replace function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.uid', true), '')::uuid $$;
     create publication supabase_realtime;
+    create schema storage;
+    create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
+    alter table storage.objects enable row level security;
+    grant usage on schema storage to anon, authenticated;
+    grant select, insert, delete on storage.objects to anon, authenticated;
   `);
   // Supabase's defaults: anon and authenticated get everything on new tables and functions in public
   await db.exec(`grant usage on schema public to anon, authenticated, service_role;
@@ -165,6 +171,27 @@ async function main() {
   ok(!one.couple.cmo1 && !one.wiring.pace, "summaries need at least two answers, so one answer can't be read back");
   const newRef = (await as(OWNER, () => q(`select public.pl_rotate_ref($1) as t`, [caseId])))[0].t;
   ok(newRef !== refTok && (await as(null, () => q(`select public.pl_ref_case($1) as j`, [refTok])))[0].j === null, "a new reference link replaces the old one");
+
+  // Uploaded results from other assessments
+  const open1 = (await q(`select p.token from public.participants p join public.cases c on c.id = p.case_id where c.network_id=$1 and p.role in ('planter','spouse') and p.status <> 'finished' limit 1`, [nid]))[0]?.token;
+  const done1 = (await q(`select p.token from public.participants p where p.role in ('planter','spouse') and p.status = 'finished' limit 1`))[0]?.token;
+  const ref1 = (await q(`select p.token from public.participants p where p.role = 'reference' limit 1`))[0]?.token;
+  const put = (uid, tok, n) => tryAs(uid, `insert into storage.objects(bucket_id, name) values ('results', $1)`, [`${tok}/${n}.pdf`]);
+  ok(open1 && (await put(null, open1, "a")) === null, "a planter or spouse link can upload a result file");
+  for (const n of ["b", "c", "d", "e"]) await put(null, open1, n);
+  ok(!!(await put(null, open1, "f")), "no more than five files per person");
+  ok(!!(await put(null, "f".repeat(64), "a")), "a made-up link can't upload");
+  ok(!ref1 || !!(await put(null, ref1, "a")), "a reference link can't upload");
+  ok(!done1 || !!(await put(null, done1, "a")), "no uploads after finishing");
+  const seen = async (uid) => (await as(uid, () => q(`select count(*)::int n from storage.objects where bucket_id='results' and name like $1`, [open1 + "/%"])))[0].n;
+  ok((await seen(ASSESSOR)) === 5 && (await seen(OUTSIDER)) === 0, "the network's team can read the files; other networks can't");
+  ok((await seen(null)) === 0, "visitors can't list or read files, even with a link");
+  await as(ASSESSOR, () => q(`delete from storage.objects where bucket_id='results' and name like $1`, [open1 + "/%"]));
+  ok((await q(`select count(*)::int n from storage.objects where name like $1`, [open1 + "/%"]))[0].n === 5, "assessors can't delete files");
+  await as(OWNER, () => q(`delete from storage.objects where bucket_id='results' and name = $1`, [open1 + "/a.pdf"]));
+  await tryAs(null, `delete from storage.objects where bucket_id='results' and name like $1`, [open1 + "/%"]);
+  ok((await q(`select count(*)::int n from storage.objects where name like $1`, [open1 + "/%"]))[0].n === 4, "owners can delete files; visitors can't");
+  ok((await q(`select public from storage.buckets where id='results'`))[0].public === false, "the results bucket is private");
 
   // Delete and retention
   ok(!!(await tryAs(ASSESSOR, `delete from public.cases where id=$1`, [caseId2])) || (await q(`select count(*)::int n from public.cases where id=$1`, [caseId2]))[0].n === 1, "assessor can't delete");

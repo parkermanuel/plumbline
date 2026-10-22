@@ -653,6 +653,47 @@ do $$ begin
     using (bucket_id = 'logos' and public.pl_logo_ok(name));
 exception when undefined_table or invalid_schema_name or undefined_function then null; end $$;
 
+-- ============ Uploaded results from other assessments (Supabase Storage, private) ============
+-- A file lives at <participant link token>/<random name>. Whoever holds a planter or spouse link can add up to 5 files
+-- until they finish, but can't list, read or delete files (the path holds their token, so visitors get no read access at all).
+-- Their network's team can read them; owners and admins can delete them. Removing a file in the app only detaches it;
+-- the nightly sweep (plumbline-sweep) deletes files that are detached or whose person no longer exists.
+create or replace function public.pl_result_owner(p_name text) returns boolean language sql stable security definer set search_path = public as $$
+  select split_part(p_name, '/', 1) ~ '^[0-9a-f]{64}$' and exists (
+    select 1 from public.participants p where p.token = split_part(p_name, '/', 1) and p.role in ('planter', 'spouse') and p.status <> 'finished')
+$$;
+create or replace function public.pl_result_team(p_name text, p_admin boolean) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.participants p join public.cases c on c.id = p.case_id
+    where p.token = split_part(p_name, '/', 1) and case when p_admin then public.pl_is_admin(c.network_id) else public.pl_is_member(c.network_id) end)
+$$;
+revoke all on function public.pl_result_owner(text) from public;
+revoke all on function public.pl_result_team(text, boolean) from public, anon;
+grant execute on function public.pl_result_owner(text) to anon, authenticated;
+grant execute on function public.pl_result_team(text, boolean) to authenticated;
+do $$ begin
+  insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values ('results', 'results', false, 5242880, array['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'])
+    on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+  execute $f$
+    create or replace function public.pl_result_room(p_name text) returns boolean language sql stable security definer set search_path = public as $b$
+      select public.pl_result_owner(p_name) and (select count(*) from storage.objects o
+        where o.bucket_id = 'results' and split_part(o.name, '/', 1) = split_part(p_name, '/', 1)) < 5
+    $b$ $f$;
+  revoke all on function public.pl_result_room(text) from public;
+  grant execute on function public.pl_result_room(text) to anon, authenticated;
+  drop policy if exists "people add results" on storage.objects;
+  create policy "people add results" on storage.objects for insert to anon, authenticated
+    with check (bucket_id = 'results' and public.pl_result_room(name));
+  drop policy if exists "people and teams see results" on storage.objects;
+  drop policy if exists "teams see results" on storage.objects;
+  create policy "teams see results" on storage.objects for select to authenticated
+    using (bucket_id = 'results' and public.pl_result_team(name, false));
+  drop policy if exists "people and admins remove results" on storage.objects;
+  drop policy if exists "admins remove results" on storage.objects;
+  create policy "admins remove results" on storage.objects for delete to authenticated
+    using (bucket_id = 'results' and public.pl_result_team(name, true));
+exception when undefined_table or invalid_schema_name or undefined_function then null; end $$;
+
 -- ============ Nightly clean-up (needs the pg_cron extension, available in Supabase) ============
 do $$ begin
   create extension if not exists pg_cron;

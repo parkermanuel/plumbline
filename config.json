@@ -1,6 +1,6 @@
 {
-  "supabaseUrl": "",
-  "supabaseAnonKey": "",
+  "supabaseUrl": "https://msjmhbggcwwppqzfkxug.supabase.co",
+  "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zam1oYmdnY3d3cHBxemZreHVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2OTQ4NjgsImV4cCI6MjEwODI3MDg2OH0.x4GR_L0CTaEfGITa1OnS3RY2FzPrD6nG9Yj6PJTp2hc",
   "siteUrl": "https://plumblineassessment.com",
   "domain": "plumblineassessment.com"
 }

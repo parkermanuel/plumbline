@@ -1,0 +1,17 @@
+name: Nightly file sweep
+# Once a day, delete uploaded result files that no assessment points to any more.
+on:
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Run the sweep
+        if: env.SUPABASE_PROJECT_REF != ''
+        run: curl -fsS -X POST "https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1/plumbline-sweep"

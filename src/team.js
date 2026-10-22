@@ -16,6 +16,7 @@ export function login(note = "") {
     <div id="l-msg"></div>
     <div><button class="btn" type="submit">Email me a sign-in link</button></div>
     <p class="small">Planters, spouses and references don't need to sign in. They use the personal link their network leader sends.</p>
+    <p class="small"><button type="button" class="link" data-act="nav" data-to="leaders">New to Plumbline? See how it's built.</button></p>
   </form></div>`;
 }
 function onboarding() {
@@ -63,6 +64,7 @@ export function dashboard() {
         <div>${st === "review" ? `<span class="outcome tone-a">Ready to review</span>` : st === "progress" ? `<span class="sdot">In progress</span>` : `<span class="sdot">Not started</span>`}</div></button>`;
     }).join("")}${all.length && !shown.length ? `<p class="muted">Nothing matches that search.</p>` : ""}</div>
     <details class="stack"><summary class="small" style="cursor:pointer">Sample reports</summary><div class="cases" style="margin-top:12px">${H.SAMPLES.map((c) => { const r = H.scoreCase(c); return `<button class="case-row" data-act="open-case" data-id="${c.id}"><div><div class="case-name">${esc(c.label)}</div><div class="small">Sample</div></div><div></div><div><span class="outcome tone-${r.outcome.tone}">${r.outcome.name}</span></div></button>`; }).join("")}</div></details>
+    ${H.partnerBox(true)}
   </div>`;
 }
 

@@ -1,7 +1,7 @@
 // Scoring engine. Pure functions: answers in, results out. No UI.
 import {
   PILLARS, SCALES, SPOUSE_SCALES, SPOUSE_SEES, COUPLE_AREAS, WIRING, GIFTS, SIGN_GIFTS, FIVEFOLD,
-  FIVEFOLD_BLOCKS, SCENARIOS, CANDOR, BOGUS, CONSISTENCY_PAIRS, SAFETY, BELIEFS, FACTS, REF_ITEMS,
+  FIVEFOLD_BLOCKS, SCENARIOS, CANDOR, BOGUS, CONSISTENCY_PAIRS, SAFETY, BELIEFS, FACTS, REF_ITEMS, OTHER, OTHER_LINKS, CONTEXT,
 } from "./bank.js";
 
 export const BANDS = [
@@ -80,6 +80,57 @@ export function wiring(r) {
     const strength = Math.abs(pos - 50) >= 35 ? "Strongly " : "";
     return { ...d, pos, lean, label: lean === "Balanced" ? `Balanced ${d.left.toLowerCase()} and ${d.right.toLowerCase()}` : strength + lean };
   });
+}
+
+// Context: how well the planter (or spouse) fits the city they've named. Described with watch items; it doesn't change the outcome.
+export function contextFit(r, role, married = true) {
+  const c = r?.context;
+  if (!c || c.has == null) return null;
+  if (c.has !== true) return { has: false };
+  const items = role === "planter" ? CONTEXT.planter.filter((i) => married || !i.married) : CONTEXT.spouse;
+  const answered = items.map((i) => ({ ...i, v: r.cxl?.[i.id] })).filter((i) => i.v != null);
+  const p = answered.length >= 3 ? pct(avg(answered.map((i) => i.v))) : null;
+  const picks = CONTEXT.choices.filter((ch) => (role === "planter" || ch.both) && Number.isInteger(c.pick?.[ch.id]) && ch.opts[c.pick[ch.id]])
+    .map((ch) => ({ id: ch.id, q: ch.q, a: ch.opts[c.pick[ch.id]], i: c.pick[ch.id], watch: !!ch.flag?.includes(c.pick[ch.id]) }));
+  const texts = (CONTEXT.texts[role] || []).map((x) => ({ q: x.q, a: (c.text?.[x.id] || "").trim() })).filter((x) => x.a);
+  return { has: true, city: (c.city || "").trim().slice(0, 120), pct: p, band: bandOf(p), n: answered.length, of: items.length,
+    low: answered.filter((i) => i.v <= 2).map((i) => i.t), high: answered.filter((i) => i.v >= 5).map((i) => i.t), picks, texts };
+}
+
+// Results from other tools the person already took, set beside Wiring. Returns null when nothing was shared.
+export function otherTools(r, w) {
+  const o = r?.other;
+  if (!o) return null;
+  const clean = (v, n = 80) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+  const disc = OTHER.disc.styles.find(([k]) => k === o.disc) ? o.disc : null;
+  const disc2 = OTHER.disc.styles.find(([k]) => k === o.disc2) && o.disc2 !== disc ? o.disc2 : null;
+  const mbti = OTHER.mbti.types.includes(o.mbti) ? o.mbti : null;
+  const ennea = Number.isInteger(o.ennea) && o.ennea >= 1 && o.ennea <= 9 ? o.ennea : null;
+  const strengths = (Array.isArray(o.strengths) ? o.strengths : []).map((x) => clean(x, 40)).filter(Boolean).slice(0, 5);
+  const pi = clean(o.pi, 60), notes = clean(o.notes, 1000);
+  const when = OTHER.when[o.when] ? o.when : null;
+  const files = (Array.isArray(o.files) ? o.files : []).filter((f) => f && typeof f.path === "string").slice(0, OTHER.maxFiles)
+    .map((f) => ({ path: f.path, name: clean(f.name, 120) || "File", size: +f.size || 0 }));
+  const entries = [];
+  if (disc) entries.push({ tool: "DISC", value: `${disc}${disc2 ? "/" + disc2 : ""} (${OTHER.disc.styles.find(([k]) => k === disc)[1]}${disc2 ? ", then " + OTHER.disc.styles.find(([k]) => k === disc2)[1] : ""})` });
+  if (mbti) entries.push({ tool: "Myers-Briggs", value: mbti });
+  if (strengths.length) entries.push({ tool: "CliftonStrengths", value: strengths.join(", ") });
+  if (ennea) entries.push({ tool: "Enneagram", value: OTHER.ennea.types[ennea - 1] });
+  if (pi) entries.push({ tool: "Predictive Index", value: pi });
+  if (notes) entries.push({ tool: "Other", value: notes });
+  // Compare with Wiring: a lean at or past 65 (or at or below 35) counts as that end; 36–64 is the middle.
+  const checks = [];
+  const add = (tool, letter) => OTHER_LINKS.filter((l) => l.tool === tool && l.match === letter).forEach((l) => {
+    const d = (w || []).find((x) => x.id === l.track);
+    if (!d || d.pos == null) return;
+    const ours = d.pos >= 65 ? "right" : d.pos <= 35 ? "left" : "middle";
+    checks.push({ tool: tool === "disc" ? "DISC" : "Myers-Briggs", letter, track: d.id, trackName: `${d.left} ↔ ${d.right}`, theirs: l.side === "right" ? d.right : d.left,
+      ours: d.label, pos: d.pos, result: ours === "middle" ? "middle" : ours === l.side ? "agree" : "differ", basis: l.basis });
+  });
+  if (disc) add("disc", disc);
+  if (mbti) { add("mbti", mbti[0]); add("mbti", mbti[3]); }
+  if (!entries.length && !files.length) return null;
+  return { entries, files, when: when == null ? null : OTHER.when[when], checks, agree: checks.filter((c) => c.result === "agree").length };
 }
 
 export function gifts(r, { signGifts = true } = {}) {
@@ -270,6 +321,8 @@ export function scoreCase(c) {
   out.validity = P ? validity(P) : null;
   out.wiring = P ? wiring(P) : null;
   out.gifts = P ? gifts(P, { signGifts }) : null;
+  out.other = P ? otherTools(P, out.wiring) : null;
+  out.context = P ? contextFit(P, "planter", married) : null;
   out.fivefold = P ? fivefold(P) : null;
   out.scenarios = P ? scenarios(P, married) : null;
   out.facts = P ? facts(P) : null;
@@ -286,6 +339,8 @@ export function scoreCase(c) {
     out.spouseValidity = validity(S, CANDOR.filter((x) => x.id !== "cd1"));
     out.spouseWiring = wiring(S);
     out.spouseGifts = gifts(S, { signGifts });
+    out.spouseOther = otherTools(S, out.spouseWiring);
+    out.spouseContext = contextFit(S, "spouse");
     out.spouseFivefold = fivefold(S);
     out.couple = couple(P, S);
     const sf = S.safety || {};
