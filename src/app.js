@@ -534,8 +534,8 @@ function wiredSection(c, r, leader) {
       <div class="panel flat stack"><h3>${esc(pn)}'s spiritual gifts</h3>${giftFan(r.gifts.list)}</div>
     </div>
     ${r.spouseGifts ? `<div class="two"><div class="panel flat stack"><h3>${esc(sn)}'s spiritual gifts</h3>${giftFan(r.spouseGifts.list)}</div>
-      <div class="panel flat stack"><h3>Top gifts together</h3><div class="two" style="gap:16px"><div><b class="small" style="color:var(--brass)">${esc(pn)}</b><ul class="list-clean" style="margin-top:6px">${r.gifts.top.map((g) => `<li><span>${esc(g.name)} <span class="muted small">${esc(g.ref)}</span></span></li>`).join("")}</ul></div>
-      <div><b class="small" style="color:var(--chalk)">${esc(sn)}</b><ul class="list-clean" style="margin-top:6px">${r.spouseGifts.top.map((g) => `<li><span>${esc(g.name)} <span class="muted small">${esc(g.ref)}</span></span></li>`).join("")}</ul></div></div>
+      <div class="panel flat stack"><h3>Top gifts together</h3><div class="two" style="gap:16px"><div><b class="small" style="color:var(--brass-text)">${esc(pn)}</b><ul class="list-clean" style="margin-top:6px">${r.gifts.top.map((g) => `<li><span>${esc(g.name)} <span class="muted small">${esc(g.ref)}</span></span></li>`).join("")}</ul></div>
+      <div><b class="small" style="color:var(--chalk-text)">${esc(sn)}</b><ul class="list-clean" style="margin-top:6px">${r.spouseGifts.top.map((g) => `<li><span>${esc(g.name)} <span class="muted small">${esc(g.ref)}</span></span></li>`).join("")}</ul></div></div>
       ${leader && Object.keys(r.refs.giftsSeen).length ? `<hr class="rule"><b class="small">Gifts references named</b><p class="small" style="margin:0">${Object.entries(r.refs.giftsSeen).sort((a, b) => b[1] - a[1]).map(([g, n]) => `${esc(B.GIFTS.find((x) => x.id === g)?.name || g)} (${n})`).join(", ")}</p>` : ""}</div></div>` : ""}
   </section>`;
 }

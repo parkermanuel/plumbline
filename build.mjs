@@ -1,6 +1,6 @@
 // Builds the live site into dist/: index.html (+ 404.html for GitHub Pages) with the Supabase config baked in.
 import { build } from "esbuild";
-import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, readdirSync } from "fs";
 
 const cfgPath = process.env.PL_CONFIG || "config.json";
 const cfg = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, "utf8")) : {};
@@ -21,6 +21,8 @@ const html = `<!doctype html>
 <meta property="og:title" content="Plumbline: measure true, plant strong">
 <meta property="og:description" content="${desc}">
 <meta property="og:type" content="website">
+${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card.png"><meta name="twitter:card" content="summary_large_image">` : ""}
+<link rel="apple-touch-icon" href="plumbline-app-icon.png">
 <meta name="theme-color" content="#141c24">
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 32"><line x1="10" y1="0" x2="10" y2="15" stroke="#141c24" stroke-width="2.4"/><path d="M10 14 L16 21 L10 32 L4 21 Z" fill="#a8802f"/></svg>')}">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,5 +37,6 @@ const html = `<!doctype html>
 mkdirSync("dist", { recursive: true });
 writeFileSync("dist/index.html", html);
 writeFileSync("dist/404.html", html);
+for (const f of existsSync("public") ? readdirSync("public") : []) copyFileSync("public/" + f, "dist/" + f);
 if (cfg.domain) writeFileSync("dist/CNAME", cfg.domain + "\n");
 console.log(`built dist/index.html ${(html.length / 1024).toFixed(0)}KB, live=${!!(cfg.supabaseUrl && cfg.supabaseAnonKey)}`);
