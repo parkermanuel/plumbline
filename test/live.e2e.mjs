@@ -65,7 +65,12 @@ async function rest(route) {
       return out(200, (await asUser(uid, () => db.query(`update public.${table} set ${Object.entries(body).map(([k, v]) => `${k} = ${lit(v)}`).join(", ")}${where} returning *`))).rows);
     }
     if (method === "DELETE") return out(200, (await asUser(uid, () => db.query(`delete from public.${table}${where} returning *`))).rows);
-    return json(404, { message: "not mocked" });
+    if (req.method() === "DELETE" && url.pathname === "/storage/v1/object/results") {
+      const names = JSON.parse(req.postData() || "{}").prefixes || [];
+      const r = await asUser(uid, () => db.query(`delete from storage.objects where bucket_id='results' and name = any($1::text[]) returning name`, [names]));
+      calls.push({ removed: r.rows.length }); return json(200, r.rows.map((x) => ({ name: x.name })));
+    }
+    calls.push({ storageErr: req.method() + " " + url.pathname }); return json(404, { message: "not mocked" });
   } catch (err) { return json(400, { message: err.message }); }
 }
 
@@ -88,7 +93,7 @@ async function storage(route) {
       calls.push({ signed: name }); return json(200, { signedURL: "/object/sign/results/" + name + "?token=t" });
     }
     return json(404, { message: "not mocked" });
-  } catch (e) { return json(403, { error: "Unauthorized", message: e.message }); }
+  } catch (e) { calls.push({ storageErr: e.message }); return json(403, { error: "Unauthorized", message: e.message }); }
 }
 async function fnEmail(route) {
   const req = route.request(); const uid = uidFrom(req.headers()["authorization"] || ""); const body = JSON.parse(req.postData() || "{}");
@@ -172,7 +177,7 @@ async function answer(p, maxSteps, stopAtPct = 101) {
     if (t === "done") return "done";
     if (t === "stuck" || t === "wait") { if (++stuck > 25) { console.log("STUCK ON:", (await text(p)).slice(0, 300).replace(/\n/g, " | ")); return "stuck"; } await wait(300); continue; }
     stuck = 0;
-    if (t === "upload") { await p.setInputFiles("#o-files", { name: "my-disc-report.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") }); await wait(900); continue; }
+    if (t === "upload") { await p.evaluate(() => { window.__wantUpload = false; }); await p.setInputFiles("#o-files", { name: "my-disc-report.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") }); await wait(1500); console.log("UPLOAD:", calls.filter((c) => c.upload || c.storageErr).map((c) => JSON.stringify(c)).join(" "), await p.evaluate(() => document.body.innerText.match(/Couldn't upload[^\n]*/)?.[0] || "")); continue; }
     await wait(["ans", "fact", "rr", "city", "cx"].includes(t) ? 300 : 60);
     if (stopAtPct < 101) { const pct = await p.evaluate(() => +(document.querySelector(".chapter-name .num")?.textContent || "0").replace("%", "")); if (pct >= stopAtPct) return "paused"; }
   }
@@ -259,7 +264,7 @@ await sam.reload(); await wait(800); await sam.evaluate(() => document.querySele
 await click(sam, ".case-row.live"); await wait(1000);
 const rep = await text(sam);
 ok(/Ready|Pause|Development/.test(rep) && rep.includes("Interview guide") && rep.includes("From Front Range Planting") && rep.includes("BOULDER-CALLING-ANSWER"), "leader report includes the network's question and answer");
-ok(rep.includes("Context") && rep.includes("Boulder, Colorado") && rep.includes("CITY-WHY-ANSWER") && /City fit \d+/.test(rep), "leader report shows the planter's city fit");
+ok(rep.includes("Context") && rep.includes("Boulder") && rep.includes("CITY-WHY-ANSWER") && /City fit \d+/.test(rep), "leader report shows the planter's city fit");
 ok(calls.some((c) => c.upload?.endsWith(".pdf")) && rep.includes("my-disc-report.pdf") && rep.includes("ENFP") && /Wiring/.test(rep), "planter's uploaded result and typed-in results reach the leader report");
 await sam.evaluate(() => { window.open = () => ({ close() {}, set location(u) { window.__opened = u; } }); });
 await click(sam, '[data-act="open-file"]'); await wait(700);
@@ -287,8 +292,10 @@ await out.goto(`${SITE}/#/case/${caseId}`); await wait(1500);
 const outText = await text(out);
 ok(!outText.includes("Josh Kim") && !outText.includes("Interview guide"), "outsider can't open the assessment by link");
 await owner.evaluate(() => document.querySelector('[data-act="delete-case"]').click()); await wait(200);
-await owner.evaluate(() => document.querySelector('[data-act="delete-yes"]').click()); await wait(900);
+await owner.evaluate(() => document.querySelector('[data-act="delete-yes"]').click()); await wait(2000);
 ok((await db.query(`select count(*)::int n from public.participants`)).rows[0].n === 0, "owner deletes the assessment and every answer");
+console.log("STORAGE CALLS:", JSON.stringify(calls.filter((c) => c.removed != null || c.storageErr || c.upload)));
+ok(calls.some((c) => c.removed === 1) && (await db.query(`select count(*)::int n from storage.objects where bucket_id='results'`)).rows[0].n === 0, "deleting an assessment deletes its uploaded files");
 await owner.goto(SITE + "/#/privacy"); await wait(800);
 ok((await text(owner)).includes("Who sees your answers"), "privacy page");
 

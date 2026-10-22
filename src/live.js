@@ -202,7 +202,8 @@ export async function setReleased(id, released) {
 // Results people upload from other tools live in the private "results" bucket at <their link token>/<random name>.
 export async function uploadResult(token, file) {
   const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "pdf";
-  const path = `${token}/${crypto.randomUUID()}.${ext}`;
+  const rand = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const path = `${token}/${rand}.${ext}`;
   must(await sb.storage.from("results").upload(path, file, { contentType: file.type, upsert: false }));
   return { path, name: file.name.slice(0, 120), size: file.size };
 }
@@ -212,9 +213,10 @@ export async function resultUrl(path) {
   return data.signedUrl;
 }
 export async function deleteCase(id) {
-  const full = state.full[id];
+  const full = must(await sb.from("participants").select("answers").eq("case_id", id));
   const paths = (full || []).flatMap((p) => p.answers?.other?.files || []).map((f) => f.path).filter((x) => typeof x === "string" && x.includes("/"));
   if (paths.length) await sb.storage.from("results").remove(paths).catch(() => {});
+  must(await sb.from("cases").delete().eq("id", id));
   state.cases = state.cases.filter((c) => c.id !== id); delete state.full[id]; emit("cases");
 }
 export async function updatePerson(id, patch) {
