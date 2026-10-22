@@ -11,16 +11,20 @@ export async function makeDb() {
     create or replace function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.uid', true), '')::uuid $$;
     create publication supabase_realtime;
   `);
+  // Supabase's defaults: anon and authenticated get everything on new tables and functions in public
+  await db.exec(`grant usage on schema public to anon, authenticated, service_role;
+    alter default privileges in schema public grant all on tables to anon, authenticated;
+    alter default privileges in schema public grant all on functions to anon, authenticated;
+    alter default privileges in schema public grant all on sequences to anon, authenticated;`);
   const sql = readFileSync(new URL("../supabase/setup.sql", import.meta.url), "utf8");
   await db.exec(sql);
   await db.exec(sql); // must be safe to run twice
-  await db.exec(`grant usage on schema public to anon, authenticated, service_role;
-    grant select, insert, update, delete on all tables in schema public to anon, authenticated;`);
   return db;
 }
 
 const isMain = import.meta.url === `file://${process.argv[1]}`;
-if (isMain) {
+if (isMain) main().catch((e) => { console.error("ERROR:", e.message); process.exit(1); });
+async function main() {
   const db = await makeDb();
   let failed = 0;
   const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) failed++; };
@@ -62,7 +66,7 @@ if (isMain) {
   ok((await as(OWNER, () => q(`select count(*)::int n from public.cases`)))[0].n === 1, "owner sees the assessor's case");
   ok((await as(OUTSIDER, () => q(`select count(*)::int n from public.cases`)))[0].n === 0, "outsider sees no cases");
   ok((await as(OUTSIDER, () => q(`select count(*)::int n from public.participants`)))[0].n === 0, "outsider sees no people");
-  ok((await as(null, () => q(`select count(*)::int n from public.participants`)))[0].n === 0, "anonymous sees no people");
+  { let n = 0, err = null; try { n = (await as(null, () => q(`select count(*)::int n from public.participants`)))[0].n; } catch (e) { err = e; } ok(err || n === 0, "anonymous sees no people"); }
   ok(!!(await tryAs(OUTSIDER, `insert into public.cases(network_id, created_by, planter_name) values ($1, $2, 'X')`, [nid, OUTSIDER])), "outsider can't add a case to the network");
   ok(!!(await tryAs(OWNER, `update public.participants set answers='{"x":1}' where case_id=$1`, [caseId])), "leaders can't alter anyone's answers");
   ok(!!(await tryAs(OWNER, `update public.participants set token='abc' where case_id=$1`, [caseId])), "leaders can't change link keys");
@@ -78,7 +82,7 @@ if (isMain) {
   ok((await q(`select progress from public.participants where token=$1`, [tokP]))[0].progress === 20, "progress 20%");
   const ps = (await q(`select s.progress, s.chapter, s.status from public.participant_status s join public.participants p on p.id = s.participant_id where p.token=$1`, [tokP]))[0];
   ok(ps.progress === 20 && ps.chapter === "Called" && ps.status === "started", "progress mirror updates (no answers in it)");
-  const ansS = { meta: { name: "Hannah Kim" }, likert: { sc3: 5 }, couple: { cp1: 2, cmo3: 4 }, wiring: { pace: [2, 2, 3, 2] }, privateNote: "secret", safety: { sf3: 4 } };
+  const ansS = { meta: { name: "Hannah Kim" }, likert: { sc3: 5 }, couple: { cp1: 2, cp2: 2, cmo1: 4, cmo3: 2 }, wiring: { pace: [2, 2, 3, 2] }, privateNote: "secret", safety: { sf3: 4 } };
   await as(null, () => q(`select public.pl_finish($1,$2)`, [tokP, ansP]));
   await as(null, () => q(`select public.pl_finish($1,$2)`, [tokS, ansS]));
   ok((await as(null, () => q(`select public.pl_save($1,'{}',1,2,'x') as r`, [tokP])))[0].r === false, "finished answers are sealed");
@@ -111,7 +115,7 @@ if (isMain) {
   await as(OWNER, () => q(`update public.cases set reports_released=true where id=$1`, [caseId]));
   const rep = (await as(null, () => q(`select public.pl_report($1) as j`, [tokP])))[0].j;
   ok(rep.released && !JSON.stringify(rep.other).includes("secret") && !rep.other.likert && !rep.other.safety, "planter report holds only spouse summaries");
-  ok(Math.abs(rep.other.couple.cmo3 - 4) < 0.01 && Math.abs(rep.other.wiring.pace[0] - 2.25) < 0.01, "summaries are correct");
+  ok(Math.abs(rep.other.couple.cmo3 - 2) < 0.01 && Math.abs(rep.other.couple.cmo1 - 4) < 0.01 && Math.abs(rep.other.wiring.pace[0] - 2.5) < 0.01, "summaries are correct, rounded to the nearest half");
 
   // Interview scores
   await as(ASSESSOR, () => q(`insert into public.interview_scores(case_id, user_id, name, notes) values ($1, $2, 'Sam', '{"rubric":{"p0":4}}')`, [caseId, ASSESSOR]));
@@ -122,9 +126,10 @@ if (isMain) {
   const refTok = (await q(`select ref_token from public.cases where id=$1`, [caseId]))[0].ref_token;
   const rt = (await as(null, () => q(`select public.pl_join_reference($1,'Ref One') as t`, [refTok])))[0].t;
   ok(!!rt && (await as(null, () => q(`select public.pl_report($1) as j`, [rt])))[0].j === null, "reference joins, can't read reports");
-  ok(!(await tryAs(ASSESSOR, `insert into public.participants(case_id, role, name, email, token, status) values ($1, 'reference', 'Pastor Mike', 'mike@c.org', 'mine', 'finished')`, [caseId])), "team can add a reference by email");
+  ok(!(await tryAs(ASSESSOR, `insert into public.participants(case_id, role, name, email) values ($1, 'reference', 'Pastor Mike', 'mike@c.org')`, [caseId])), "team can add a reference by email");
+  ok(!!(await tryAs(ASSESSOR, `insert into public.participants(case_id, role, name, token, status) values ($1, 'reference', 'Faker', 'mine', 'finished')`, [caseId])), "team can't set a reference's key or status");
   const added = (await q(`select token, status from public.participants where name='Pastor Mike'`))[0];
-  ok(added.token !== "mine" && added.status === "invited", "added reference gets a fresh key and starts as invited");
+  ok(added.token.length === 64 && added.status === "invited", "added reference gets a fresh key and starts as invited");
 
   // Platform stats
   ok((await as(OWNER, () => q(`select public.pl_platform_stats() as j`)))[0].j === null, "non-admins get no platform stats");
@@ -132,12 +137,41 @@ if (isMain) {
   const st = (await as(PARKER, () => q(`select public.pl_platform_stats() as j`)))[0].j;
   ok(st.networks === 1 && st.assessments === 2 && st.finished === 2 && st.byNetwork[0].name === "Front Range Planting", "platform stats: counts only");
 
+  // Review fixes
+  const open2 = (await as(null, () => q(`select public.pl_open($1) as j`, [tokS])))[0].j;
+  ok(JSON.stringify(open2.participant.answers) === "{}", "a finished person's link returns no answers");
+  const c3 = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, spouse_name, married) values ($1, $2, 'Lee Park', 'Mia Park', true) returning id`, [nid, OWNER])))[0].id;
+  const tokM = (await q(`select token from public.participants where case_id=$1 and role='spouse'`, [c3]))[0].token;
+  await as(null, () => q(`select public.pl_save($1,$2,10,100,'Your marriage')`, [tokM, { likert: { sc1: 4 }, safety: { sf3: 4 }, privateNote: "HIDDEN", spouseSees: { ob_call: 2 } }]));
+  const o3 = (await as(null, () => q(`select public.pl_open($1) as j`, [tokM])))[0].j.participant.answers;
+  ok(o3.likert.sc1 === 4 && !o3.safety && !o3.privateNote && !o3.spouseSees, "a spouse's link never returns her safety answers, private note or ratings");
+  await as(null, () => q(`select public.pl_save($1,$2,12,100,'Your marriage')`, [tokM, { likert: { sc1: 4, sc2: 3 } }]));
+  const kept = (await q(`select answers from public.participants where token=$1`, [tokM]))[0].answers;
+  ok(kept.safety.sf3 === 4 && kept.privateNote === "HIDDEN" && kept.spouseSees.ob_call === 2 && kept.likert.sc2 === 3, "resuming keeps the private answers on the server");
+  const c4 = (await as(ASSESSOR, () => q(`insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1, $2, 'Fake', false, '{"networkName":"Totally Legit Bank","beliefs":[],"signGifts":false}') returning settings`, [nid, ASSESSOR])))[0].settings;
+  ok(c4.networkName === "Front Range Planting" && c4.beliefs.length === 1 && c4.signGifts === false, "a new case can't override the network's name or beliefs");
+  ok(!!(await tryAs(ASSESSOR, `update public.cases set settings='{}' where id=$1`, [c3])), "team members can't rewrite a case's settings");
+  ok(!!(await tryAs(OWNER, `insert into public.cases(network_id, created_by, planter_name, ref_token) values ($1, $2, 'X', 'mine')`, [nid, OWNER])), "can't choose a reference link key");
+  ok(!!(await tryAs(OWNER, `update public.participants set reminded_at=null where case_id=$1`, [c3])), "can't clear reminder stamps");
+  const otherNet = (await as(OUTSIDER, () => q(`select public.pl_create_network('Elsewhere') as id`)))[0].id;
+  const otherCase = (await as(OUTSIDER, () => q(`insert into public.cases(network_id, created_by, planter_name, married) values ($1, $2, 'Other', false) returning id`, [otherNet, OUTSIDER])))[0].id;
+  ok(!!(await tryAs(ASSESSOR, `update public.interview_scores set case_id=$1`, [otherCase])), "scores can't be moved into another network's case");
+  const inv3 = (await as(OWNER, () => q(`select public.pl_invite_member($1, 'someone@else.org', 'admin') as id`, [nid])))[0].id;
+  const tok3 = (await q(`select token from public.network_invites where id=$1`, [inv3]))[0].token;
+  ok(!!(await tryAs(OUTSIDER, `select public.pl_accept_invite($1)`, [tok3])), "an invite only works for the email it was sent to");
+  ok(!!(await tryAs(null, `select public.pl_case_network($1)`, [caseId])), "anonymous can't call internal helpers");
+  ok((await as(OWNER, () => q(`select * from public.pl_member_invite_email($1)`, [inv2]))).length === 0, "a team invite can't be re-emailed the same day");
+  const one = (await q(`select public.pl_summary('{"couple":{"cmo3":2},"wiring":{"pace":[5]}}'::jsonb) as j`))[0].j;
+  ok(!one.couple.cmo1 && !one.wiring.pace, "summaries need at least two answers, so one answer can't be read back");
+  const newRef = (await as(OWNER, () => q(`select public.pl_rotate_ref($1) as t`, [caseId])))[0].t;
+  ok(newRef !== refTok && (await as(null, () => q(`select public.pl_ref_case($1) as j`, [refTok])))[0].j === null, "a new reference link replaces the old one");
+
   // Delete and retention
   ok(!!(await tryAs(ASSESSOR, `delete from public.cases where id=$1`, [caseId2])) || (await q(`select count(*)::int n from public.cases where id=$1`, [caseId2]))[0].n === 1, "assessor can't delete");
   await as(OWNER, () => q(`delete from public.cases where id=$1`, [caseId2]));
   ok((await q(`select count(*)::int n from public.participants where case_id=$1`, [caseId2]))[0].n === 0, "owner deletes permanently, people go too");
   await q(`update public.cases set created_at = now() - interval '25 months' where id=$1`, [caseId]);
-  ok((await q(`select public.pl_purge() as n`))[0].n === 1 && (await q(`select count(*)::int n from public.participants`))[0].n === 0, "retention removes assessments older than 24 months");
+  ok((await q(`select public.pl_purge() as n`))[0].n === 1 && (await q(`select count(*)::int n from public.participants where case_id=$1`, [caseId]))[0].n === 0 && (await q(`select count(*)::int n from public.cases`))[0].n === 3, "retention removes only assessments older than 24 months");
 
   process.exit(failed ? 1 : 0);
 }

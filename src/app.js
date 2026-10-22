@@ -13,6 +13,8 @@ const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(3
 const today = () => new Date().toISOString().slice(0, 10);
 const fmtDate = (d) => { try { return new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return d; } };
 const bandChip = (b) => (b ? `<span class="chip tone-${b.letter.toLowerCase()}">${b.name}</span>` : `<span class="chip">Not enough answers</span>`);
+const n15 = (v) => (Number.isInteger(v) && v >= 1 && v <= 5 ? v : null); // answers come from other people; trust nothing
+const safeUrl = (u) => { try { const x = new URL(String(u)); return x.protocol === "https:" || x.protocol === "http:" ? x.href : null; } catch { return null; } };
 const toneOf = (b) => (b ? b.letter.toLowerCase() : "");
 function toast(msg) {
   const t = document.createElement("div");
@@ -434,7 +436,7 @@ function teamLine(c, id, mine) {
   const others = L.teamScores(c.id).map((s) => ({ name: s.name, n: s.notes?.rubric?.[id] })).filter((x) => x.n);
   if (!others.length) return "";
   if (!mine) return `<span class="small">${others.length} teammate${others.length > 1 ? "s have" : " has"} scored this. Score it yourself to see theirs.</span>`;
-  return `<span class="small">Team: ${others.map((o) => `${esc(first(o.name))} ${o.n}`).join(", ")}</span>`;
+  return `<span class="small">Team: ${others.map((o) => `${esc(first(o.name))} ${n15(o.n) ?? "?"}`).join(", ")}</span>`;
 }
 function leaderReport(c, r) {
   const P = c.planter, pn = first(c.planterName), sn = first(c.spouseName);
@@ -575,17 +577,17 @@ function refsSection(c, r) {
   const readyNames = B.REF_READY;
   return `<section class="stack"><div class="section-head"><h2>References</h2><p class="muted">${R.n} reference${R.n === 1 ? "" : "s"}. The Follow Test asks: "${esc(B.FOLLOW_TEST)}"</p></div>
     <div class="scroll-x"><table class="tbl"><thead><tr><th>Name</th><th>Relationship</th><th>Known</th><th>Follow Test</th><th>Readiness</th></tr></thead><tbody>
-    ${(c.refs || []).map((x) => `<tr><td><b>${esc(x.meta?.name)}</b></td><td>${esc(x.meta?.relationship)}</td><td class="num">${esc(x.meta?.years ? x.meta.years + " yrs" : "")}</td><td class="num">${x.follow ?? "—"} <span class="muted small">${esc(B.FOLLOW_SCALE[(x.follow || 1) - 1] || "")}</span></td><td>${esc(readyNames[x.ready] ?? "—")}</td></tr>`).join("")}</tbody></table></div>
+    ${(c.refs || []).map((x) => `<tr><td><b>${esc(x.meta?.name)}</b></td><td>${esc(x.meta?.relationship)}</td><td class="num">${esc(x.meta?.years ? x.meta.years + " yrs" : "")}</td><td class="num">${n15(x.follow) ?? "—"} <span class="muted small">${esc(B.FOLLOW_SCALE[(n15(x.follow) || 1) - 1] || "")}</span></td><td>${esc(readyNames[x.ready] ?? "—")}</td></tr>`).join("")}</tbody></table></div>
     <div class="two">${R.quotes.map((q) => `<div class="stack" style="gap:10px"><b>${esc(q.name)}</b>${q.strength ? `<blockquote class="quote">${esc(q.strength)}<cite>Greatest strength</cite></blockquote>` : ""}${q.growth ? `<blockquote class="quote">${esc(q.growth)}<cite>Area to grow</cite></blockquote>` : ""}${q.confidential ? `<blockquote class="quote" style="border-color:var(--band-c)">${esc(q.confidential)}<cite>Confidential to you</cite></blockquote>` : ""}</div>`).join("")}</div>
   </section>`;
 }
 
 function experienceSection(c, r, notes) {
   const P = c.planter;
-  const work = B.WORK_SAMPLES.filter((w) => P.work?.[w.id]);
+  const work = B.WORK_SAMPLES.filter((w) => safeUrl(P.work?.[w.id]));
   return `<section class="stack"><div class="section-head"><h2>Experience and work samples</h2><p class="muted">Experience score ${r.facts?.pct ?? "—"} of 100 (${r.facts?.band?.name || ""}). Each answer earns 0 to 4 points. Launch timing isn't scored.</p></div>
     <div class="scroll-x"><table class="tbl"><tbody>${(r.facts?.rows || []).map((x) => `<tr><th style="width:55%">${esc(x.q)}</th><td>${esc(x.a)} ${x.flag ? `<span class="chip tone-${x.flag === "concern" ? "d" : "c"}">${x.flag === "concern" ? "Concern" : "Watch"}</span>` : ""}</td></tr>`).join("")}</tbody></table></div>
-    ${work.length ? `<div class="stack"><h3>Work samples</h3><p class="small" style="margin:0">Watch or read each one, then score it here. Your scores stay in this browser.</p>${B.WORK_RUBRIC.filter((w) => P.work?.[w.id]).map((w) => `<div class="icard"><div class="spread"><b>${w.name}</b><a href="${esc(P.work[w.id])}" target="_blank" rel="noopener">Open link</a></div>
+    ${work.length ? `<div class="stack"><h3>Work samples</h3><p class="small" style="margin:0">Watch or read each one, then score it here. Your scores stay in this browser.</p>${B.WORK_RUBRIC.filter((w) => safeUrl(P.work?.[w.id])).map((w) => `<div class="icard"><div class="spread"><b>${w.name}</b><a href="${esc(safeUrl(P.work[w.id]))}" target="_blank" rel="noopener noreferrer">Open link</a></div>
       <div class="rubric" role="group" aria-label="Score ${w.name}">${[1, 2, 3, 4].map((n) => `<button aria-pressed="${notes.work[w.id] === n}" data-act="work-score" data-w="${w.id}" data-n="${n}" title="${esc(w.anchors[n - 1])}">${n}</button>`).join("")}<span class="small">${esc(notes.work[w.id] ? w.anchors[notes.work[w.id] - 1] : "Not scored yet")}</span></div></div>`).join("")}</div>` : ""}
   </section>`;
 }
@@ -594,7 +596,7 @@ function networkSection(c, r) {
   const nb = r.beliefs.filter((b) => b.network);
   if (!nb.length && !r.netq.length) return "";
   const ansWord = { yes: "Yes", unsure: "Not sure", no: "No" };
-  const val = (q, v) => (v == null || v === "" ? "—" : q.kind === "likert" ? B.LIKERT[v - 1] || v : esc(v));
+  const val = (q, v) => (v == null || v === "" ? "—" : q.kind === "likert" ? (n15(v) ? B.LIKERT[v - 1] : "—") : esc(String(v)));
   return `<section class="stack"><div class="section-head"><h2>From ${esc(c.network?.name || "your network")}</h2><p class="muted">Your network's own beliefs and questions. Answers are shown as given and aren't scored.</p></div>
     ${nb.length ? `<div class="scroll-x"><table class="tbl"><tbody>${nb.map((b) => `<tr><td>${esc(b.t)}</td><td>${b.answer ? `<span class="chip tone-${b.answer === "yes" ? "a" : b.answer === "no" ? "d" : "c"}">${ansWord[b.answer]}</span>` : "—"}</td></tr>`).join("")}</tbody></table></div>` : ""}
     ${r.netq.map((q) => `<div class="icard"><span class="kind">${q.who === "both" ? "Planter and spouse" : q.who === "spouse" ? "Spouse" : "Planter"}</span><div class="q">${esc(q.t)}</div>
@@ -898,7 +900,8 @@ function advance() {
 function afterTake() {
   take.shownAt = Date.now();
   const f = $("#app .qcard button[aria-pressed='true'], #app .intro-card .btn, #app .qcard .opt, #app .qcard .choice, #app .qcard .dot, #app input, #app textarea");
-  if (f && document.activeElement === document.body) f.focus({ preventScroll: true });
+  let coarse = false; try { coarse = matchMedia("(pointer: coarse)").matches; } catch {}
+  if (f && !coarse && document.activeElement === document.body) f.focus({ preventScroll: true });
 }
 
 // ---------------- events ----------------
@@ -1070,7 +1073,7 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "Enter" && s.t === "intro") { e.preventDefault(); advance(); }
 });
 
-T.init({ esc, first, go, render: () => render(), toast, copy, progressBar, ago, roleName, view: () => view, SAMPLES, scoreCase });
+T.init({ esc, first, go, render: () => render(), toast, copy, progressBar, ago, roleName, view: () => view, SAMPLES, scoreCase, safeUrl });
 
 // ---------------- live routing ----------------
 async function route() {

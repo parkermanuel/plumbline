@@ -49,7 +49,7 @@ export function dashboard() {
   const counts = { all: all.length, new: 0, progress: 0, review: 0 }; all.forEach((c) => counts[stage(c)]++);
   const chip = (k, l) => `<button data-act="dash-filter" data-f="${k}" aria-pressed="${filter === k}">${l} <span class="num">${counts[k]}</span></button>`;
   return `<div class="wrap stack-lg">
-    <div class="spread"><div class="row" style="gap:14px">${n.logo_url ? `<img src="${esc(n.logo_url)}" alt="" class="net-logo">` : ""}<div class="stack" style="gap:4px">
+    <div class="spread"><div class="row" style="gap:14px">${H.safeUrl(n.logo_url) ? `<img src="${esc(H.safeUrl(n.logo_url))}" alt="" class="net-logo">` : ""}<div class="stack" style="gap:4px">
       ${S.networks.length > 1 ? `<label class="small" for="net-switch">Network</label><select id="net-switch" class="input" style="padding:6px 10px;width:auto">${S.networks.map((x) => `<option value="${x.id}" ${x.id === n.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : `<span class="small">${esc(roleLabel[L.myRole()])}</span>`}
       <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">${esc(n.name)}</h1></div></div>
       <div class="row"><button class="btn ghost" data-act="nav" data-to="settings">${L.canAdmin() ? "Settings & team" : "Team"}</button>${S.isPlatformAdmin ? `<button class="btn ghost" data-act="nav" data-to="admin">Platform</button>` : ""}<button class="btn" data-act="nav" data-to="newcase">New assessment</button></div></div>
@@ -106,7 +106,7 @@ export function statusTab(c) {
     <div class="panel stack" data-copywrap><h3>References</h3><p class="small" style="margin:0">Aim for 3 to 5: a sending or supervising pastor, a ministry peer, someone ${esc(H.first(c.planterName))} has led, and someone outside the church.</p>
       <form id="addref" class="row" style="gap:8px"><input id="ar-name" class="input" required maxlength="120" placeholder="Reference's name" style="max-width:220px"><input id="ar-email" class="input" type="email" placeholder="Email (we'll send the invite)" style="max-width:260px"><button class="btn sm" type="submit">Add reference</button></form>
       <p class="small" style="margin:0">Or share one link the planter can forward. Each person who opens it gets their own saved copy.</p>
-      <div class="row" style="gap:8px"><div class="code-box" style="flex:1;min-width:0">${esc(L.refLink(c.refToken))}</div><button class="btn sm ghost" data-act="copy-text" data-text="${esc(L.refLink(c.refToken))}">Copy</button></div>
+      <div class="row" style="gap:8px"><div class="code-box" style="flex:1;min-width:0">${esc(L.refLink(c.refToken))}</div><button class="btn sm ghost" data-act="copy-text" data-text="${esc(L.refLink(c.refToken))}">Copy</button><button class="btn sm ghost" data-act="rotate-ref" title="The old link stops working. People who already started keep their own link.">New link</button></div>
       ${refs.length ? refs.map(row).join("") : ""}</div>
     <div class="panel stack"><h3>Reports for the couple</h3><p class="small" style="margin:0">Each spouse sees their own report at their same link once you release it. They never see each other's answers, the private note or the safety answers. Release after you walk through the results together.</p>
       <div><button class="btn sm ${c.released ? "ghost" : ""}" data-act="release" data-on="${c.released ? "0" : "1"}">${c.released ? "Hide their reports" : "Release their reports"}</button> ${c.released ? `<span class="chip tone-a">Released</span>` : ""}</div></div>
@@ -126,7 +126,7 @@ export function settings() {
     <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">${admin ? "Settings & team" : "Team"}</h1>${admin ? `<p class="lede" style="margin:0">Changes apply to new assessments. Ones already started keep the settings they began with.</p>` : ""}</div>
     ${admin ? `<form class="panel stack" id="net-form"><h3>Your network</h3>
       <label class="field">Name<input id="n-name" maxlength="120" value="${esc(n.name)}" ${dis}></label>
-      <div class="field"><span>Logo</span><div class="row">${n.logo_url ? `<img src="${esc(n.logo_url)}" alt="Current logo" class="net-logo">` : `<span class="small">No logo yet</span>`}<input id="n-logo" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" ${dis}></div><span class="hint">Shown to planters, spouses and references. PNG or SVG, under 1 MB.</span></div>
+      <div class="field"><span>Logo</span><div class="row">${H.safeUrl(n.logo_url) ? `<img src="${esc(H.safeUrl(n.logo_url))}" alt="Current logo" class="net-logo">` : `<span class="small">No logo yet</span>`}<input id="n-logo" type="file" accept="image/png,image/jpeg,image/webp" ${dis}></div><span class="hint">Shown to planters, spouses and references. PNG, JPG or WebP, under 1 MB.</span></div>
       <label class="check"><input type="checkbox" id="n-sg" ${st.signGifts !== false ? "checked" : ""} ${dis}> <span>Include the sign gifts by default</span></label>
       <label class="field">Keep assessments for<select id="n-ret" class="input" ${dis}>${[12, 24, 36].map((m) => `<option value="${m}" ${(st.retentionMonths || 24) === m ? "selected" : ""}>${m} months, then delete automatically</option>`).join("")}</select></label>
       <div><button class="btn sm" type="submit">Save</button></div></form>
@@ -187,6 +187,7 @@ export async function onClick(act, el) {
       const input = el.closest(".person").querySelector(".email-in");
       await L.updatePerson(el.dataset.pid, { email: input.value.trim() || null }); H.toast("Saved"); H.render(); return true;
     }
+    if (act === "rotate-ref") { await L.rotateRef(v.id); H.toast("New reference link made. The old one no longer works."); H.render(); return true; }
     if (act === "reopen") { await L.updatePerson(el.dataset.pid, { status: "started" }); H.toast("Reopened. They can change answers at the same link."); H.render(); return true; }
     if (act === "del-belief") { await L.updateNetwork({ settings: { beliefs: (L.active().settings?.beliefs || []).filter((b) => b.id !== el.dataset.id) } }); H.render(); return true; }
     if (act === "del-question") { await L.updateNetwork({ settings: { questions: (L.active().settings?.questions || []).filter((b) => b.id !== el.dataset.id) } }); H.render(); return true; }

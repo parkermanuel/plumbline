@@ -1,6 +1,9 @@
 // Email templates for Plumbline. Plain functions: data in, { subject, html, text } out.
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const first = (n) => String(n || "").trim().split(/\s+/)[0] || "";
+// Names and network names are typed by users; strip anything that looks like a link so emails can't carry one in
+const clean = (s) => String(s ?? "").replace(/\b(?:https?:\/\/|www\.)\S+/gi, "").replace(/\b[\w-]+\.(?:com|org|net|io|co|app|xyz|info|church|link|ly)\b\S*/gi, "").trim();
+const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const esc = (s) => escHtml(clean(s));
+const first = (n) => clean(n).split(/\s+/)[0] || "";
 
 function layout({ preheader, heading, paragraphs, button, footer, site }) {
   const logo = `${site}/plumbline-email-logo.png`;
@@ -11,8 +14,8 @@ function layout({ preheader, heading, paragraphs, button, footer, site }) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #d9ddd6;border-radius:14px">
 <tr><td style="padding:28px 32px 8px"><img src="${logo}" width="146" height="30" alt="Plumbline" style="display:block;border:0"></td></tr>
 <tr><td style="padding:16px 32px 8px"><h1 style="margin:0 0 16px;font-family:Helvetica,Arial,sans-serif;font-size:26px;line-height:1.15;letter-spacing:-0.5px;color:#141c24">${heading}</h1>${p}</td></tr>
-${button ? `<tr><td style="padding:4px 32px 28px"><a href="${esc(button.href)}" style="display:inline-block;background:#141c24;color:#f6f7f4;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-weight:600;font-size:16px;padding:14px 24px;border-radius:999px">${esc(button.label)}</a>
-<p style="margin:16px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#636c76">Or copy this link: <span style="word-break:break-all">${esc(button.href)}</span></p></td></tr>` : ""}
+${button ? `<tr><td style="padding:4px 32px 28px"><a href="${escHtml(button.href)}" style="display:inline-block;background:#141c24;color:#f6f7f4;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-weight:600;font-size:16px;padding:14px 24px;border-radius:999px">${esc(button.label)}</a>
+<p style="margin:16px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#636c76">Or copy this link: <span style="word-break:break-all">${escHtml(button.href)}</span></p></td></tr>` : ""}
 </table>
 <p style="max-width:560px;margin:16px auto 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#636c76">${footer}</p>
 </td></tr></table></body></html>`;
@@ -25,7 +28,7 @@ const FOOT = "Plumbline is a free church planter assessment. This link is person
 
 export function personEmail(kind, r, site) {
   const link = `${site}/#/t/${r.token}`;
-  const net = r.network_name || "your network";
+  const net = clean(r.network_name) || "your network";
   const sender = r.sender_name ? esc(r.sender_name) : "Your network leader";
   const nm = esc(first(r.name));
   const pn = esc(first(r.planter_name)), sn = esc(first(r.spouse_name));
@@ -58,9 +61,9 @@ export function personEmail(kind, r, site) {
 export function teamInviteEmail(r, site) {
   const link = `${site}/#/join/${r.token}`;
   const role = r.role === "admin" ? "an admin" : "an assessor";
-  const subject = `Join ${r.network_name} on Plumbline`;
+  const subject = `Join ${clean(r.network_name)} on Plumbline`;
   return { subject, ...layout({
-    preheader: `${r.sender_name || "Someone"} invited you to join ${r.network_name}.`,
+    preheader: `${clean(r.sender_name) || "Someone"} invited you to join ${clean(r.network_name)}.`,
     heading: `Join ${esc(r.network_name)} on Plumbline`,
     paragraphs: [`${esc(r.sender_name || "A teammate")} invited you to help assess church planters as ${role}. You'll see your network's assessments, reports and interview guides.`,
       `This invite works for 30 days.`],
@@ -72,9 +75,9 @@ export function teamInviteEmail(r, site) {
 export function finishedEmail(r, site) {
   const who = esc(r.person_name || (r.person_role === "reference" ? "A reference" : "Someone"));
   const roleWord = r.person_role === "planter" ? "the planter" : r.person_role === "spouse" ? "the spouse" : "a reference";
-  const subject = r.all_done && r.person_role !== "reference" ? `${first(r.planter_name)}'s Plumbline report is ready` : `${r.person_name || "Someone"} finished Plumbline`;
+  const subject = r.all_done && r.person_role !== "reference" ? `${first(r.planter_name)}'s Plumbline report is ready` : `${clean(r.person_name) || "Someone"} finished Plumbline`;
   return { subject, ...layout({
-    preheader: `${r.person_name || "Someone"} finished.`,
+    preheader: `${clean(r.person_name) || "Someone"} finished.`,
     heading: r.all_done && r.person_role !== "reference" ? `The report for ${esc(r.planter_name)} is ready` : `${who} finished`,
     paragraphs: [`${who} (${roleWord}) just finished their Plumbline assessment for ${esc(r.planter_name)}.`,
       r.all_done ? `The planter and spouse are both done. Open the leader report to see the recommendation and the interview guide.` : `You can watch everyone else's progress on your dashboard.`],

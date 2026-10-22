@@ -14,6 +14,8 @@ Buy **plumblineassessment.com**. You can also buy **plumblineassessment.org** an
    - Set **Site URL** to `https://plumblineassessment.com`.
    - Under **Redirect URLs**, add `https://plumblineassessment.com/**`.
 
+6. Check that the nightly clean-up is scheduled. Run `select jobname from cron.job;` in the SQL Editor. It should list **plumbline-purge**. If it doesn't, turn on **pg_cron** under **Database**, then **Extensions**, and run `setup.sql` again.
+
 ## 3. Email (Resend)
 Plumbline sends invites, reminders, team invites and "someone finished" notes.
 1. Go to resend.com and create a free account. The free plan sends 3,000 emails a month, at most 100 a day. Move to the $20 plan (50,000 a month) once several networks are inviting people.

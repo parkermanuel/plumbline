@@ -326,6 +326,7 @@ label.field { display: grid; gap: 6px; font-weight: 600; font-size: 15px; }
   .hero-report { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
+  .keys { display: none; }
   .top nav { flex-wrap: nowrap; }
   .top nav .navbtn.opt-hide, .top nav .navbtn.home-hide { display: none; }
   .navbtn { padding: 8px 10px; font-size: 14px; }

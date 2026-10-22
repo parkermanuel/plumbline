@@ -13,4 +13,6 @@ const t = teamInviteEmail({ token: "b".repeat(64), role: "assessor", network_nam
 ok(t.html.includes("/#/join/") && t.text.includes("an assessor"), "team invite");
 const f = finishedEmail({ person_name: "Hannah Kim", person_role: "spouse", planter_name: "Josh Kim", case_id: "c1", all_done: true }, "https://x");
 ok(f.subject.includes("report is ready") && f.html.includes("/#/case/c1"), "finished notice");
+const spam = personEmail("invite", { ...base, network_name: "Claim your prize at evil.com/win", role: "planter", name: "Visit www.evil.com now" }, "https://x");
+ok(!/evil/i.test(spam.html + spam.text + spam.subject) && spam.html.includes("/#/t/"), "links typed into names never reach an email; the real link stays");
 process.exit(fail ? 1 : 0);

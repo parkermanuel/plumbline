@@ -1,5 +1,6 @@
 // Builds the live site into dist/: index.html (+ 404.html for GitHub Pages) with the Supabase config baked in.
 import { build } from "esbuild";
+import { createHash } from "crypto";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, readdirSync } from "fs";
 
 const cfgPath = process.env.PL_CONFIG || "config.json";
@@ -13,9 +14,20 @@ const js = out.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 const css = readFileSync("src/styles.css", "utf8");
 const title = "Plumbline";
 const desc = "A free church planter assessment for networks. The planter, the spouse and their references each answer on their own. Network leaders get a graded report and interview guide.";
+const cfgScript = `window.PLUMBLINE_CONFIG=${JSON.stringify(cfg)};`;
+const sha = (t) => "'sha256-" + createHash("sha256").update(t).digest("base64") + "'";
+let sbHost = ""; try { sbHost = new URL(cfg.supabaseUrl).host; } catch {}
+// Only our own two scripts may run; data can only go to our database. Blocks injected scripts even if a bug lets markup through.
+const csp = [
+  "default-src 'self'", `script-src ${sha(cfgScript)} ${sha(js)}`, "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src https://fonts.gstatic.com", `img-src 'self' data:${sbHost ? " https://" + sbHost : ""}`,
+  `connect-src 'self'${sbHost ? ` https://${sbHost} wss://${sbHost}` : ""}`, "object-src 'none'", "base-uri 'none'", "form-action 'none'",
+].join("; ");
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<meta name="referrer" content="no-referrer">
 <title>${title}</title>
 <meta name="description" content="${desc}">
 <meta property="og:title" content="Plumbline: measure true, plant strong">
@@ -32,7 +44,7 @@ ${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card.p
 <header class="top" id="top"></header>
 <main id="app"></main>
 <footer class="foot" id="foot"></footer>
-<script>window.PLUMBLINE_CONFIG=${JSON.stringify(cfg)};</script>
+<script>${cfgScript}</script>
 <script>${js}</script>
 </body></html>`;
 mkdirSync("dist", { recursive: true });

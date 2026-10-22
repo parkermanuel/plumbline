@@ -72,7 +72,7 @@ export async function loadNetwork() {
 }
 export async function switchNetwork(id) {
   state.activeId = id; try { localStorage.setItem("pl.network", id); } catch {}
-  state.full = {}; await loadNetwork(); emit("cases");
+  state.full = {}; await loadNetwork(); resubscribe(); emit("cases");
 }
 
 // Shape used by the screens (same as the sample cases)
@@ -112,10 +112,11 @@ export async function openCase(id) {
 
 // ---------- live progress ----------
 let channel = null, refreshTimer = null;
+function resubscribe() { if (channel) { sb.removeChannel(channel); channel = null; } subscribe(); }
 function subscribe() {
-  if (channel) return;
-  channel = sb.channel("pl-progress")
-    .on("postgres_changes", { event: "*", schema: "public", table: "participant_status" }, (payload) => {
+  if (channel || !state.activeId) return;
+  channel = sb.channel("pl-progress-" + state.activeId)
+    .on("postgres_changes", { event: "*", schema: "public", table: "participant_status", filter: `network_id=eq.${state.activeId}` }, (payload) => {
       const n = payload.new, old = payload.old;
       if (payload.eventType === "DELETE") state.status = state.status.filter((x) => x.participant_id !== old.participant_id);
       else if (n.network_id === state.activeId) {
@@ -189,6 +190,11 @@ export async function createCase(f) {
   emit("cases");
   return row.id;
 }
+export async function rotateRef(caseId) {
+  const t = must(await sb.rpc("pl_rotate_ref", { p_case: caseId }));
+  state.cases = state.cases.map((c) => (c.id === caseId ? { ...c, ref_token: t } : c)); emit("case");
+  return t;
+}
 export async function setReleased(id, released) {
   must(await sb.from("cases").update({ reports_released: released }).eq("id", id));
   state.cases = state.cases.map((c) => (c.id === id ? { ...c, reports_released: released } : c)); emit("case");
@@ -245,7 +251,8 @@ export async function report(token) { return must(await sb.rpc("pl_report", { p_
 const saver = { timer: null, pending: null, status: "saved", inflight: false, last: 0 };
 export const saveStatus = () => saver.status;
 export function queueSave(token, answers, step, total, chapter) {
-  try { localStorage.setItem("pl.backup." + token, JSON.stringify({ answers, step, at: Date.now() })); } catch {}
+  // the device copy never holds the private parts (note, safety, ratings of the spouse)
+  try { const { privateNote, safety, spouseSees, ...shareable } = answers; localStorage.setItem("pl.backup." + token, JSON.stringify({ answers: shareable, step, at: Date.now() })); } catch {}
   saver.pending = { token, answers, step, total, chapter };
   saver.status = "saving"; emit("save");
   clearTimeout(saver.timer);
