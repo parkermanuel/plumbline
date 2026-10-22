@@ -1,5 +1,9 @@
 # Putting Plumbline online
 
+## Status (22 Oct 2026)
+Done: domain bought; GitHub repo `parkermanuel/plumbline` with Pages on GitHub Actions and the custom domain; Actions variables `SUPABASE_PROJECT_REF` (msjmhbggcwwppqzfkxug) and `SITE_URL`; Supabase project `plumbline` (Pro org, Micro) with `setup.sql` run, the nightly clean-up scheduled, both storage buckets, and sign-in URLs set; `config.json` holds the project URL and public key; www points to GitHub.
+Still to do: the four A records (step 5), Resend and its secrets (step 3 and 4), the `SUPABASE_ACCESS_TOKEN` secret so the email and sweep functions deploy, and the platform admin line (step 6).
+
 One-time setup, about an hour. Do the steps in order. After this, every change Claude makes goes live on its own when it's merged.
 
 ## 1. Domain (Namecheap)

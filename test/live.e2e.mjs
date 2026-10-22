@@ -141,6 +141,7 @@ const linkIn = (mail) => (mail.text.match(/https?:\/\/\S+/) || [])[0];
 const shot = async (p, name) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true }); };
 
 async function answer(p, maxSteps, stopAtPct = 101) {
+  let stuck = 0;
   for (let g = 0; g < maxSteps; g++) {
     const t = await p.evaluate(() => {
       const q = (s) => document.querySelectorAll(s);
@@ -169,7 +170,8 @@ async function answer(p, maxSteps, stopAtPct = 101) {
       return "stuck";
     });
     if (t === "done") return "done";
-    if (t === "stuck" || t === "wait") { await wait(300); continue; }
+    if (t === "stuck" || t === "wait") { if (++stuck > 25) { console.log("STUCK ON:", (await text(p)).slice(0, 300).replace(/\n/g, " | ")); return "stuck"; } await wait(300); continue; }
+    stuck = 0;
     if (t === "upload") { await p.setInputFiles("#o-files", { name: "my-disc-report.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") }); await wait(900); continue; }
     await wait(["ans", "fact", "rr", "city", "cx"].includes(t) ? 300 : 60);
     if (stopAtPct < 101) { const pct = await p.evaluate(() => +(document.querySelector(".chapter-name .num")?.textContent || "0").replace("%", "")); if (pct >= stopAtPct) return "paused"; }
