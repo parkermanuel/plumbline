@@ -7,7 +7,7 @@ Buy **plumblineassessment.com**. You can also buy **plumblineassessment.org** an
 
 ## 2. Database (Supabase)
 1. Go to supabase.com, select **New project**, and name it **plumbline**. Pick the US East region, and save the database password in your password manager.
-2. Under **Billing**, choose the **Pro plan** ($25 a month). The free plan pauses the database after a week without use and keeps no backups. Pro never pauses and keeps daily backups.
+2. While you're testing, the free plan is fine. Before the first real couple starts, switch to the **Pro plan** under **Billing** ($25 a month). The free plan pauses the database after a week without use, which would break everyone's links, and it keeps no backups. Pro never pauses and keeps daily backups. Switching is one click, and nothing else changes.
 3. Open **SQL Editor**, select **New query**, paste everything in `supabase/setup.sql`, and select **Run**.
 4. Open **Project Settings**, then **API**. Send Claude the **Project URL** and the **anon public** key. Both are meant to be public, because the website uses them in every visitor's browser. Never send the `service_role` key.
 5. Open **Authentication**, then **URL Configuration**:
