@@ -65,11 +65,6 @@ async function rest(route) {
       return out(200, (await asUser(uid, () => db.query(`update public.${table} set ${Object.entries(body).map(([k, v]) => `${k} = ${lit(v)}`).join(", ")}${where} returning *`))).rows);
     }
     if (method === "DELETE") return out(200, (await asUser(uid, () => db.query(`delete from public.${table}${where} returning *`))).rows);
-    if (req.method() === "DELETE" && url.pathname === "/storage/v1/object/results") {
-      const names = JSON.parse(req.postData() || "{}").prefixes || [];
-      const r = await asUser(uid, () => db.query(`delete from storage.objects where bucket_id='results' and name = any($1::text[]) returning name`, [names]));
-      calls.push({ removed: r.rows.length }); return json(200, r.rows.map((x) => ({ name: x.name })));
-    }
     calls.push({ storageErr: req.method() + " " + url.pathname }); return json(404, { message: "not mocked" });
   } catch (err) { return json(400, { message: err.message }); }
 }
@@ -80,7 +75,13 @@ async function storage(route) {
   const req = route.request(); const url = new URL(req.url()); const uid = uidFrom(req.headers()["authorization"] || "");
   const json = (s, b) => route.fulfill({ status: s, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(b) });
   const up = url.pathname.match(/^\/storage\/v1\/object\/results\/(.+)$/), sign = url.pathname.match(/^\/storage\/v1\/object\/sign\/results\/(.+)$/);
+  if (req.method() === "OPTIONS") return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,DELETE,PUT", "access-control-allow-headers": "*" }, body: "" });
   try {
+    if (req.method() === "DELETE" && url.pathname === "/storage/v1/object/results") {
+      const names = JSON.parse(req.postData() || "{}").prefixes || [];
+      const r = await asUser(uid, () => db.query(`delete from storage.objects where bucket_id='results' and name = any($1::text[]) returning name`, [names]));
+      calls.push({ removed: r.rows.length }); return json(200, r.rows.map((x) => ({ name: x.name })));
+    }
     if (req.method() === "POST" && up) {
       const name = decodeURIComponent(up[1]);
       await asUser(uid, () => db.query(`insert into storage.objects(bucket_id, name) values ('results', $1)`, [name]));
