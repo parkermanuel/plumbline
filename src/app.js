@@ -271,6 +271,8 @@ function aboutBody(short) {
       <div class="measure"><b>Fivefold</b><span>Apostolic, prophetic, evangelistic, shepherding and teaching bent, for building the right team.</span></div>
       <div class="measure"><b>Judgment</b><span>Eight planting scenarios scored against what experienced planters chose.</span></div>
       <div class="measure"><b>Experience</b><span>Training, track record, coach, peer group, sending church, debt and funding.</span></div>
+      <div class="measure"><b>Context</b><span>Optional. How well they fit the city they've named, from both spouses.</span></div>
+      <div class="measure"><b>Other assessments</b><span>Optional. DISC, Myers-Briggs, CliftonStrengths and more, checked against Wiring.</span></div>
     </div>
   </section>`;
 }
@@ -294,7 +296,7 @@ function renderLeaders() {
   const coupleItems = n(B.COUPLE_AREAS.map((a) => a.items.length));
   const giftItems = n(B.GIFTS.map((g) => g.items.length));
   const stat = (num, label, how) => `<div class="lstat"><b>${num}</b><span>${label}</span><small>${how}</small></div>`;
-  const yes = `<span class="ck" aria-label="Yes">●</span>`, part = `<span class="ck part" aria-label="Partly">◐</span>`, no = `<span class="ck no" aria-label="No">–</span>`;
+  const yes = `<span class="ck" role="img" aria-label="Yes"></span>`, part = `<span class="ck part" role="img" aria-label="Partly"></span>`, no = `<span class="ck no" role="img" aria-label="No"></span>`;
   const rows = [
     ["Character, calling and health", yes, no, no, no, part],
     ["Marriage, both spouses separately", yes, no, no, yes, part],
@@ -354,7 +356,7 @@ function renderLeaders() {
   </div></section>
 
   <section class="slide"><div class="wrap stack-lg">
-    <div class="stack"><span class="kicker">How it compares</span><h2>One assessment instead of five.</h2><p class="muted" style="margin:0">What each kind of tool is designed to cover. ● yes · ◐ partly · – no</p></div>
+    <div class="stack"><span class="kicker">How it compares</span><h2>One assessment instead of five.</h2><p class="muted" style="margin:0">What each kind of tool is designed to cover. <span class="ck"></span> yes · <span class="ck part"></span> partly · <span class="ck no"></span> no</p></div>
     <div class="scroll-x"><table class="tbl compare"><thead><tr><th></th><th>Plumbline</th><th>DISC or Myers-Briggs</th><th>CliftonStrengths or Predictive Index</th><th>PREPARE/ENRICH</th><th>Assessment retreat</th></tr></thead>
       <tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td>${r.slice(1).map((c, i) => `<td class="${i === 0 ? "us" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     <p class="small muted" style="margin:0">Based on what each tool says it measures. A retreat with trained assessors is still the gold standard for many networks. Plumbline can be the first step before one, or the whole process for networks that can't afford one.</p>
@@ -383,7 +385,7 @@ function renderPrivacy() {
   <div class="read stack">
     <p>Plumbline is a free church planter assessment run by Parker Manuel. This page explains, in plain words, what we collect, who sees it, and how long we keep it.</p>
     <h3>What we collect</h3>
-    <p>When a network leader sets up an assessment, we store the names, emails and city they enter. When you answer, we store your answers. Some answers are sensitive: your marriage, your health and stress, your beliefs, and a few private safety questions for spouses. Network leaders sign in with their email, and we store their name, email and network. We use no advertising or tracking cookies.</p>
+    <p>When a network leader sets up an assessment, we store the names, emails and city they enter. When you answer, we store your answers. Some answers are sensitive: your marriage, your health and stress, your beliefs, and a few private safety questions for spouses. If you choose to, you can also tell us about the city you plan to plant in and share results from other assessments you've taken, including files you upload. Uploaded files are private: only your network's team can open them, through links that expire after 10 minutes. Network leaders sign in with their email, and we store their name, email and network. We use no advertising or tracking cookies.</p>
     <h3>Who sees your answers</h3>
     <p><b>Your network's team</b> (the network leaders and assessors who invited you) sees your answers and the reports built from them. <b>Your spouse</b> never sees your individual answers, your private note or your safety answers. After your network leader releases them, each spouse sees their own report, which includes only summaries of the other spouse's answers. <b>References</b> see only their own form. <b>Other networks</b> never see anything of yours. <b>Parker Manuel</b>, who runs Plumbline, can see platform-wide counts (how many networks and assessments there are), never your answers, except to fix a problem you or your network asks him to fix.</p>
     <h3>How we keep it safe</h3>
@@ -1004,9 +1006,9 @@ function screen(s) {
           <label class="field">${esc(O.pi.name)}<input id="o-pi" maxlength="60" placeholder="${esc(O.pi.hint)}" value="${esc(o.pi || "")}"></label></div>
         <label class="field">Anything else <span class="hint">Working Genius, Birkman, a coach's assessment…</span><textarea id="o-notes" maxlength="1000" style="min-height:70px">${esc(o.notes || "")}</textarea></label>
         <label class="field">When did you take most of these?${sel("o-when", O.when.map((w, i) => [i, w]), o.when, "Choose one")}</label>
-        <div class="field" style="font-weight:600">Upload results <span class="hint" style="font-weight:400">PDF or photo, up to ${O.maxFiles} files, ${O.maxMb} MB each</span>
+        <div class="field" style="font-weight:600;display:grid;gap:8px"><span>Upload results <span class="hint" style="font-weight:400">PDF or photo, up to ${O.maxFiles} files, ${O.maxMb} MB each</span></span>
           ${files.length ? `<ul class="list-clean" style="margin:4px 0 0">${files.map((f, i) => `<li><span>${esc(f.name)} <span class="muted small">${Math.max(1, Math.round((f.size || 0) / 1024))} KB</span></span><button class="link" data-act="other-rm" data-i="${i}">Remove</button></li>`).join("")}</ul>` : ""}
-          ${files.length < O.maxFiles ? `<label class="btn ghost" style="justify-self:start;cursor:pointer">${take.uploading ? "Uploading…" : "Choose files or take a photo"}<input id="o-files" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/heic,image/heif" multiple style="position:absolute;width:1px;height:1px;opacity:0" ${take.uploading ? "disabled" : ""}></label>` : ""}
+          ${files.length < O.maxFiles ? `<label class="btn ghost" style="justify-self:start;cursor:pointer;position:relative">${take.uploading ? "Uploading…" : "Choose files or take a photo"}<input id="o-files" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/heic,image/heif" multiple style="position:absolute;width:1px;height:1px;opacity:0" ${take.uploading ? "disabled" : ""}></label>` : ""}
           ${!take.token ? `<span class="small muted" style="font-weight:400">In this demo, files aren't stored. Only their names are kept.</span>` : ""}</div>
       </div>
       <div class="row"><button class="btn" data-act="other-next" ${take.uploading ? "disabled" : ""}>Save and continue</button><button class="link" data-act="other-skip">Skip, I haven't taken any</button></div></div>`;

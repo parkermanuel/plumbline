@@ -428,7 +428,9 @@ details[open] > summary::before { content: "− "; }
 .compare td, .compare th { text-align: center; }
 .compare td:first-child, .compare th:first-child { text-align: left; }
 .compare .us { background: var(--brass-soft); font-weight: 700; }
-.ck { color: var(--band-a); font-size: 18px; } .ck.part { color: var(--band-b); } .ck.no { color: var(--ink-3); }
+.ck { display: inline-block; width: 13px; height: 13px; border-radius: 50%; background: var(--band-a); border: 2px solid var(--band-a); vertical-align: -2px; }
+.ck.part { background: linear-gradient(90deg, var(--band-b) 50%, transparent 50%); border-color: var(--band-b); }
+.ck.no { background: transparent; border-color: var(--rule); }
 .lsteps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 14px; }
 .lsteps li { counter-increment: s; display: grid; grid-template-columns: 44px 220px 1fr; gap: 16px; align-items: baseline; padding: 14px 0; border-top: 1px solid var(--rule); }
 .lsteps li::before { content: counter(s); font-weight: 800; font-size: 1.4rem; color: var(--brass-text); }
