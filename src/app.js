@@ -199,7 +199,13 @@ function renderHome() {
         <button class="btn" data-act="nav" data-to="leader">Start as a network leader</button>
         <button class="btn ghost" data-act="open-sample">See a sample report</button>
       </div>
-      <p class="verse" style="margin-top:28px">"Then the Lord said to me, 'What do you see, Amos?' I replied, 'A plumb line.'" Amos 7:8</p>
+      <dl class="entry" aria-label="Definition of plumb line">
+        <dt><span class="hw">plumb·line</span> <span class="pr">&#92; ˈpləm-ˌlīn &#92;</span> <span class="pos">noun</span></dt>
+        <dd><ol>
+          <li>A cord with a weight at one end, hung to show what is truly upright.</li>
+          <li>A measure of depth and alignment: how deep the roots go, and whether the walls stand straight before anything is built on them.</li>
+        </ol><p class="see">See Amos 7:8.</p></dd>
+      </dl>
     </div>
     <div class="plumb-stage">${heroPlumb()}</div>
   </section>
