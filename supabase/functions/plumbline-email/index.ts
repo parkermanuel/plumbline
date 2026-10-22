@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   if (!key) return json({ error: "Email isn't set up yet" }, 503);
   const url = Deno.env.get("SUPABASE_URL")!, anon = Deno.env.get("SUPABASE_ANON_KEY")!, service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const site = (Deno.env.get("SITE_URL") ?? "https://plumblineassessment.com").replace(/\/$/, "");
-  const from = Deno.env.get("EMAIL_FROM") ?? "Plumbline <hello@plumblineassessment.com>";
+  const from = Deno.env.get("EMAIL_FROM") ?? "Plumbline <plumbline@parkermanuel.com>";
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "Bad request" }, 400); }
   const user = createClient(url, anon, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });

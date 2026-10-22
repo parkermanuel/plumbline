@@ -48,7 +48,7 @@ jobs:
           supabase functions deploy plumbline-email --project-ref "$SUPABASE_PROJECT_REF" --use-api
           supabase functions deploy plumbline-sweep --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           if [ -n "$RESEND_API_KEY" ]; then
-            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" RESEND_API_KEY="$RESEND_API_KEY" SITE_URL="${SITE_URL:-https://plumblineassessment.com}" EMAIL_FROM="Plumbline <hello@plumblineassessment.com>"
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" RESEND_API_KEY="$RESEND_API_KEY" SITE_URL="${SITE_URL:-https://plumblineassessment.com}" EMAIL_FROM="Plumbline <plumbline@parkermanuel.com>"
           fi
 
   site:
