@@ -187,7 +187,7 @@ async function answer(p, maxSteps, stopAtPct = 101) {
 // 1. Owner sets up a network
 const owner = await device("owner");
 await owner.goto(SITE + "/"); await wait(700);
-await click(owner, 'a[href="/leader"]'); await wait(400);
+await click(owner, 'a[href="/leader"]'); await owner.waitForSelector("#o-net", { timeout: 20000 }).catch(() => {});
 ok((await text(owner)).includes("Set up your network"), "new leader sees onboarding");
 await owner.fill("#o-net", "Front Range Planting"); await owner.fill("#o-me", "Dana Ellis");
 await submit(owner, "#onboard"); await wait(900);
