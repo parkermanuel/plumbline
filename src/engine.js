@@ -274,7 +274,9 @@ export function scoreCase(c) {
   out.scenarios = P ? scenarios(P, married) : null;
   out.facts = P ? facts(P) : null;
   const belief = (v) => (v === true || v === "yes" ? "yes" : v === "no" ? "no" : v === false || v === "unsure" ? "unsure" : null);
-  out.beliefs = BELIEFS.map((b) => { const a = belief(P?.beliefs?.[b.id]); return { ...b, answer: a, ok: a === "yes", answered: a != null }; });
+  const allBeliefs = [...BELIEFS, ...((c.settings?.beliefs || []).map((x) => ({ ...x, network: true })))];
+  out.beliefs = allBeliefs.map((b) => { const a = belief(P?.beliefs?.[b.id]); return { ...b, answer: a, ok: a === "yes", answered: a != null }; });
+  out.netq = (c.settings?.questions || []).map((q) => ({ ...q, planter: P?.netq?.[q.id], spouse: S?.netq?.[q.id] }));
   out.work = P?.work || {};
 
   // spouse

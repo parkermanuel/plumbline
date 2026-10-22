@@ -1,4 +1,5 @@
 name: Deploy Plumbline
+# On every push to main: run the checks, update the database and email function (once their secrets are set), then publish the site.
 on:
   push:
     branches: [main]
@@ -8,10 +9,10 @@ permissions:
   pages: write
   id-token: write
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: deploy
+  cancel-in-progress: false
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,18 +20,51 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: node test/engine.test.mjs
-      - run: node test/sql.test.mjs
-      - run: node build.mjs
-      - uses: actions/upload-pages-artifact@v3
+      - run: npm test
+
+  backend:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update the database
+        if: env.SUPABASE_DB_URL != ''
+        run: |
+          sudo apt-get install -y -qq postgresql-client >/dev/null
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -q -f supabase/setup.sql
+      - uses: supabase/setup-cli@v1
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
         with:
-          path: dist
-  deploy:
-    needs: build
+          version: latest
+      - name: Deploy the email function
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
+        run: |
+          supabase functions deploy plumbline-email --project-ref "$SUPABASE_PROJECT_REF" --use-api
+          if [ -n "$RESEND_API_KEY" ]; then
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" RESEND_API_KEY="$RESEND_API_KEY" SITE_URL="${SITE_URL:-https://plumblineassessment.com}" EMAIL_FROM="Plumbline <hello@plumblineassessment.com>"
+          fi
+
+  site:
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: node build.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
       - id: deployment
         uses: actions/deploy-pages@v4

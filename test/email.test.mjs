@@ -1,0 +1,16 @@
+import { personEmail, teamInviteEmail, finishedEmail } from "../supabase/functions/plumbline-email/templates.js";
+let fail = 0; const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) fail++; };
+const base = { token: "a".repeat(64), network_name: "Front Range", sender_name: "Dana", planter_name: "Josh Kim", spouse_name: "Hannah Kim" };
+const p = personEmail("invite", { ...base, role: "planter", name: "Josh Kim" }, "https://plumblineassessment.com");
+ok(p.subject.includes("Front Range") && p.html.includes("/#/t/" + "a".repeat(64)) && p.text.includes("35 minutes") && p.text.includes("Hannah"), "planter invite");
+const s = personEmail("invite", { ...base, role: "spouse", name: "Hannah Kim" }, "https://x");
+ok(s.text.includes("25 minutes") && s.text.includes("Josh"), "spouse invite");
+const r = personEmail("remind", { ...base, role: "reference", name: "Mike Lee" }, "https://x");
+ok(r.subject.startsWith("Reminder") && r.text.includes("8 minutes"), "reference reminder");
+const x = personEmail("invite", { ...base, role: "planter", name: "<script>alert(1)</script>" }, "https://x");
+ok(!x.html.includes("<script>"), "names are escaped");
+const t = teamInviteEmail({ token: "b".repeat(64), role: "assessor", network_name: "Front Range", sender_name: "Dana" }, "https://x");
+ok(t.html.includes("/#/join/") && t.text.includes("an assessor"), "team invite");
+const f = finishedEmail({ person_name: "Hannah Kim", person_role: "spouse", planter_name: "Josh Kim", case_id: "c1", all_done: true }, "https://x");
+ok(f.subject.includes("report is ready") && f.html.includes("/#/case/c1"), "finished notice");
+process.exit(fail ? 1 : 0);

@@ -1,6 +1,9 @@
 // Item bank. All items original. Likert 1-5 unless noted. rev:true = reverse-keyed.
 // Each scale carries the report language and interview guide used by the engine.
 
+// Bump when any question is added, removed or reworded. Saved answers keep the version they were taken on.
+export const BANK_VERSION = "2026.10";
+
 export const LIKERT = ["Strongly disagree", "Disagree", "Not sure", "Agree", "Strongly agree"];
 export const OBS = ["Rarely", "Sometimes", "Often", "Very often", "Always"]; // reference frequency
 export const NOT_OBSERVED = 0;

@@ -3,6 +3,7 @@ import { scoreCase, scoreScale, BANDS, OUTCOMES, bandOf } from "./engine.js";
 import { SAMPLE_CASES } from "./samples.js";
 import { giftFan, radar, mark, heroPlumb } from "./charts.js";
 import * as L from "./live.js";
+import * as T from "./team.js";
 
 // ---------------- utilities ----------------
 const $ = (s, el = document) => el.querySelector(s);
@@ -29,7 +30,7 @@ let db = { cases: [], drafts: {}, notes: {} };
 try { const raw = localStorage.getItem(KEY); if (raw) db = { ...db, ...JSON.parse(raw) }; } catch {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
 const SAMPLES = SAMPLE_CASES();
-const allCases = () => [...(L.LIVE ? L.state.cases : db.cases), ...SAMPLES];
+const allCases = () => [...(L.LIVE ? L.cases() : db.cases), ...SAMPLES];
 const ago = (iso) => { if (!iso) return ""; const m = Math.round((Date.now() - new Date(iso)) / 60000); if (m < 1) return "just now"; if (m < 60) return `${m} min ago`; const h = Math.round(m / 60); if (h < 24) return `${h} hr ago`; const d = Math.round(h / 24); return `${d} day${d > 1 ? "s" : ""} ago`; };
 const roleName = { planter: "Planter", spouse: "Spouse", reference: "Reference" };
 const getCase = (id) => allCases().find((c) => c.id === id);
@@ -101,7 +102,7 @@ function buildFlow(role, ctx) {
     const c2 = roundRobin([...keys("leadership"), ...keys("mission"), ...keys("capacity")], B.SCALES);
     insertAt(c2, [B.BOGUS[1]], 30);
     likert("ready", c2);
-    wired(S, "wired", "Chapter 3");
+    wired(S, "wired", "Chapter 3", ctx);
     chapter("tested", "Tested", "Chapter 4", "Eight real situations planters face. For each one, pick the response you think is best and the one you think is worst.", 5);
     B.SCENARIOS.filter((sc) => married || !sc.married).forEach((sc) => S.push({ t: "scenario", chapter: "tested", id: sc.id }));
     if (married) {
@@ -110,6 +111,7 @@ function buildFlow(role, ctx) {
       chapter("together", "Together", "Read their mind", `Now guess how ${sp} answered a few of the same statements.`, 2);
       B.COUPLE_AREAS.forEach((a) => a.items.filter((i) => i.guess).forEach((it) => S.push({ t: "likert", chapter: "together", id: it.id, text: it.t, bucket: "guess", sub: `How do you think ${sp} answered?` })));
     }
+    netQuestions(S, ctx, "planter");
     chapter("story", "Your story", married ? "Chapter 6" : "Chapter 5", "A few facts about your experience and preparation, plus links to your work if you have them.", 3);
     B.FACTS.forEach((f) => S.push({ t: "fact", chapter: "story", id: f.id }));
     S.push({ t: "work", chapter: "story" });
@@ -128,7 +130,8 @@ function buildFlow(role, ctx) {
     B.SAFETY.forEach((it) => S.push({ t: "likert", chapter: "marriage", id: it.id, text: it.t, bucket: "safety", sub: "Private. Only your network leader sees this." }));
     chapter("sees", `How ${pl} leads`, "Chapter 3", `You see ${pl} up close. Rate what you've actually seen. Choose "Not seen" if it doesn't apply.`, 2);
     B.SPOUSE_SEES.forEach((it) => S.push({ t: "likert", chapter: "sees", id: it.id, text: it.t, bucket: "spouseSees", na: true, sub: `${pl}…`, freq: true }));
-    wired(S, "wired", "Chapter 4");
+    wired(S, "wired", "Chapter 4", ctx);
+    netQuestions(S, ctx, "spouse");
     S.push({ t: "private", chapter: "private" });
   }
 
@@ -145,11 +148,19 @@ function buildFlow(role, ctx) {
   return S;
 }
 
-function wired(S, ch, kicker) {
+function netQuestions(S, ctx, role) {
+  const qs = (ctx.questions || []).filter((q) => q.who === role || q.who === "both");
+  if (!qs.length) return;
+  S.push({ t: "intro", chapter: "network", name: `From ${ctx.network || "your network"}`, kicker: "A few more", text: `${ctx.network || "Your network"} added ${qs.length === 1 ? "a question" : "a few questions"} of its own.`, minutes: Math.max(1, Math.ceil(qs.length / 2)) });
+  qs.forEach((q) => S.push(q.kind === "likert" ? { t: "likert", chapter: "network", id: q.id, text: q.t, bucket: "netq" } : { t: "netqText", chapter: "network", id: q.id, text: q.t }));
+}
+const allBeliefs = (ctx) => [...B.BELIEFS, ...((ctx && ctx.beliefs) || [])];
+
+function wired(S, ch, kicker, ctx = {}) {
   S.push({ t: "intro", chapter: ch, name: "Wired", kicker, text: "How God made you: your natural style, your spiritual gifts, and how you serve the body. There are no right answers here, and this part isn't graded.", minutes: 10 });
   B.WIRING.forEach((d) => d.items.forEach((pair, i) => S.push({ t: "pair", chapter: ch, dim: d.id, i, left: pair[0], right: pair[1] })));
   const gi = [];
-  B.GIFTS.forEach((g) => g.items.forEach((t, i) => gi.push({ g: g.id, i, t })));
+  B.GIFTS.filter((g) => ctx.signGifts !== false || !B.SIGN_GIFTS.includes(g.id)).forEach((g) => g.items.forEach((t, i) => gi.push({ g: g.id, i, t })));
   // interleave gifts so the same gift doesn't repeat back to back
   const ordered = [0, 1, 2].flatMap((i) => gi.filter((x) => x.i === i));
   ordered.forEach((x) => S.push({ t: "gift", chapter: ch, g: x.g, i: x.i, text: x.t }));
@@ -163,11 +174,14 @@ const app = () => $("#app");
 function go(v) { view = v; render(); window.scrollTo(0, 0); }
 
 function render() {
-  const nav = L.LIVE ? [["home", "Home"], ["leader", "Network leaders"], ["about", "How it works"]] : [["home", "Home"], ["leader", "Network leaders"], ["join", "I have a code"], ["about", "How it works"]];
-  const cur = view.name === "case" ? "leader" : view.name;
+  const nav = L.LIVE ? [["home", "Home"], ["leader", L.state.session ? "Dashboard" : "Network leaders"], ["about", "How it works"]] : [["home", "Home"], ["leader", "Network leaders"], ["join", "I have a code"], ["about", "How it works"]];
+  const cur = ["case", "settings", "newcase", "admin"].includes(view.name) ? "leader" : view.name;
   $("#top").innerHTML = `<div class="top-in"><button class="brand" data-act="nav" data-to="home" aria-label="Plumbline home">${mark(28)}<span class="brand-word">plumbline</span></button>
-    <nav>${nav.map(([k, l], i) => `<button class="navbtn ${k === "about" ? "opt-hide" : i === 0 ? "home-hide" : ""}" data-act="nav" data-to="${k}" ${cur === k ? 'aria-current="page"' : ""}>${l}</button>`).join("")}${L.LIVE && L.state.session && ["leader", "case", "newcase"].includes(view.name) ? `<button class="navbtn opt-hide" data-act="signout">Sign out</button>` : ""}</nav></div>`;
-  const r = { home: renderHome, leader: renderLeader, newcase: renderNewCase, case: renderCase, join: renderJoin, take: renderTake, about: renderAbout, addresult: renderAddResult, message: renderMessage, refjoin: renderRefJoin, myreport: renderMyReport }[view.name] || renderHome;
+    <nav>${nav.map(([k, l], i) => `<button class="navbtn ${k === "about" ? "opt-hide" : i === 0 ? "home-hide" : ""}" data-act="nav" data-to="${k}" ${cur === k ? 'aria-current="page"' : ""}>${l}</button>`).join("")}${L.LIVE && L.state.session && ["leader", "case", "newcase", "settings", "admin"].includes(view.name) ? `<button class="navbtn opt-hide" data-act="signout">Sign out</button>` : ""}</nav></div>`;
+  const foot = $("#foot");
+  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span>Plumbline is free for every network.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by Parker Manuel</a></span></div>`;
+  const r = { home: renderHome, leader: renderLeader, newcase: renderNewCase, case: renderCase, join: renderJoin, take: renderTake, about: renderAbout, addresult: renderAddResult, message: renderMessage, refjoin: renderRefJoin, myreport: renderMyReport,
+    settings: () => (L.LIVE ? (L.state.session ? T.settings() : T.login()) : renderHome()), teamjoin: T.join, admin: T.admin, privacy: renderPrivacy, terms: renderTerms }[view.name] || renderHome;
   app().innerHTML = r();
   if (view.name === "take") afterTake();
 }
@@ -233,6 +247,43 @@ function renderAbout() {
   </div>`;
 }
 
+function renderPrivacy() {
+  return `<div class="wrap stack-lg legal" style="max-width:46rem"><div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Privacy</h1><p class="muted" style="margin:0">Last updated October 2026</p></div>
+  <div class="read stack">
+    <p>Plumbline is a free church planter assessment run by Parker Manuel. This page explains, in plain words, what we collect, who sees it, and how long we keep it.</p>
+    <h3>What we collect</h3>
+    <p>When a network leader sets up an assessment, we store the names, emails and city they enter. When you answer, we store your answers. Some answers are sensitive: your marriage, your health and stress, your beliefs, and a few private safety questions for spouses. Network leaders sign in with their email, and we store their name, email and network. We use no advertising or tracking cookies.</p>
+    <h3>Who sees your answers</h3>
+    <p><b>Your network's team</b> (the network leaders and assessors who invited you) sees your answers and the reports built from them. <b>Your spouse</b> never sees your individual answers, your private note or your safety answers. After your network leader releases them, each spouse sees their own report, which includes only summaries of the other spouse's answers. <b>References</b> see only their own form. <b>Other networks</b> never see anything of yours. <b>Parker Manuel</b>, who runs Plumbline, can see platform-wide counts (how many networks and assessments there are), never your answers, except to fix a problem you or your network asks him to fix.</p>
+    <h3>How we keep it safe</h3>
+    <p>Everything is sent over encrypted connections and stored with Supabase, a database provider in the United States. The database enforces who can see what, row by row. Your personal link works like a key, so please don't share it.</p>
+    <h3>How long we keep it</h3>
+    <p>Each network chooses 12, 24 or 36 months, and assessments are deleted automatically after that. Network owners and admins can delete an assessment at any time, and deleting it removes every answer in it.</p>
+    <h3>What we never do</h3>
+    <p>We never sell your information, use it for advertising, or share it outside your network. We may use counts with every name removed (for example, how many people finish) to improve Plumbline.</p>
+    <h3>Your choices</h3>
+    <p>You can stop at any time, and you can skip anything you aren't comfortable answering by telling your network leader. To see, correct or delete your answers, ask your network leader, or write to <span class="sel">hello@plumblineassessment.com</span>.</p>
+    <h3>Not a clinical test</h3>
+    <p>Plumbline is a readiness conversation tool. It isn't a psychological test, a medical or mental-health diagnosis, or marriage counseling. If anything you answered raises concerns about your health or safety, please talk with a licensed professional. In the US you can call or text 988 any time, or call the National Domestic Violence Hotline at 1-800-799-7233.</p>
+  </div></div>`;
+}
+function renderTerms() {
+  return `<div class="wrap stack-lg legal" style="max-width:46rem"><div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Terms</h1><p class="muted" style="margin:0">Last updated October 2026</p></div>
+  <div class="read stack">
+    <p>Plumbline is free. By using it you agree to these terms.</p>
+    <h3>For network leaders and teams</h3>
+    <p>Use Plumbline only to assess people who have agreed to take it, for church planting or ministry decisions. Treat their answers as confidential. Don't sell, publish or share them outside your team. A Plumbline report is one input, never the decision. Don't approve, decline or fund anyone on the report alone. Use it alongside interviews, references, background checks and prayerful discernment. You're responsible for who you invite to your team and for removing people who leave.</p>
+    <h3>For planters, spouses and references</h3>
+    <p>Answer honestly and on your own. Your answers go to the network that invited you, as the Privacy page describes.</p>
+    <h3>The questions and reports</h3>
+    <p>Every question, report and scoring rule in Plumbline was written by Parker Manuel. You may use the reports for your own assessments, but you may not copy the question set to build or sell another tool.</p>
+    <h3>No guarantees</h3>
+    <p>Plumbline is provided as it is, without warranties. Scores are estimates from what people reported, and they can be wrong. To the extent the law allows, Plumbline and Parker Manuel aren't liable for decisions made using it.</p>
+    <h3>Changes</h3>
+    <p>We may update these terms and will change the date above when we do. Questions: <span class="sel">hello@plumblineassessment.com</span>.</p>
+  </div></div>`;
+}
+
 function scoringExplainer() {
   return `<div class="read stack" style="gap:10px">
     <p>Each statement is answered from 1 (strongly disagree) to 5 (strongly agree). About one in four statements is worded in reverse, so agreeing with it counts against the score. Each scale is the average of its 4 or 5 statements, converted to 0–100.</p>
@@ -254,19 +305,8 @@ function progressBar(p, showName = true) {
   const pc = p.status === "finished" ? 100 : p.progress || 0;
   return `<div class="pbar" title="${esc(p.name || roleName[p.role])}: ${pc}%"><span class="pbar-label"><b>${showName ? esc(first(p.name) || roleName[p.role]) : ""}</b> <span class="num">${p.status === "finished" ? "Finished" : p.status === "invited" ? "Not started" : pc + "%"}</span></span><span class="pbar-track"><i style="width:${pc}%" class="${p.status === "finished" ? "done" : ""}"></i></span></div>`;
 }
-function renderLogin() {
-  return `<div class="wrap" style="max-width:34rem"><form class="stack-lg" id="login">
-    <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Sign in</h1><p class="lede" style="margin:0">For network leaders. We'll email you a sign-in link. No password needed.</p></div>
-    <label class="field">Your email<input id="l-email" type="email" required autocomplete="email" placeholder="you@yournetwork.org"></label>
-    <div id="l-msg"></div>
-    <div><button class="btn" type="submit">Email me a sign-in link</button></div>
-    <p class="small">Planters, spouses and references don't need to sign in. They use the personal link their network leader sends.</p>
-  </form></div>`;
-}
 function renderLeader() {
-  if (L.LIVE && !L.state.session) return renderLogin();
-  if (L.LIVE && !L.state.loaded) return `<div class="wrap"><p class="muted">${L.state.error ? esc("Couldn't load your assessments: " + L.state.error) : "Loading your assessments…"}</p></div>`;
-  if (L.LIVE) return renderLeaderLive();
+  if (L.LIVE) return T.dashboard();
   const cases = allCases();
   return `<div class="wrap stack-lg">
     <div class="spread"><div class="stack" style="gap:6px"><h1 style="font-size:clamp(2rem,4vw,2.8rem)">Your assessments</h1><p class="muted" style="margin:0">Three sample couples are included so you can see what a finished report looks like.</p></div>
@@ -278,23 +318,6 @@ function renderLeader() {
         <div>${r ? `<span class="outcome tone-${r.outcome.tone}">${r.outcome.name}</span>` : `<span class="sdot">In progress</span>`}</div></button>`;
     }).join("")}</div>
     <div class="notice chalk">This is the free pilot. Everything stays in this browser. Each person finishes on their own device and sends you a results code, and you paste it in with <b>Add results</b>. A shared online version with email invites is next.</div>
-  </div>`;
-}
-
-function renderLeaderLive() {
-  const mine = L.state.cases;
-  return `<div class="wrap stack-lg">
-    <div class="spread"><div class="stack" style="gap:6px"><h1 style="font-size:clamp(2rem,4vw,2.8rem)">Your assessments</h1><p class="muted" style="margin:0">Progress updates live as each person answers.</p></div>
-      <button class="btn" data-act="nav" data-to="newcase">New assessment</button></div>
-    ${mine.length ? "" : `<div class="notice chalk">No assessments yet. Choose <b>New assessment</b> to set one up, then send each person their link. The three samples below show what finished reports look like.</div>`}
-    <div class="cases">${mine.map((c) => {
-      const r = c.planter ? scoreCase(c) : null;
-      const refs = c.people.filter((p) => p.role === "reference");
-      return `<button class="case-row live" data-act="open-case" data-id="${c.id}"><div><div class="case-name">${esc(c.label)}</div><div class="small">${esc([c.city, c.network?.name].filter(Boolean).join(", "))}</div></div>
-        <div class="pbars">${c.people.filter((p) => p.role !== "reference").map(progressBar).join("")}<div class="small">${refs.length ? `${refs.filter((x) => x.status === "finished").length} of ${refs.length} references finished` : "No references yet"}</div></div>
-        <div>${r ? `<span class="outcome tone-${r.outcome.tone}">${r.outcome.name}</span>` : `<span class="sdot">In progress</span>`}</div></button>`;
-    }).join("")}</div>
-    <div class="stack"><h3>Samples</h3><div class="cases">${SAMPLES.map((c) => { const r = scoreCase(c); return `<button class="case-row" data-act="open-case" data-id="${c.id}"><div><div class="case-name">${esc(c.label)}</div><div class="small">Sample</div></div><div></div><div><span class="outcome tone-${r.outcome.tone}">${r.outcome.name}</span></div></button>`; }).join("")}</div></div>
   </div>`;
 }
 
@@ -321,6 +344,7 @@ function renderMyReport() {
 }
 
 function renderNewCase() {
+  if (L.LIVE) return L.state.session ? T.newCase() : T.login();
   return `<div class="wrap" style="max-width:40rem"><form class="stack-lg" id="newcase">
     <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">New assessment</h1><p class="lede" style="margin:0">Set up a case for one planter (and spouse). You'll get a personal link to send to each person.</p></div>
     <div class="panel stack">
@@ -355,8 +379,14 @@ function renderJoin() {
 }
 
 // ---------------- case page ----------------
+let loadingCase = null;
 function renderCase() {
+  if (L.LIVE && !L.state.session && !SAMPLES.find((x) => x.id === view.id)) return T.login();
   const c = getCase(view.id);
+  if (L.LIVE && (!c || (c.live && !c.loadedFull)) && !SAMPLES.find((x) => x.id === view.id)) {
+    if (loadingCase !== view.id) { loadingCase = view.id; L.openCase(view.id).then((x) => { loadingCase = null; if (!x) view.missing = true; render(); }).catch(() => { loadingCase = null; view.missing = true; render(); }); }
+    if (!view.missing) return `<div class="wrap"><p class="muted">Loading…</p></div>`;
+  }
   if (!c) return `<div class="wrap"><p>That assessment isn't here anymore.</p><button class="btn" data-act="nav" data-to="leader">Back</button></div>`;
   const tab = view.tab || (c.planter ? "leader" : "status");
   let tabs = [["leader", "Leader report"], ["planter", `${first(c.planterName)}'s report`]];
@@ -375,25 +405,8 @@ function renderCase() {
     ${body}</div>`;
 }
 
-function statusTabLive(c) {
-  const ppl = c.people;
-  const refs = ppl.filter((p) => p.role === "reference");
-  const row = (p) => `<div class="invite"><span class="who pill-${p.role === "reference" ? "ref" : p.role}">${p.role === "planter" ? "P" : p.role === "spouse" ? "S" : "R"}</span>
-      <div class="stack" style="gap:6px"><div><b>${esc(p.name || roleName[p.role])}</b> <span class="small">${esc(roleName[p.role])}${p.relationship ? " · " + esc(p.relationship) : ""}${p.updated_at && p.status !== "invited" ? " · active " + ago(p.updated_at) : ""}</span></div>${progressBar(p, false)}${p.chapter && p.status === "started" ? `<span class="small">Working on: ${esc(p.chapter)}</span>` : ""}</div>
-      <div class="row">${p.role !== "reference" ? `<button class="btn sm ghost" data-act="copy-link" data-token="${p.token}">Copy link</button>` : ""}<button class="btn sm ghost" data-act="open-link" data-token="${p.token}">Open</button></div></div>`;
-  return `<div class="stack-lg" style="max-width:52rem">
-    <div class="stack"><h2>${esc(c.label)}</h2><p class="read" style="margin:0">Send each person their own link. Everything saves after every answer, so they can stop and finish later on any device. Ask the couple not to talk about their answers until both have finished.</p></div>
-    <div class="panel">${ppl.filter((p) => p.role !== "reference").map(row).join("")}</div>
-    <div class="panel stack" data-copywrap><h3>References</h3><p class="small" style="margin:0">Send this one link to 3 to 5 references: a sending or supervising pastor, a ministry peer, someone ${esc(first(c.planterName))} has led, and someone outside the church. Each person who opens it gets their own saved copy.</p>
-      <div class="code-box">${esc(L.refLink(c.refToken))}</div><div><button class="btn sm" data-act="copy-text" data-text="${esc(L.refLink(c.refToken))}">Copy reference link</button></div>
-      ${refs.length ? refs.map(row).join("") : `<p class="muted" style="margin:0">No references have opened the link yet.</p>`}</div>
-    <div class="panel stack"><h3>Reports for the couple</h3><p class="small" style="margin:0">Each spouse sees their own report at their same link, once you release it. They never see each other's answers, the private note or the safety answers. We suggest releasing after you walk through the results together.</p>
-      <div><button class="btn sm ${c.released ? "ghost" : ""}" data-act="release" data-on="${c.released ? "0" : "1"}">${c.released ? "Hide their reports" : "Release their reports"}</button> ${c.released ? `<span class="chip tone-a">Released</span>` : ""}</div></div>
-    <div><button class="btn sm ghost" data-act="delete-case">Remove this assessment</button><div id="del-confirm"></div></div>
-  </div>`;
-}
 function statusTab(c) {
-  if (c.live) return statusTabLive(c);
+  if (c.live) return T.statusTab(c);
   const rows = [["planter", c.planterName, "Planter", "pill-planter", "P", !!c.planter]];
   if (c.married) rows.push(["spouse", c.spouseName, "Spouse", "pill-spouse", "S", !!c.spouse]);
   rows.push(["reference", "References", `${(c.refs || []).length} of 3–5 finished. One code works for every reference.`, "pill-ref", "R", (c.refs || []).length >= 3]);
@@ -409,10 +422,24 @@ function statusTab(c) {
 }
 
 // ---------------- leader report ----------------
+const liveNotes = {};
+function notesFor(c) {
+  if (c.live) return (liveNotes[c.id] ||= JSON.parse(JSON.stringify(L.myScores(c.id) || { rubric: {}, text: {}, work: {} })));
+  return (db.notes[c.id] ||= { rubric: {}, text: {}, work: {} });
+}
+function saveNotesFor(c, notes) { if (c.live) L.saveMyScores(c.id, notes); else save(); }
+const qid = (prefix, text) => { let h = 0; for (const ch of String(text)) h = (h * 31 + ch.charCodeAt(0)) | 0; return prefix + (h >>> 0).toString(36); };
+function teamLine(c, id, mine) {
+  if (!c.live) return "";
+  const others = L.teamScores(c.id).map((s) => ({ name: s.name, n: s.notes?.rubric?.[id] })).filter((x) => x.n);
+  if (!others.length) return "";
+  if (!mine) return `<span class="small">${others.length} teammate${others.length > 1 ? "s have" : " has"} scored this. Score it yourself to see theirs.</span>`;
+  return `<span class="small">Team: ${others.map((o) => `${esc(first(o.name))} ${o.n}`).join(", ")}</span>`;
+}
 function leaderReport(c, r) {
   const P = c.planter, pn = first(c.planterName), sn = first(c.spouseName);
   const flags = [...r.flags].sort((a, b) => (a.level === b.level ? 0 : a.level === "concern" ? -1 : 1));
-  const notes = (db.notes[c.id] ||= (c.notesRemote && Object.keys(c.notesRemote).length ? JSON.parse(JSON.stringify(c.notesRemote)) : { rubric: {}, text: {}, work: {} }));
+  const notes = notesFor(c);
   const refFollow = r.refs.follow ? r.refs.follow.avg.toFixed(1) : "—";
   return `<article class="report">
     <header class="stack">
@@ -420,6 +447,7 @@ function leaderReport(c, r) {
       <div class="legend"><span><i style="width:10px;height:10px;border-radius:50%;background:var(--brass)"></i>${esc(pn)}</span>${c.married ? `<span><i style="width:10px;height:10px;border-radius:50%;background:var(--chalk)"></i>${esc(sn)}</span>` : ""}</div></div>
       <div class="verdict tone-${r.outcome.tone}"><span class="line"></span><div><div class="big">${r.outcome.name}</div><div class="why">${esc(r.outcome.line)} ${esc(r.outcome.why)}</div></div></div>
       ${missing(c).length ? `<div class="notice">Still waiting on ${esc(missing(c).join(" and "))}. The recommendation may change when they finish.</div>` : ""}
+      ${L.LIVE ? `<div class="no-print"><button class="btn sm ghost" data-act="print">Print or save as PDF</button></div>` : ""}
       <div class="disclaim">This report is one input, not a decision. No one should be approved, declined or funded on this report alone. Use it with interviews, references, background checks, a ministry track record and prayerful discernment.</div>
     </header>
 
@@ -451,9 +479,10 @@ function leaderReport(c, r) {
     ${wiredSection(c, r, true)}
     ${refsSection(c, r)}
     ${experienceSection(c, r, notes)}
+    ${networkSection(c, r)}
     ${responseQuality(c, r)}
     ${interviewSection(c, r, notes)}
-    <section class="stack"><div class="section-head"><h2>How this was scored</h2></div>${scoringExplainer()}
+    <section class="stack"><div class="section-head"><h2>How this was scored</h2><p class="muted">Question set ${esc(c.settings?.bankVersion || P.meta?.bankVersion || B.BANK_VERSION)}</p></div>${scoringExplainer()}
       <ul class="list-clean small">${Object.values(B.SOURCES).map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.t)}</a></li>`).join("")}</ul></section>
   </article>`;
 }
@@ -561,6 +590,18 @@ function experienceSection(c, r, notes) {
   </section>`;
 }
 
+function networkSection(c, r) {
+  const nb = r.beliefs.filter((b) => b.network);
+  if (!nb.length && !r.netq.length) return "";
+  const ansWord = { yes: "Yes", unsure: "Not sure", no: "No" };
+  const val = (q, v) => (v == null || v === "" ? "—" : q.kind === "likert" ? B.LIKERT[v - 1] || v : esc(v));
+  return `<section class="stack"><div class="section-head"><h2>From ${esc(c.network?.name || "your network")}</h2><p class="muted">Your network's own beliefs and questions. Answers are shown as given and aren't scored.</p></div>
+    ${nb.length ? `<div class="scroll-x"><table class="tbl"><tbody>${nb.map((b) => `<tr><td>${esc(b.t)}</td><td>${b.answer ? `<span class="chip tone-${b.answer === "yes" ? "a" : b.answer === "no" ? "d" : "c"}">${ansWord[b.answer]}</span>` : "—"}</td></tr>`).join("")}</tbody></table></div>` : ""}
+    ${r.netq.map((q) => `<div class="icard"><span class="kind">${q.who === "both" ? "Planter and spouse" : q.who === "spouse" ? "Spouse" : "Planter"}</span><div class="q">${esc(q.t)}</div>
+      ${q.who !== "spouse" ? `<p class="read" style="margin:0"><b>${esc(first(c.planterName))}:</b> ${val(q, q.kind === "likert" ? c.planter?.netq?.[q.id] : c.planter?.netqText?.[q.id])}</p>` : ""}
+      ${q.who !== "planter" && c.married ? `<p class="read" style="margin:0"><b>${esc(first(c.spouseName))}:</b> ${val(q, q.kind === "likert" ? c.spouse?.netq?.[q.id] : c.spouse?.netqText?.[q.id])}</p>` : ""}</div>`).join("")}
+  </section>`;
+}
 function responseQuality(c, r) {
   const v = r.validity, sv = r.spouseValidity;
   const line = (name, x) => x ? `<div class="spread" style="border-bottom:1px solid var(--rule);padding-bottom:8px"><span><b>${esc(name)}</b> ${x.notes.length ? `<span class="small">${esc(x.notes.join(" "))}</span>` : `<span class="small">No issues found.</span>`}</span><span class="chip tone-${x.quality === "Good" ? (x.idealized ? "c" : "a") : x.quality === "Some concerns" ? "c" : "d"}">${x.quality === "Good" && x.idealized ? "Possibly idealized" : x.quality}</span></div>` : "";
@@ -572,9 +613,9 @@ const ANCHORS = ["No relevant example, or it shows the opposite", "Vague or hypo
 function interviewSection(c, r, notes) {
   const I = r.interview;
   const block = (key, title, mins, list) => list.length ? `<div class="stack"><div class="spread"><h3>${title}</h3><span class="small num">About ${mins} minutes</span></div>
-    ${list.map((q, i) => { const id = `${key}${i}`; return `<div class="icard"><span class="kind">${esc(q.title)}</span><div class="q">${esc(q.q)}</div>
+    ${list.map((q) => { const id = qid(key, q.q); return `<div class="icard"><span class="kind">${esc(q.title)}</span><div class="q">${esc(q.q)}</div>
       ${q.probes?.length ? `<ul>${q.probes.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}${q.look ? `<div class="look"><b>Listen for:</b> ${esc(q.look)}</div>` : ""}
-      <div class="rubric" role="group" aria-label="Rate the answer">${[1, 2, 3, 4, 5].map((n) => `<button aria-pressed="${notes.rubric[id] === n}" data-act="rubric" data-q="${id}" data-n="${n}" title="${esc(ANCHORS[n - 1])}">${n}</button>`).join("")}<span class="small">${esc(notes.rubric[id] ? ANCHORS[notes.rubric[id] - 1] : "Rate after they answer")}</span></div>
+      <div class="rubric" role="group" aria-label="Rate the answer">${[1, 2, 3, 4, 5].map((n) => `<button aria-pressed="${notes.rubric[id] === n}" data-act="rubric" data-q="${id}" data-n="${n}" title="${esc(ANCHORS[n - 1])}">${n}</button>`).join("")}<span class="small">${esc(notes.rubric[id] ? ANCHORS[notes.rubric[id] - 1] : "Rate after they answer")}</span></div>${teamLine(c, id, notes.rubric[id])}
       <textarea class="input" data-act="note" data-q="${id}" aria-label="Notes" placeholder="Notes" style="min-height:64px">${esc(notes.text[id] || "")}</textarea></div>`; }).join("")}</div>` : "";
   return `<section class="stack" id="interview"><div class="section-head"><h2>Interview guide</h2><p class="muted">Built from their answers. Ask about real past situations and follow up for what they personally did. Rate each answer from 1 to 5 on your own before comparing with other interviewers.</p></div>
     <div class="anchors">${ANCHORS.map((a, i) => `<div><b>${i + 1}</b> ${esc(a)}</div>`).join("")}</div>
@@ -631,6 +672,7 @@ function personReport(c, r, who) {
     <section class="stack"><div class="section-head"><h2>Your next 90 days</h2><p class="muted">Growth areas aren't failures. They're the next faithful steps.</p></div>
       ${plan.length ? plan.map((p, i) => `<div class="plan-step"><span class="n">${i + 1}</span><div><b>${esc(p.scale)}</b><p>${esc(p.step)}</p></div></div>`).join("") : `<p class="muted">No growth areas stood out. Keep doing what you're doing, and ask your coach where to stretch.</p>`}</section>
 
+    ${L.LIVE ? `<div class="no-print"><button class="btn sm ghost" data-act="print">Print or save as PDF</button></div>` : ""}
     <div class="disclaim">This report reflects how you described yourself on the day you took it. Your network leader will walk through it with you. It isn't a diagnosis or a final word, and you can grow in every area here.</div>
   </article>`;
 }
@@ -647,7 +689,7 @@ function startTake(c, role, refIdx = null) {
 function blankResp(role, c) {
   if (role === "reference") return { items: {}, gifts: [], meta: { name: "", relationship: "", years: "" } };
   return { likert: {}, wiring: {}, gifts: {}, fivefold: [], scenarios: {}, couple: {}, guess: {}, facts: {}, beliefs: {}, safety: {}, spouseSees: {}, work: {}, privateNote: "",
-    meta: role === "planter" ? { name: c.planterName, married: c.married, spouseName: c.spouseName, city: c.city, network: c.network?.name, pageTimes: {} } : { name: c.spouseName, pageTimes: {} } };
+    meta: role === "planter" ? { name: c.planterName, married: c.married, spouseName: c.spouseName, city: c.city, network: c.network?.name, pageTimes: {}, bankVersion: B.BANK_VERSION } : { name: c.spouseName, pageTimes: {}, bankVersion: B.BANK_VERSION } };
 }
 function saveDraft() {
   if (take.token) { L.queueSave(take.token, take.resp, take.i, take.steps.length - 1, chapterLabel(take.steps[take.i]) || ""); return; }
@@ -656,7 +698,7 @@ function saveDraft() {
 function startTakeLive(token, data) {
   const cs = data.case, p = data.participant;
   const c = { id: cs.id, planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: { name: cs.network, signGifts: cs.signGifts } };
-  const ctx = { planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: cs.network, signGifts: cs.signGifts !== false };
+  const ctx = { planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: cs.network, signGifts: cs.signGifts !== false, beliefs: cs.beliefs || [], questions: cs.questions || [], logoUrl: cs.logoUrl };
   const steps = buildFlow(p.role, ctx);
   let resp = p.answers && Object.keys(p.answers).length ? p.answers : blankResp(p.role, c);
   let i = p.step || 0;
@@ -747,8 +789,8 @@ function screen(s) {
   }
   if (s.t === "beliefs") {
     return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Core beliefs</span><div class="qtext">Do you affirm each of these?</div></div>
-      <div class="stack" style="gap:10px">${B.BELIEFS.map((b) => `<div class="spread" style="border-bottom:1px solid var(--rule);padding-bottom:10px"><span style="flex:1;min-width:220px">${esc(b.t)}</span><div class="seg" role="group">${[["yes", "Yes"], ["unsure", "Not sure"], ["no", "No"]].map(([v, l]) => `<button data-act="belief" data-id="${b.id}" data-v="${v}" aria-pressed="${R.beliefs[b.id] === v}">${l}</button>`).join("")}</div></div>`).join("")}</div>
-      <div><button class="btn" data-act="next" ${B.BELIEFS.every((b) => R.beliefs[b.id] != null) ? "" : "disabled"}>Next</button></div></div>`;
+      <div class="stack" style="gap:10px">${allBeliefs(take.ctx).map((b) => `<div class="spread" style="border-bottom:1px solid var(--rule);padding-bottom:10px"><span style="flex:1;min-width:220px">${esc(b.t)}</span><div class="seg" role="group">${[["yes", "Yes"], ["unsure", "Not sure"], ["no", "No"]].map(([v, l]) => `<button data-act="belief" data-id="${b.id}" data-v="${v}" aria-pressed="${R.beliefs[b.id] === v}">${l}</button>`).join("")}</div></div>`).join("")}</div>
+      <div><button class="btn" data-act="next" ${allBeliefs(take.ctx).every((b) => R.beliefs[b.id] != null) ? "" : "disabled"}>Next</button></div></div>`;
   }
   if (s.t === "fact") {
     const f = B.FACTS.find((x) => x.id === s.id), v = R.facts[s.id];
@@ -763,6 +805,8 @@ function screen(s) {
       <div class="stack">${B.WORK_SAMPLES.map((w) => `<label class="field">${esc(w.q)}<input id="work-${w.id}" type="url" placeholder="${esc(w.hint)}" value="${esc(R.work[w.id] || "")}"></label>`).join("")}</div>
       <div><button class="btn" data-act="work-next">Finish</button></div></div>`;
   }
+  if (s.t === "netqText") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">From ${esc(ctx.network || "your network")}</span><div class="qtext">${esc(s.text)}</div></div>
+      <textarea class="input" id="netq-text" maxlength="2000" placeholder="Your answer">${esc((R.netqText || {})[s.id] || "")}</textarea><div><button class="btn" data-act="netq-next">Next</button></div></div>`;
   if (s.t === "safetyIntro") return `<div class="intro-card"><span class="kicker">Private</span><h2>Three private questions</h2><p>These go only to your network leader. They are never shown to ${esc(pn)} or in any shared report. If you are ever in danger, call 911. In the US, you can reach the National Domestic Violence Hotline at 1-800-799-7233 or by texting START to 88788.</p><button class="btn" data-act="next">Continue</button></div>`;
   if (s.t === "private") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Private to your network leader</span><div class="qtext">Is there anything you'd want your network leader to know that's hard to say with ${esc(pn)} in the room?</div><p class="small" style="margin:0">Optional. ${esc(pn)} won't see this.</p></div>
       <textarea class="input" id="priv" placeholder="Write as much or as little as you'd like">${esc(R.privateNote || "")}</textarea><div><button class="btn" data-act="private-next">Finish</button></div></div>`;
@@ -863,7 +907,9 @@ document.addEventListener("click", async (e) => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
   const act = el.dataset.act;
-  if (act === "nav") { e.preventDefault(); go({ name: el.dataset.to }); return; }
+  if (act === "nav") { e.preventDefault(); if (el.dataset.to === "admin") { go({ name: "admin" }); L.platformStats().then((st) => { if (view.name === "admin") { view.stats = st; render(); } }); return; } go({ name: el.dataset.to }); return; }
+  if (act === "print") { window.print(); return; }
+  if (L.LIVE && (await T.onClick(act, el))) return;
   if (act === "jump") { e.preventDefault(); document.getElementById(el.dataset.to)?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
   if (act === "open-sample") { go({ name: "case", id: "kim", tab: "leader" }); return; }
   if (act === "open-case") { go({ name: "case", id: el.dataset.id }); return; }
@@ -883,10 +929,10 @@ document.addEventListener("click", async (e) => {
   if (act === "copy-invite") { const c = getCase(view.id); copy(await inviteCode(c, el.dataset.role), el); return; }
   if (act === "take-here") { const c = getCase(view.id); if (c.live) { const p = c.people.find((x) => x.role === el.dataset.role); if (p) location.hash = "#/t/" + p.token; return; } startTake(c, el.dataset.role); return; }
   if (act === "delete-case") {
-    $("#del-confirm").innerHTML = `<div class="notice red" style="margin-top:12px">Delete this assessment and every answer in it from this browser? This can't be undone. <div class="row" style="margin-top:10px"><button class="btn sm" data-act="delete-yes">Delete</button><button class="btn sm ghost" data-act="delete-no">Keep it</button></div></div>`; return;
+    $("#del-confirm").innerHTML = `<div class="notice red" style="margin-top:12px">Delete this assessment and every answer in it${getCase(view.id)?.live ? " for your whole team" : " from this browser"}? This can't be undone. <div class="row" style="margin-top:10px"><button class="btn sm" data-act="delete-yes">Delete</button><button class="btn sm ghost" data-act="delete-no">Keep it</button></div></div>`; return;
   }
   if (act === "delete-no") { $("#del-confirm").innerHTML = ""; return; }
-  if (act === "delete-yes" && getCase(view.id)?.live) { try { await L.archiveCase(view.id); toast("Removed"); go({ name: "leader" }); } catch { toast("Couldn't remove it. Try again."); } return; }
+  if (act === "delete-yes" && getCase(view.id)?.live) { try { await L.deleteCase(view.id); toast("Deleted"); go({ name: "leader" }); } catch { toast("Couldn't delete it. Only owners and admins can."); } return; }
   if (act === "delete-yes") { db.cases = db.cases.filter((c) => c.id !== view.id); delete db.notes[view.id]; save(); toast("Deleted"); go({ name: "leader" }); return; }
   if (act === "join") {
     const msg = $("#join-msg");
@@ -911,9 +957,10 @@ document.addEventListener("click", async (e) => {
     return;
   }
   if (act === "rubric" || act === "work-score") {
-    const c = getCase(view.id); const notes = (db.notes[c.id] ||= { rubric: {}, text: {}, work: {} });
+    const c = getCase(view.id); const notes = notesFor(c);
     if (act === "rubric") notes.rubric[el.dataset.q] = +el.dataset.n; else notes.work[el.dataset.w] = +el.dataset.n;
-    save(); if (c.live) L.saveNotes(c.id, notes);
+    saveNotesFor(c, notes);
+    if (c.live && act === "rubric") { const line = el.closest(".icard")?.querySelector(".rubric + .small"); const html = teamLine(c, el.dataset.q, true); if (line) line.outerHTML = html || ""; else if (html) el.closest(".rubric").insertAdjacentHTML("afterend", html); }
     const grp = el.parentElement; grp.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b === el));
     const lbl = grp.querySelector("span"); if (lbl) lbl.textContent = act === "rubric" ? ANCHORS[+el.dataset.n - 1] : B.WORK_RUBRIC.find((w) => w.id === el.dataset.w).anchors[+el.dataset.n - 1];
     return;
@@ -955,6 +1002,7 @@ document.addEventListener("click", async (e) => {
     else { arr = arr.filter((x) => !f.opts[x].none); arr = arr.includes(i) ? arr.filter((x) => x !== i) : [...arr, i]; }
     take.resp.facts[s.id] = arr; saveDraft(); render(); return;
   }
+  if (act === "netq-next") { (take.resp.netqText ||= {})[s.id] = $("#netq-text").value.trim().slice(0, 2000); advance(); return; }
   if (act === "work-next") { B.WORK_SAMPLES.forEach((w) => { const v = $("#work-" + w.id).value.trim(); if (v) take.resp.work[w.id] = v; }); advance(); return; }
   if (act === "private-next") { take.resp.privateNote = $("#priv").value; advance(); return; }
   if (act === "ref-ready") { take.resp.ready = +el.dataset.i; el.parentElement.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b === el)); clearTimeout(advanceTimer); advanceTimer = setTimeout(advance, 220); return; }
@@ -970,18 +1018,16 @@ document.addEventListener("click", async (e) => {
 
 document.addEventListener("input", (e) => {
   const el = e.target;
-  if (el.dataset?.act === "note") { const notes = (db.notes[view.id] ||= { rubric: {}, text: {}, work: {} }); notes.text[el.dataset.q] = el.value; save(); if (getCase(view.id)?.live) L.saveNotes(view.id, notes); }
+  if (el.dataset?.act === "note") { const c = getCase(view.id); const notes = notesFor(c); notes.text[el.dataset.q] = el.value; saveNotesFor(c, notes); return; }
+  if (L.LIVE && T.onInput(el)) return;
 });
 
 document.addEventListener("submit", (e) => {
   e.preventDefault();
-  if (e.target.id === "login") {
-    const msg = $("#l-msg"), email = $("#l-email").value.trim();
-    const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
-    L.sendMagicLink(email).then(() => { msg.innerHTML = `<div class="notice">Check ${esc(email)} for a sign-in link. Open it in this browser.</div>`; })
-      .catch((err) => { msg.innerHTML = `<div class="notice red">That didn't send: ${esc(err.message)}. Wait a minute and try again.</div>`; btn.disabled = false; });
-    return;
-  }
+  if (L.LIVE) { T.onSubmit(e.target).then((handled) => { if (!handled) submitLocal(e); }); return; }
+  submitLocal(e);
+});
+function submitLocal(e) {
   if (e.target.id === "refjoin") {
     const name = $("#rj-name").value.trim(); if (!name) return;
     const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
@@ -995,13 +1041,6 @@ document.addEventListener("submit", (e) => {
   if (e.target.id === "newcase") {
     const pn = $("#f-pn").value.trim(), m = $("#f-m").value === "1", sn = $("#f-sn").value.trim();
     if (!pn) return;
-    if (L.LIVE) {
-      const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
-      L.createCase({ planterName: pn, married: m, spouseName: sn || "Spouse", city: $("#f-city").value.trim(), network: $("#f-net").value.trim(), signGifts: $("#f-sg").checked })
-        .then((id) => go({ name: "case", id, tab: "status" }))
-        .catch((err) => { toast("Couldn't create it: " + err.message); btn.disabled = false; });
-      return;
-    }
     const c = { id: uid(), label: m && sn ? `${first(pn)} & ${sn}` : pn, planterName: pn, spouseName: m ? sn || "Spouse" : "", married: m, city: $("#f-city").value.trim(), network: { name: $("#f-net").value.trim(), signGifts: $("#f-sg").checked }, created: today(), planter: null, spouse: null, refs: [] };
     if (m && sn && pn.split(" ").slice(-1)[0] === sn.split(" ").slice(-1)[0]) c.label = `${first(pn)} & ${sn}`;
     db.cases.unshift(c); save();
@@ -1016,7 +1055,8 @@ document.addEventListener("submit", (e) => {
     R.meta.consentedAt = today();
     advance();
   }
-});
+}
+document.addEventListener("change", (e) => { if (L.LIVE) T.onChange(e.target); });
 
 document.addEventListener("keydown", (e) => {
   if (view.name !== "take" || !take) return;
@@ -1029,6 +1069,8 @@ document.addEventListener("keydown", (e) => {
     const b = $('#app [data-act="back"]'); if (b) { e.preventDefault(); b.click(); }
   } else if (e.key === "Enter" && s.t === "intro") { e.preventDefault(); advance(); }
 });
+
+T.init({ esc, first, go, render: () => render(), toast, copy, progressBar, ago, roleName, view: () => view, SAMPLES, scoreCase });
 
 // ---------------- live routing ----------------
 async function route() {
@@ -1052,6 +1094,14 @@ async function route() {
     } catch { go({ name: "message", title: "We couldn't reach Plumbline", text: "Check your connection and reload this page. Your answers so far are saved." }); }
     return;
   }
+  if ((m = h.match(/^#\/join\/([a-f0-9]{20,})$/))) {
+    const token = m[1];
+    try { const info = await L.inviteInfo(token); go({ name: "teamjoin", token, info }); }
+    catch { go({ name: "message", title: "We couldn't reach Plumbline", text: "Check your connection and reload this page." }); }
+    return;
+  }
+  if ((m = h.match(/^#\/case\/([0-9a-f-]{36})$/))) { go({ name: "case", id: m[1], after: m[1] }); return; }
+  if ((m = h.match(/^#\/(privacy|terms|about)$/))) { go({ name: m[1] }); return; }
   if ((m = h.match(/^#\/r\/([a-f0-9]{20,})$/))) {
     const refToken = m[1];
     let mine = null; try { mine = localStorage.getItem("pl.ref." + refToken); } catch {}
@@ -1068,12 +1118,24 @@ if (L.LIVE) {
   L.onChange((why) => {
     if (why === "save") { const el = $("#savestate"); if (el) el.textContent = saveLabel(); return; }
     if (why === "auth" && L.state.session && view.name === "home" && !location.hash) { go({ name: "leader" }); return; }
-    if (view.name === "leader" || view.name === "newcase" || (view.name === "case" && (view.tab === "status" || !getCase(view.id)?.planter))) render();
+    if (why === "auth" && view.name === "teamjoin") { render(); return; }
+    if (view.name === "leader" || view.name === "settings" || (view.name === "case" && (view.tab === "status" || !getCase(view.id)?.planter || why === "case"))) {
+      if (view.name === "case" && why === "progress" && view.tab !== "status") return;
+      const active = document.activeElement; if (active && ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName) && why === "progress") return;
+      render();
+    }
   });
   window.addEventListener("hashchange", route);
   window.addEventListener("beforeunload", (e) => { if (take?.token && L.saveStatus() !== "saved") { L.flush(); e.preventDefault(); e.returnValue = ""; } });
   render();
-  L.initAuth().then(() => { if (/^#\/[tr]\//.test(location.hash)) route(); else if (L.state.session && new URLSearchParams(location.search).has("code")) { history.replaceState(null, "", location.pathname); go({ name: "leader" }); } else render(); });
+  L.initAuth().then(() => {
+    const qs = new URLSearchParams(location.search);
+    const join = qs.get("join"), caseId = qs.get("case");
+    if (qs.has("code") || join || caseId) history.replaceState(null, "", location.pathname + (join ? "#/join/" + join : caseId ? "#/case/" + caseId : location.hash));
+    if (/^#\/(t|r|join|case|privacy|terms|about)/.test(location.hash)) route();
+    else if (L.state.session && qs.has("code")) go({ name: "leader" });
+    else render();
+  });
 } else {
   render();
 }

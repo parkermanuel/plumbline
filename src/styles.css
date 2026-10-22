@@ -356,3 +356,33 @@ label.field { display: grid; gap: 6px; font-weight: 600; font-size: 15px; }
 .pbar-track i.done { background: var(--band-a); }
 @media (prefers-reduced-motion: reduce) { .pbar-track i { transition: none; } }
 .case-row.live { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto; }
+.net-logo { height: 44px; width: auto; max-width: 160px; object-fit: contain; border-radius: var(--r-sm); background: var(--card); }
+.foot { border-top: 1px solid var(--rule); }
+.foot-in { max-width: 72rem; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 28px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--ink-3); }
+.foot-in a, .foot-in .link { color: var(--ink-2); font-weight: 500; font-size: 14px; text-decoration: none; }
+.legal h3 { margin-top: 12px; color: var(--ink); }
+.legal p { margin: 0; }
+.sel { user-select: all; font-weight: 600; color: var(--ink); }
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "+ "; }
+details[open] > summary::before { content: "− "; }
+.seg button .num { opacity: .7; margin-left: 4px; font-weight: 500; }
+.person .email-in { font-size: 14px; }
+@media print {
+  :root { --paper: #ffffff; --card: #ffffff; --paper-2: #f3f4f1; }
+  body { background: #fff; }
+  .top, .foot, .tabs, .no-print, .link, .rubric button[aria-pressed="false"], body::before, details { display: none !important; }
+  .wrap { max-width: none; padding: 0; }
+  main { padding: 0; }
+  .report { gap: 22px; }
+  .pillar, .icard, .flag, .panel, .area, .grade, .two > *, .kpi, .verdict, .hero-report { break-inside: avoid; }
+  .icard textarea { border: 0; padding: 0; min-height: 0; resize: none; font-family: var(--read); }
+  .icard textarea:placeholder-shown { display: none; }
+  .hero-report, .intro-card { background: #fff !important; color: var(--ink) !important; border: 1px solid var(--rule); }
+  .hero-report h1, .intro-card h2 { color: var(--ink) !important; }
+  .hero-report p { color: var(--ink-2) !important; }
+  .mini-plumb, .plumb-stage { display: none !important; }
+  a[href^="http"]::after { content: ""; }
+  @page { margin: 16mm 14mm; }
+}

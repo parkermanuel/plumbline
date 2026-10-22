@@ -31,6 +31,7 @@ ${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card.p
 </head><body>
 <header class="top" id="top"></header>
 <main id="app"></main>
+<footer class="foot" id="foot"></footer>
 <script>window.PLUMBLINE_CONFIG=${JSON.stringify(cfg)};</script>
 <script>${js}</script>
 </body></html>`;

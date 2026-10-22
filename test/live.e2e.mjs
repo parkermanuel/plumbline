@@ -1,98 +1,133 @@
-// End-to-end test of the live site against a fake Supabase backed by a real in-memory Postgres (PGlite).
+// End-to-end test of the live site: real browser, real database rules (PGlite), fake Supabase HTTP layer, captured emails.
 import { chromium } from "playwright";
-import { PGlite } from "@electric-sql/pglite";
 import { readFileSync, writeFileSync } from "fs";
 import { execSync } from "child_process";
+import { makeDb } from "./sql.test.mjs";
+import { personEmail, teamInviteEmail, finishedEmail } from "../supabase/functions/plumbline-email/templates.js";
 
-writeFileSync("/tmp/pl-test-config.json", JSON.stringify({ supabaseUrl: "https://test.supabase.co", supabaseAnonKey: "anon-test", siteUrl: "http://plumbline.test" }));
+const SITE = "http://plumbline.test";
+writeFileSync("/tmp/pl-test-config.json", JSON.stringify({ supabaseUrl: "https://test.supabase.co", supabaseAnonKey: "anon-test", siteUrl: SITE }));
 execSync("PL_CONFIG=/tmp/pl-test-config.json node build.mjs", { stdio: "inherit" });
 const HTML = readFileSync("dist/index.html", "utf8");
+const SHOTS = process.env.SHOTS || "";
 
-const db = new PGlite();
-await db.exec(`create role anon; create role authenticated; create schema auth; create table auth.users (id uuid primary key);
-  create or replace function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.uid', true), '')::uuid $$;
-  create publication supabase_realtime;`);
-await db.exec(readFileSync("supabase/setup.sql", "utf8"));
-await db.exec(`grant usage on schema public to anon, authenticated; grant all on all tables in schema public to authenticated;`);
-const LEADER = "11111111-1111-1111-1111-111111111111";
-await db.exec(`insert into auth.users values ('${LEADER}')`);
+const db = await makeDb();
+const USERS = { owner: ["11111111-1111-1111-1111-111111111111", "dana@frontrange.org"], assessor: ["22222222-2222-2222-2222-222222222222", "sam@frontrange.org"], outsider: ["33333333-3333-3333-3333-333333333333", "x@elsewhere.org"] };
+for (const [id, em] of Object.values(USERS)) await db.exec(`insert into auth.users values ('${id}', '${em}')`);
 
 let lock = Promise.resolve();
 const serial = (fn) => (lock = lock.then(fn, fn));
 async function asUser(uid, fn) {
   return serial(async () => {
-    if (uid) await db.exec(`set role authenticated; select set_config('request.uid', '${uid}', false);`);
+    await db.exec(`set role ${uid ? "authenticated" : "anon"}; select set_config('request.uid', '${uid || ""}', false);`);
     try { return await fn(); } finally { await db.exec(`reset role; select set_config('request.uid', '', false);`); }
   });
 }
-const uidFrom = (auth) => { try { return JSON.parse(Buffer.from(auth.split(" ")[1].split(".")[1], "base64url")).sub; } catch { return null; } };
-const lit = (v) => (v === null || v === undefined ? "null" : typeof v === "number" ? String(v) : typeof v === "boolean" ? String(v) : typeof v === "object" ? `'${JSON.stringify(v).replace(/'/g, "''")}'::jsonb` : `'${String(v).replace(/'/g, "''")}'`);
-const calls = [];
+const asService = (fn) => serial(fn);
+const uidFrom = (auth) => { try { return JSON.parse(Buffer.from(auth.split(" ")[1].split(".")[1], "base64url")).sub || null; } catch { return null; } };
+const lit = (v) => (v === null || v === undefined ? "null" : typeof v === "number" || typeof v === "boolean" ? String(v) : Array.isArray(v) ? `array[${v.map((x) => `'${x}'`).join(",")}]::uuid[]` : typeof v === "object" ? `'${JSON.stringify(v).replace(/'/g, "''")}'::jsonb` : `'${String(v).replace(/'/g, "''")}'`);
+const emails = [], calls = [];
 
-async function handle(route) {
+async function rest(route) {
   const req = route.request(); const url = new URL(req.url()); const method = req.method();
   const uid = uidFrom(req.headers()["authorization"] || "");
   const json = (status, body) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
   try {
     if (url.pathname.startsWith("/rest/v1/rpc/")) {
-      const fn = url.pathname.split("/").pop(); const args = JSON.parse(req.postData() || "{}");
-      calls.push(fn);
-      const sql = `select public.${fn}(${Object.entries(args).map(([k, v]) => `${k} => ${lit(v)}`).join(", ")}) as r`;
-      const rows = await serial(() => db.query(sql));
-      return json(200, rows.rows[0].r);
+      const fn = url.pathname.split("/").pop(); const args = JSON.parse(req.postData() || "{}"); calls.push(fn);
+      const r = await asUser(uid, () => db.query(`select to_jsonb(public.${fn}(${Object.entries(args).map(([k, v]) => `${k} => ${lit(v)}`).join(", ")})) as r`));
+      return json(200, r.rows[0].r);
     }
     const table = url.pathname.split("/").pop();
-    const filters = [...url.searchParams].filter(([k]) => !["select", "order", "limit"].includes(k)).map(([k, v]) => { const [op, val] = [v.split(".")[0], v.slice(v.indexOf(".") + 1)]; return `${k} = ${lit(val)}`; });
+    const filters = [...url.searchParams].filter(([k]) => !["select", "order", "limit", "on_conflict", "columns"].includes(k)).map(([k, v]) => {
+      const op = v.slice(0, v.indexOf(".")), val = v.slice(v.indexOf(".") + 1);
+      if (op === "in") return `${k} in (${val.slice(1, -1).split(",").map((x) => lit(x)).join(",")})`;
+      return `${k} = ${lit(val === "true" ? true : val === "false" ? false : val)}`;
+    });
     const where = filters.length ? " where " + filters.join(" and ") : "";
-    const single = (req.headers()["accept"] || "").includes("vnd.pgrst.object");
+    const objectWanted = (req.headers()["accept"] || "").includes("vnd.pgrst.object");
+    const out = (status, rows) => (objectWanted ? (rows.length === 1 ? json(status, rows[0]) : json(406, { code: "PGRST116", message: "no rows" })) : json(status, rows));
     if (method === "GET") {
       const order = url.searchParams.get("order"); const ord = order ? ` order by ${order.split(".")[0]} ${order.includes("desc") ? "desc" : "asc"}` : "";
-      const rows = await asUser(uid, () => db.query(`select * from public.${table}${where}${ord}`));
-      return json(200, rows.rows);
+      const lim = url.searchParams.get("limit") ? ` limit ${+url.searchParams.get("limit")}` : "";
+      return out(200, (await asUser(uid, () => db.query(`select * from public.${table}${where}${ord}${lim}`))).rows);
     }
     if (method === "POST") {
-      const body = JSON.parse(req.postData()); const cols = Object.keys(body);
-      const rows = await asUser(uid, () => db.query(`insert into public.${table}(${cols.join(",")}) values (${cols.map((c) => lit(body[c])).join(",")}) returning *`));
-      return json(201, single ? rows.rows[0] : rows.rows);
+      const body = JSON.parse(req.postData()); const rows = Array.isArray(body) ? body : [body]; const cols = Object.keys(rows[0]);
+      const upsert = (req.headers()["prefer"] || "").includes("merge-duplicates");
+      const conflict = url.searchParams.get("on_conflict");
+      const sql = `insert into public.${table}(${cols.join(",")}) values ${rows.map((r) => `(${cols.map((c) => lit(r[c])).join(",")})`).join(",")}` +
+        (upsert ? ` on conflict (${conflict}) do update set ${cols.map((c) => `${c} = excluded.${c}`).join(", ")}` : "") + " returning *";
+      return out(201, (await asUser(uid, () => db.query(sql))).rows);
     }
     if (method === "PATCH") {
       const body = JSON.parse(req.postData());
-      const rows = await asUser(uid, () => db.query(`update public.${table} set ${Object.entries(body).map(([k, v]) => `${k} = ${lit(v)}`).join(", ")}${where} returning *`));
-      return json(200, rows.rows);
+      return out(200, (await asUser(uid, () => db.query(`update public.${table} set ${Object.entries(body).map(([k, v]) => `${k} = ${lit(v)}`).join(", ")}${where} returning *`))).rows);
     }
+    if (method === "DELETE") return out(200, (await asUser(uid, () => db.query(`delete from public.${table}${where} returning *`))).rows);
     return json(404, { message: "not mocked" });
-  } catch (err) { console.error("backend error", err.message); return json(400, { message: err.message }); }
+  } catch (err) { return json(400, { message: err.message }); }
+}
+
+// The email function, run against the same database with the same rules
+async function fnEmail(route) {
+  const req = route.request(); const uid = uidFrom(req.headers()["authorization"] || ""); const body = JSON.parse(req.postData() || "{}");
+  const json = (s, b) => route.fulfill({ status: s, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(b) });
+  if (req.method() === "OPTIONS") return json(200, {});
+  try {
+    let rows = [];
+    if (body.action === "invite" || body.action === "remind") {
+      rows = (await asUser(uid, () => db.query(`select * from public.pl_email_people(${lit(body.ids)}, ${lit(body.action)})`))).rows;
+      rows.forEach((r) => emails.push({ to: r.email, ...personEmail(body.action, r, SITE), kind: body.action }));
+    } else if (body.action === "team") {
+      rows = (await asUser(uid, () => db.query(`select * from public.pl_member_invite_email(${lit(body.inviteId)})`))).rows;
+      rows.forEach((r) => emails.push({ to: r.email, ...teamInviteEmail(r, SITE), kind: "team" }));
+    } else if (body.action === "finished") {
+      rows = (await asService(() => db.query(`select * from public.pl_finish_notice(${lit(body.token)})`))).rows;
+      rows.forEach((r) => emails.push({ to: r.email, ...finishedEmail(r, SITE), kind: "finished" }));
+    }
+    return json(200, { sent: rows.length, skipped: (body.ids?.length || 0) - rows.length });
+  } catch (err) { return json(403, { error: err.message }); }
 }
 
 const b = await chromium.launch();
 const errs = [];
-async function device(session) {
-  const ctx = await b.newContext({ viewport: { width: 1100, height: 900 } });
-  await ctx.route("http://plumbline.test/**", (r) => r.fulfill({ status: 200, contentType: "text/html", body: HTML }));
-  await ctx.route("https://test.supabase.co/rest/**", handle);
+async function device(who, width = 1100) {
+  const ctx = await b.newContext({ viewport: { width, height: 900 } });
+  await ctx.route(SITE + "/**", (r) => r.fulfill({ status: 200, contentType: "text/html", body: HTML }));
+  await ctx.route("https://test.supabase.co/rest/**", rest);
+  await ctx.route("https://test.supabase.co/functions/**", fnEmail);
   await ctx.route("https://test.supabase.co/auth/**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
+  await ctx.route("https://test.supabase.co/realtime/**", (r) => r.abort());
   await ctx.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
-  if (session) {
-    const payload = Buffer.from(JSON.stringify({ sub: LEADER, role: "authenticated", exp: 4102444800 })).toString("base64url");
-    const tok = `x.${payload}.y`;
-    const sess = { access_token: tok, refresh_token: "r", token_type: "bearer", expires_in: 3600 * 24 * 365 * 50, expires_at: 4102444800, user: { id: LEADER, email: "leader@test.org", aud: "authenticated", role: "authenticated" } };
+  if (who) {
+    const [id, email] = USERS[who];
+    const tok = `x.${Buffer.from(JSON.stringify({ sub: id, role: "authenticated", exp: 4102444800 })).toString("base64url")}.y`;
+    const sess = { access_token: tok, refresh_token: "r", token_type: "bearer", expires_in: 1e9, expires_at: 4102444800, user: { id, email, aud: "authenticated", role: "authenticated" } };
     await ctx.addInitScript((s) => localStorage.setItem("sb-test-auth-token", JSON.stringify(s)), sess);
   }
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errs.push(String(e)));
   return p;
 }
-const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) process.exitCode = 1; };
+let failed = 0;
+const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) failed++; };
 const text = (p) => p.evaluate(() => document.querySelector("#app").innerText);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const click = (p, sel) => p.evaluate((s) => { const el = document.querySelector(s); if (!el) throw new Error("missing " + s); el.click(); }, sel);
+const submit = (p, sel) => p.evaluate((s) => document.querySelector(s).requestSubmit(), sel);
+const linkIn = (mail) => (mail.text.match(/https?:\/\/\S+/) || [])[0];
+const shot = async (p, name) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true }); };
 
 async function answer(p, maxSteps, stopAtPct = 101) {
   for (let g = 0; g < maxSteps; g++) {
     const t = await p.evaluate(() => {
       const q = (s) => document.querySelectorAll(s);
-      if (/Finished and sealed|Thank you/.test(document.querySelector("#app").innerText) && !document.querySelector(".qcard")) return "done";
+      const app = document.querySelector("#app").innerText;
+      if (/Finished and sealed|Thank you/.test(app) && !document.querySelector(".qcard")) return "done";
       const intro = document.querySelector('.intro-card [data-act="next"]'); if (intro) { intro.click(); return "intro"; }
       const wf = document.querySelector("#welcome"); if (wf) { const n = document.querySelector("#w-name"); if (!n.value) n.value = "Test Person"; const r = document.querySelector("#w-rel"); if (r) r.selectedIndex = 2; document.querySelector("#w-consent").checked = true; wf.requestSubmit(); return "welcome"; }
+      const nt = document.querySelector("#netq-text"); if (nt) { nt.value = "BOULDER-CALLING-ANSWER"; document.querySelector('[data-act="netq-next"]').click(); return "netq"; }
       const ans = q('[data-act="ans"]'); if (ans.length) { const o = [...ans].filter((b) => b.dataset.v !== "0"); o[3 % o.length].click(); return "ans"; }
       const ff = q(".ff-row"); if (ff.length) { if (!document.querySelector('.ff-row .m[aria-pressed="true"]')) ff[0].querySelector(".m").click(); else if (!document.querySelector('.ff-row .l[aria-pressed="true"]')) ff[1].querySelector(".l").click(); else document.querySelector('.qcard [data-act="next"]').click(); return "ff"; }
       const sc = q('[data-act="scen"]'); if (sc.length) { const a = document.querySelector(".tag.best"), w = document.querySelector(".tag.worst"); if (!a) sc[0].click(); else if (!w) sc[2].click(); else document.querySelector('.qcard [data-act="next"]').click(); return "scen"; }
@@ -115,85 +150,113 @@ async function answer(p, maxSteps, stopAtPct = 101) {
   return "limit";
 }
 
-// 1. Leader creates an assessment
-const leader = await device(true);
-await leader.goto("http://plumbline.test/");
-await wait(800);
-await leader.evaluate(() => document.querySelector('[data-to="leader"]').click());
-await wait(600);
-ok((await text(leader)).includes("Your assessments"), "leader signed in and sees dashboard");
-await leader.evaluate(() => document.querySelector('[data-to="newcase"]').click());
-await leader.fill("#f-pn", "Josh Kim"); await leader.fill("#f-sn", "Hannah Kim"); await leader.fill("#f-city", "Boulder, CO"); await leader.fill("#f-net", "Front Range");
-await leader.evaluate(() => document.querySelector("#newcase").requestSubmit());
-await wait(1200);
-ok((await text(leader)).includes("Copy reference link"), "case created; status page shows links");
-const ppl = (await db.query(`select role, token from public.participants order by role`)).rows;
-const tokP = ppl.find((x) => x.role === "planter").token, tokS = ppl.find((x) => x.role === "spouse").token;
-const refTok = (await db.query(`select ref_token from public.cases`)).rows[0].ref_token;
+// 1. Owner sets up a network
+const owner = await device("owner");
+await owner.goto(SITE + "/"); await wait(700);
+await click(owner, '[data-to="leader"]'); await wait(400);
+ok((await text(owner)).includes("Set up your network"), "new leader sees onboarding");
+await owner.fill("#o-net", "Front Range Planting"); await owner.fill("#o-me", "Dana Ellis");
+await submit(owner, "#onboard"); await wait(900);
+ok((await text(owner)).includes("Front Range Planting"), "network created; dashboard shows it");
 
-// 2. Planter starts on one device and stops partway
-const phone = await device(false);
-await phone.goto(`http://plumbline.test/#/t/${tokP}`);
-await wait(1200);
-ok((await text(phone)).includes("Welcome, Josh"), "planter link opens welcome");
+// 2. Settings: a belief, a question, and a team invite
+await click(owner, '[data-to="settings"]'); await wait(400);
+await owner.fill("#ab-t", "We baptize believers by immersion."); await submit(owner, "#add-belief"); await wait(600);
+await owner.fill("#aq-t", "Why do you feel called to this city?"); await submit(owner, "#add-question"); await wait(600);
+await owner.fill("#im-email", "sam@frontrange.org"); await submit(owner, "#invite-form"); await wait(900);
+const st = await text(owner);
+ok(st.includes("We baptize believers") && st.includes("Why do you feel called") && st.includes("sam@frontrange.org"), "belief, question and pending invite saved");
+const teamMail = emails.find((e) => e.kind === "team");
+ok(teamMail?.to === "sam@frontrange.org" && /\/#\/join\//.test(linkIn(teamMail)), "team invite emailed with a join link");
+await shot(owner, "settings");
+
+// 3. Assessor joins from the email
+const sam = await device("assessor");
+await sam.goto(linkIn(teamMail)); await wait(1000);
+ok((await text(sam)).includes("Join Front Range Planting"), "join page names the network");
+await sam.fill("#j-name", "Sam Ortiz"); await submit(sam, "#join-team"); await wait(1000);
+ok((await text(sam)).includes("Front Range Planting") && (await text(sam)).includes("New assessment"), "assessor joined and sees the dashboard");
+
+// 4. Assessor creates an assessment and emails the couple
+await click(sam, '[data-to="newcase"]'); await wait(300);
+await sam.fill("#f-pn", "Josh Kim"); await sam.fill("#f-pe", "josh@kim.org"); await sam.fill("#f-sn", "Hannah Kim"); await sam.fill("#f-se", "hannah@kim.org"); await sam.fill("#f-city", "Boulder, CO");
+await submit(sam, "#newcase-live"); await wait(1500);
+const inv = emails.filter((e) => e.kind === "invite");
+ok(inv.length === 2 && inv.some((e) => e.to === "josh@kim.org") && inv.some((e) => e.to === "hannah@kim.org"), "planter and spouse invites emailed");
+ok((await text(sam)).includes("invited"), "status page shows invited stamps");
+await shot(sam, "status");
+const joshLink = linkIn(inv.find((e) => e.to === "josh@kim.org")), hannahLink = linkIn(inv.find((e) => e.to === "hannah@kim.org"));
+
+// 5. Planter starts on a phone, finishes on a laptop
+const phone = await device(null, 390);
+await phone.goto(joshLink); await wait(1200);
+ok((await text(phone)).includes("Welcome, Josh"), "planter opens his emailed link");
 ok((await answer(phone, 400, 30)) === "paused", "planter answers until 30%");
 await wait(1500);
-let row = (await db.query(`select status, progress, step, chapter from public.participants where token=$1`, [tokP])).rows[0];
-ok(row.status === "started" && row.progress >= 25, `progress saved to server (${row.progress}%, ${row.chapter})`);
-ok((await phone.evaluate(() => document.querySelector("#savestate")?.textContent)) === "Saved", "save indicator says Saved");
+const prog = (await db.query(`select progress, chapter from public.participant_status where role='planter'`)).rows[0];
+ok(prog.progress >= 25, `progress mirror shows ${prog.progress}% (${prog.chapter})`);
+await shot(phone, "take-phone");
+await owner.evaluate(() => document.querySelector('[data-to="leader"]').click()); await owner.reload(); await wait(1000);
+ok((await text(owner)).includes(`${prog.progress}%`), "owner's dashboard shows the planter's progress");
+await shot(owner, "dashboard");
+const laptop = await device(null);
+await laptop.goto(joshLink); await wait(1200);
+ok(+(await laptop.evaluate(() => document.querySelector(".chapter-name .num")?.textContent || "0").then((x) => x.replace("%", ""))) >= prog.progress - 1, "resumes on another device");
+ok((await answer(laptop, 900)) === "done", "planter finishes (network belief and question included)");
+await wait(800);
+ok(emails.filter((e) => e.kind === "finished").length === 2, "owner and assessor told the planter finished");
 
-// 3. Leader sees it (reload simulates live update)
-await leader.reload(); await wait(800);
-await leader.evaluate(() => document.querySelector('[data-to="leader"]').click()); await wait(800);
-const dash = await text(leader);
-ok(dash.includes(`${row.progress}%`) && dash.includes("Not started"), "leader dashboard shows planter % and spouse not started");
-await leader.screenshot({ path: "/tmp/pl-dash.png" });
-await leader.evaluate(() => document.querySelector(".case-row.live").click()); await wait(500); await leader.screenshot({ path: "/tmp/pl-status.png", fullPage: true });
-await phone.screenshot({ path: "/tmp/pl-take.png" });
+// 6. Spouse, then references (one added by email, one through the shared link)
+const sp = await device(null);
+await sp.goto(hannahLink); await wait(1000);
+ok((await answer(sp, 700)) === "done", "spouse finishes");
+await sam.evaluate(() => document.querySelector('[data-to="leader"]').click()); await wait(500);
+await click(sam, ".case-row.live"); await wait(800);
+await click(sam, '[data-tab="status"]').catch(() => {}); await wait(500);
+await sam.fill("#ar-name", "Pastor Mike"); await sam.fill("#ar-email", "mike@church.org"); await submit(sam, "#addref"); await wait(1200);
+const refMail = emails.find((e) => e.to === "mike@church.org");
+ok(!!refMail && refMail.subject.includes("readiness"), "reference added and emailed");
+const r1 = await device(null); await r1.goto(linkIn(refMail)); await wait(1000);
+ok((await answer(r1, 120)) === "done", "emailed reference finishes");
+const refTok = (await db.query(`select ref_token from public.cases`)).rows[0].ref_token;
+const r2 = await device(null); await r2.goto(`${SITE}/#/r/${refTok}`); await wait(1000);
+await r2.fill("#rj-name", "Ava Brooks"); await submit(r2, "#refjoin"); await wait(1200);
+ok((await answer(r2, 120)) === "done", "shared-link reference finishes");
 
-// 4. Planter resumes on a different device
-const laptop = await device(false);
-await laptop.goto(`http://plumbline.test/#/t/${tokP}`);
-await wait(1200);
-const pctNow = await laptop.evaluate(() => +(document.querySelector(".chapter-name .num")?.textContent || "0").replace("%", ""));
-ok(pctNow >= row.progress - 1, `resumed on another device at ${pctNow}%`);
-ok((await answer(laptop, 900)) === "done", "planter finishes");
-await wait(600);
-row = (await db.query(`select status, progress from public.participants where token=$1`, [tokP])).rows[0];
-ok(row.status === "finished" && row.progress === 100, "planter sealed at 100%");
+// 7. Leader report, team scoring, release
+await sam.reload(); await wait(800); await sam.evaluate(() => document.querySelector('[data-to="leader"]').click()); await wait(600);
+await click(sam, ".case-row.live"); await wait(1000);
+const rep = await text(sam);
+ok(/Ready|Pause|Development/.test(rep) && rep.includes("Interview guide") && rep.includes("From Front Range Planting") && rep.includes("BOULDER-CALLING-ANSWER"), "leader report includes the network's question and answer");
+ok(rep.includes("We baptize believers"), "leader report includes the network's belief");
+await click(sam, '.rubric button[data-n="4"]'); await wait(900);
+await owner.reload(); await wait(800); await owner.evaluate(() => document.querySelector('[data-to="leader"]').click()); await wait(500);
+await click(owner, ".case-row.live"); await wait(1200);
+ok((await text(owner)).includes("1 teammate has scored this"), "owner sees a teammate scored, but not the score yet");
+await click(owner, '.rubric button[data-n="3"]'); await wait(400);
+ok((await text(owner)).includes("Team: Sam 4"), "after scoring, owner sees Sam's score");
+await shot(owner, "report");
+await click(owner, '[data-tab="status"]'); await wait(400);
+await click(owner, '[data-act="release"]'); await wait(800);
+const me = await device(null); await me.goto(joshLink); await wait(1200);
+const mine = await text(me);
+ok(mine.includes("here's how God has wired you") && !mine.includes("PRIVATE-NOTE-XYZ"), "planter sees his own report, never the spouse's private note");
 
-// 5. Spouse and two references
-const sp = await device(false);
-await sp.goto(`http://plumbline.test/#/t/${tokS}`); await wait(1000);
-ok((await answer(sp, 600)) === "done", "spouse finishes");
-for (const nm of ["Pastor Mike", "Ava Brooks"]) {
-  const r = await device(false);
-  await r.goto(`http://plumbline.test/#/r/${refTok}`); await wait(1000);
-  await r.fill("#rj-name", nm); await r.evaluate(() => document.querySelector("#refjoin").requestSubmit()); await wait(1200);
-  ok((await answer(r, 120)) === "done", `reference ${nm} finishes`);
-}
-const counts = (await db.query(`select role, status from public.participants`)).rows;
-ok(counts.filter((x) => x.status === "finished").length === 4, "4 people finished");
+// 8. Permissions in the interface
+await sam.evaluate(() => document.querySelector('[data-tab="status"]').click()); await wait(400);
+ok(!(await sam.evaluate(() => !!document.querySelector('[data-act="delete-case"]'))), "assessor has no delete button");
+const caseId = (await db.query(`select id from public.cases`)).rows[0].id;
+const out = await device("outsider");
+await out.goto(`${SITE}/#/case/${caseId}`); await wait(1500);
+const outText = await text(out);
+ok(!outText.includes("Josh Kim") && !outText.includes("Interview guide"), "outsider can't open the assessment by link");
+await owner.evaluate(() => document.querySelector('[data-act="delete-case"]').click()); await wait(200);
+await owner.evaluate(() => document.querySelector('[data-act="delete-yes"]').click()); await wait(900);
+ok((await db.query(`select count(*)::int n from public.participants`)).rows[0].n === 0, "owner deletes the assessment and every answer");
+await owner.goto(SITE + "/#/privacy"); await wait(800);
+ok((await text(owner)).includes("Who sees your answers"), "privacy page");
 
-// 6. Leader report and release
-await leader.reload(); await wait(800);
-await leader.evaluate(() => document.querySelector('[data-to="leader"]').click()); await wait(800);
-await leader.evaluate(() => document.querySelector('.case-row.live').click()); await wait(600);
-const rep = await text(leader);
-ok(/Ready|Pause|Development/.test(rep) && rep.includes("Interview guide"), "leader report renders");
-ok(rep.includes("PRIVATE-NOTE-XYZ"), "leader sees spouse's private note");
-const pBefore = await (await device(false));
-await pBefore.goto(`http://plumbline.test/#/t/${tokP}`); await wait(1000);
-ok((await text(pBefore)).includes("report will appear"), "planter waits for release");
-await leader.evaluate(() => document.querySelector('[data-tab="status"]').click()); await wait(300);
-await leader.evaluate(() => document.querySelector('[data-act="release"]').click()); await wait(800);
-const pAfter = await device(false);
-await pAfter.goto(`http://plumbline.test/#/t/${tokP}`); await wait(1200);
-const mine = await text(pAfter);
-await pAfter.screenshot({ path: "/tmp/pl-mine.png" });
-ok(mine.includes("here's how God has wired you") && mine.includes("Unity Map"), "planter sees personal report after release");
-ok(!mine.includes("PRIVATE-NOTE-XYZ"), "planter never sees spouse's private note");
-
-console.log("rpc calls:", Object.entries(calls.reduce((a, c) => ((a[c] = (a[c] || 0) + 1), a), {})).map(([k, v]) => `${k}×${v}`).join(", "));
-console.log("page errors:", errs.filter((e) => !/realtime|WebSocket/i.test(e)).join("\n") || "none");
+console.log("emails:", emails.map((e) => e.kind).reduce((a, k) => ((a[k] = (a[k] || 0) + 1), a), {}));
+console.log("page errors:", errs.join("\n") || "none");
 await b.close();
+process.exit(failed || errs.length ? 1 : 0);
