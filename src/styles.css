@@ -494,3 +494,21 @@ h1, .h-title { letter-spacing: -0.035em; }
 .cmp-note { margin: 20px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-3); }
 @media (prefers-reduced-motion: reduce) { .cmp-fill { transition: none; } }
 @media (max-width: 560px) { .cmp { padding: 20px 18px 16px; } .cmp-name { font-size: 14px; } .cmp-cost { display: none; } }
+
+/* Home hero: savings line, headline, then the checklist */
+.hero { display: block; padding-block: 24px 40px; }
+.hero > div:first-child { max-width: 50rem; }
+.hero h1 { max-width: none; }
+.savings { display: inline-block; margin: 0 0 22px; padding: 10px 16px; border-radius: 14px; background: var(--brass-soft); color: var(--ink); font-size: 15px; line-height: 1.5; max-width: 48rem; }
+.savings p { margin: 0; }
+.savings b { color: var(--brass-text); }
+.savings details { margin-top: 4px; }
+.savings summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.savings ul { margin: 8px 0 2px; padding-left: 18px; font-size: 13px; color: var(--ink-2); display: grid; gap: 4px; }
+.savings a { color: var(--chalk-text); }
+.cmp-table { margin-top: 40px; }
+.cmp-table .tbl th.us { color: var(--brass-text); }
+.cmp-table .tbl .us { background: color-mix(in srgb, var(--brass-soft) 70%, var(--card)); }
+.cmp-table .tbl tr.price td { font-weight: 600; font-size: 14px; border-top: 2px solid var(--rule); }
+.cmp-table .tbl tr.price td.us { color: var(--brass-text); font-weight: 800; }
+@media (max-width: 700px) { .cmp-table .tbl th:first-child, .cmp-table .tbl td:first-child { position: sticky; left: 0; background: var(--card); z-index: 1; min-width: 9.5rem; } }

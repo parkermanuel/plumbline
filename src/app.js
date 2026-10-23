@@ -21,7 +21,13 @@ function toast(msg) {
   t.className = "toast"; t.textContent = msg; t.setAttribute("role", "status");
   document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
 }
+// In the iPhone app, Capacitor's plugins are on window.Capacitor; on the web they're absent and everything falls back.
+const native = () => !!window.Capacitor?.isNativePlatform?.();
+const plugin = (n) => (native() ? window.Capacitor.Plugins?.[n] : null);
+const tap = () => { try { plugin("Haptics")?.impact({ style: "LIGHT" }); } catch {} };
 async function copy(text, btn) {
+  const share = plugin("Share");
+  if (share && /^https?:/.test(text)) { try { await share.share({ url: text, dialogTitle: "Send this link" }); return; } catch { /* closed or failed: copy instead */ } }
   try { await navigator.clipboard.writeText(text); toast("Copied"); }
   catch { const box = btn?.closest("[data-copywrap]")?.querySelector(".code-box"); if (box) { const r = document.createRange(); r.selectNodeContents(box); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } toast("Selected. Press Ctrl+C or ⌘C to copy"); }
 }
@@ -192,10 +198,10 @@ let view = { name: "home" };
 let take = null; // { caseId, role, refIdx, ctx, steps, i, resp, shownAt }
 const app = () => $("#app");
 // Each page the person moves to gets its own browser history entry, so Back returns to the last page instead of leaving the site.
-const NAV_VIEWS = new Set(["home", "leader", "leaders", "about", "privacy", "terms", "settings", "admin", "case", "new"]);
+const NAV_VIEWS = new Set(["home", "leader", "leaders", "about", "privacy", "terms", "settings", "admin", "case", "newcase"]);
 let popping = false;
 function urlFor(v) {
-  if (["leaders", "privacy", "terms", "about", "leader", "settings", "admin", "new"].includes(v.name)) return "#/" + v.name;
+  if (["leaders", "privacy", "terms", "about", "leader", "settings", "admin", "newcase"].includes(v.name)) return "#/" + v.name;
   if (v.name === "case" && /^[0-9a-f-]{36}$/.test(v.id || "")) return "#/case/" + v.id;
   return location.pathname + location.search;
 }
@@ -210,7 +216,7 @@ function go(v) {
 window.addEventListener("popstate", (e) => {
   const st = e.state?.pl;
   if (st) { popping = true; try { go(st.name === "admin" ? { name: "admin" } : { ...st }); } finally { popping = false; } return; }
-  if (/^#\/(t|r|join|case|privacy|terms|about|leaders|leader|settings|new|admin)/.test(location.hash)) return; // hashchange routes these
+  if (/^#\/(t|r|join|case|privacy|terms|about|leaders|leader|settings|newcase|admin)/.test(location.hash)) return; // hashchange routes these
   popping = true; try { go({ name: "home" }); } finally { popping = false; }
 });
 
@@ -232,16 +238,13 @@ function render() {
 const LOGO = `<svg class="logo" viewBox="0 0 4350 939" role="img" aria-label="plumbline"><title>plumbline</title><g transform="translate(-51.0 732.0) scale(1 -1)"><g fill="currentColor"><path transform="translate(0.0 0)" d="M342 -10Q295 -10 255.0 7.0Q215 24 189.0 53.5Q163 83 157 122V360Q163 399 189.5 430.5Q216 462 255.5 480.5Q295 499 342 499Q413 499 467.0 466.5Q521 434 551.5 376.0Q582 318 582 244Q582 171 551.5 113.5Q521 56 467.0 23.0Q413 -10 342 -10ZM51 -207V489H225V366L196 248L221 129V-207ZM309 145Q338 145 360.0 158.0Q382 171 394.0 193.5Q406 216 406 245Q406 274 394.0 296.0Q382 318 360.0 331.0Q338 344 310 344Q283 344 261.0 331.5Q239 319 227.0 296.5Q215 274 215 245Q215 216 227.0 193.5Q239 171 260.5 158.0Q282 145 309 145Z"/><path transform="translate(553.0 0)" d="M51 0V729H225V0Z"/><path transform="translate(779.0 0)" d="M275 -11Q206 -11 152.5 16.5Q99 44 68.5 93.5Q38 143 38 206V489H212V206Q212 186 220.0 171.0Q228 156 242.0 148.0Q256 140 275 140Q303 140 320.5 158.0Q338 176 338 206V489H512V206Q512 142 482.0 93.0Q452 44 398.5 16.5Q345 -11 275 -11Z"/><path transform="translate(1279.0 0)" d="M51 0V489H225V0ZM358 0V283Q358 314 339.0 331.5Q320 349 292 349Q272 349 257.0 341.0Q242 333 233.5 318.5Q225 304 225 283L157 310Q157 369 183.0 411.0Q209 453 253.0 476.0Q297 499 353 499Q403 499 443.5 475.5Q484 452 508.0 410.0Q532 368 532 311V0ZM665 0V283Q665 314 646.0 331.5Q627 349 599 349Q580 349 564.5 341.0Q549 333 540.5 318.5Q532 304 532 283L430 288Q432 354 459.0 401.0Q486 448 533.5 473.5Q581 499 641 499Q698 499 743.0 475.0Q788 451 813.5 405.5Q839 360 839 297V0Z"/><path transform="translate(2108.0 0)" d="M342 -10Q295 -10 255.0 8.5Q215 27 189.0 59.0Q163 91 157 129V368Q163 406 189.5 436.0Q216 466 256.0 482.5Q296 499 342 499Q413 499 467.0 466.5Q521 434 551.5 376.0Q582 318 582 244Q582 171 551.5 113.5Q521 56 467.0 23.0Q413 -10 342 -10ZM51 0V729H225V369L196 251L221 131V0ZM311 145Q339 145 360.5 158.0Q382 171 394.0 193.5Q406 216 406 245Q406 273 394.0 295.5Q382 318 360.0 331.0Q338 344 310 344Q282 344 260.5 331.0Q239 318 227.0 296.0Q215 274 215 245Q215 215 227.0 192.5Q239 170 261.0 157.5Q283 145 311 145Z"/><path transform="translate(2661.0 0)" d="M51 0V729H225V0Z"/><path transform="translate(2887.0 0)" d="M50 0V489H225V0ZM137 546Q98 546 72.0 572.5Q46 599 46 639Q46 678 72.0 705.0Q98 732 137 732Q178 732 203.5 705.0Q229 678 229 639Q229 599 203.5 572.5Q178 546 137 546Z"/><path transform="translate(3112.0 0)" d="M368 0V276Q368 310 348.0 329.5Q328 349 297 349Q276 349 259.5 340.0Q243 331 234.0 315.0Q225 299 225 276L157 308Q157 367 183.0 409.5Q209 452 254.5 475.5Q300 499 358 499Q411 499 452.5 474.5Q494 450 518.0 409.0Q542 368 542 316V0ZM51 0V489H225V0Z"/><path transform="translate(3645.0 0)" d="M298 -11Q216 -11 153.0 21.5Q90 54 54.0 112.0Q18 170 18 245Q18 319 53.0 376.5Q88 434 148.5 467.5Q209 501 285 501Q359 501 416.5 469.5Q474 438 506.5 382.5Q539 327 539 256Q539 241 537.5 225.5Q536 210 531 190L100 188V300L462 303L384 254Q383 295 372.0 321.5Q361 348 340.0 362.0Q319 376 287 376Q254 376 230.0 360.0Q206 344 193.0 315.0Q180 286 180 245Q180 203 194.0 173.5Q208 144 234.0 129.0Q260 114 298 114Q334 114 361.5 126.0Q389 138 411 163L502 72Q466 31 414.5 10.0Q363 -11 298 -11Z"/></g><path transform="translate(4149.0 0)" d="M153 -11Q109 -11 81.0 18.0Q53 47 53 90Q53 133 81.0 162.0Q109 191 153 191Q196 191 224.0 162.0Q252 133 252 90Q252 47 224.0 18.0Q196 -11 153 -11Z" fill="#ff6b4a" class="logo-dot"/></g></svg>`;
 
 // ---------------- home ----------------
-// Free for networks, not free to run. Links go to Parker's Stripe pages.
+// Pricing, shown on the home and leader pages (never in the iPhone app).
 function partnerBox() {
-  const P = B.PARTNER, a = (u, l, cls) => `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>`;
-  return `<section class="partner compact" aria-label="Plumbline is free">
-    <div class="partner-free"><h2>Free.</h2><p>For every network, planter, spouse and reference. No fees, no seats, no upsell.</p></div>
-    <details class="partner-give"><summary class="btn ghost">Partner with Plumbline</summary>
-      <div class="partner-options"><p>It isn't free to build and run. If it helps you, you can give once or monthly.</p>
-        <div class="row" style="gap:8px">${a(P.once, "Give once", "btn")}${P.monthly.map(([amt, u]) => a(u, `${amt} a month`, "btn ghost")).join("")}</div>
-        <p class="small">Secure checkout through Stripe. Already giving monthly? ${a(P.manage, "Change or cancel", "")}.</p></div>
-    </details>
+  if (window.PLUMBLINE_CONFIG?.app) return "";
+  const P = B.PRICING;
+  return `<section class="partner compact pricing" aria-label="Pricing">
+    <div class="partner-free"><h2>${money(P.couple)}</h2><p>Per couple: the planter, the spouse and every reference. Or ${money(P.plan)} a year for unlimited assessments across your network. Discount codes work at checkout.</p></div>
+    <button class="btn" data-act="nav" data-to="leader">Start as a network leader</button>
   </section>`;
 }
 // What each kind of tool is designed to cover, based on what each tool says it measures. y = yes, p = partly, n = no.
@@ -257,28 +260,39 @@ const CMP_AREAS = [
   ["Honesty and consistency checks", "y", "p", "p", "p", "n"],
   ["Graded report and interview guide", "y", "n", "n", "n", "y"],
 ];
-const CMP_COST = ["Free", "Paid", "Paid", "Paid", "Paid"];
-// Coverage score: yes = 1, partly = ½, no = 0, added across the areas.
-const cmpScore = (i) => CMP_AREAS.reduce((t, r) => t + (r[i + 1] === "y" ? 1 : r[i + 1] === "p" ? 0.5 : 0), 0);
-const half = (n) => (Number.isInteger(n) ? String(n) : `${Math.floor(n) || ""}½`);
-function compareHero() {
-  const n = CMP_AREAS.length;
-  return `<figure class="cmp" aria-labelledby="cmp-cap"><figcaption id="cmp-cap" class="cmp-cap">What each tool is built to cover</figcaption>
-    <ol class="cmp-bars">${CMP_TOOLS.map((t, i) => { const v = cmpScore(i); return `<li class="${i === 0 ? "us" : ""}" style="--w:${(v / n) * 100}%;--d:${i * 90}ms"><div class="cmp-row"><span class="cmp-name">${esc(t)}</span><span class="cmp-score"><b>${half(v)}</b> of ${n}<span class="cmp-cost${CMP_COST[i] === "Free" ? " free" : ""}">${CMP_COST[i]}</span></span></div><div class="cmp-track" aria-hidden="true"><span class="cmp-fill"></span></div></li>`; }).join("")}</ol>
-    <p class="cmp-note">Across ${n} areas a network needs to know: character, marriage, leadership, wiring, gifts, references, city fit, honesty checks and a graded report. Yes counts 1, partly counts ½, based on what each tool says it measures. <button class="link" data-act="nav" data-to="leaders">See the full comparison</button></p></figure>`;
+const CMP_PRICE = ["$199 per couple", "About $147 per couple", "About $120 per couple, or $10,000+ a year", "$35 per couple", "$399 to $3,000 per couple"];
+const money = (n) => "$" + n.toLocaleString("en-US");
+// The savings line at the top of the home page. Every number shows how it was reached and where it came from.
+function savingsLine() {
+  const P = B.PRICING, set = P.others.reduce((t, o) => t + o.cost, 0), save = set - P.couple, savePi = P.pi.cost - P.plan;
+  return `<div class="savings"><p><b>Save ${money(save)} per couple</b> versus buying the separate tools (${money(set)}), and up to ${money(P.retreat.high - P.couple)} versus an assessment retreat. Big networks save ${money(savePi)} a year versus Predictive Index.</p>
+    <details><summary>How we figured this</summary><ul>${P.others.map((o) => `<li>${esc(o.tool)}: ${money(o.cost)} (${esc(o.how)}). <a href="${esc(o.src)}" target="_blank" rel="noopener">Source</a></li>`).join("")}
+      <li>Assessment retreats: ${money(P.retreat.low)} to ${money(P.retreat.high)} per couple (${esc(P.retreat.how)}). <a href="${esc(P.retreat.src)}" target="_blank" rel="noopener">Source</a></li>
+      <li>Predictive Index: ${money(P.pi.cost)} a year (${esc(P.pi.how)}) versus Plumbline's ${money(P.plan)} yearly plan. <a href="${esc(P.pi.src)}" target="_blank" rel="noopener">Source</a></li>
+      <li>Public prices checked 23 October 2026.</li></ul></details></div>`;
+}
+// The checklist: what each kind of tool is designed to cover, with what it costs a couple.
+function compareTable() {
+  const mk = { y: `<span class="ck" role="img" aria-label="Yes"></span>`, p: `<span class="ck part" role="img" aria-label="Partly"></span>`, n: `<span class="ck no" role="img" aria-label="No"></span>` };
+  const app = !!window.PLUMBLINE_CONFIG?.app;
+  return `<div class="cmp-table"><div class="scroll-x"><table class="tbl compare"><thead><tr><th><span class="small">What a network needs to know</span></th>${CMP_TOOLS.map((t, i) => `<th class="${i === 0 ? "us" : ""}">${esc(t)}</th>`).join("")}</tr></thead>
+    <tbody>${CMP_AREAS.map(([l, ...m]) => `<tr><td>${esc(l)}</td>${m.map((x, i) => `<td class="${i === 0 ? "us" : ""}">${mk[x]}</td>`).join("")}</tr>`).join("")}
+    ${app ? "" : `<tr class="price"><td>Cost</td>${CMP_PRICE.map((c, i) => `<td class="${i === 0 ? "us" : ""}">${esc(c)}</td>`).join("")}</tr>`}</tbody></table></div>
+    <p class="small muted" style="margin:10px 0 0"><span class="ck"></span> yes · <span class="ck part"></span> partly · <span class="ck no"></span> no. Based on what each tool says it measures.</p></div>`;
 }
 function renderHome() {
   return `<div class="wrap">
   <section class="hero">
     <div>
+      ${window.PLUMBLINE_CONFIG?.app ? "" : savingsLine()}
       <h1>One assessment instead of five.</h1>
-      <p class="lede">Plumbline is the free church planter assessment for networks. The planter, the spouse and their references each answer on their own. You get one graded report and an interview guide built from their answers.</p>
+      <p class="lede">Plumbline is the church planter assessment for networks. The planter, the spouse and their references each answer on their own. You get one graded report and an interview guide built from their answers.</p>
       <div class="row">
         <button class="btn" data-act="nav" data-to="leader">Start as a network leader</button>
         <button class="btn ghost" data-act="open-sample">See a sample report</button>
       </div>
     </div>
-    ${compareHero()}
+    ${compareTable()}
   </section>
   <section class="paths" aria-label="Choose your path">
     <button class="path" data-act="nav" data-to="leader"><span class="who pill-leader">NL</span><h3>I'm a network leader</h3><p>Set up an assessment for a planting couple, send ${L.LIVE ? "their links" : "codes"}, and read the graded report.</p><span class="go">Open the dashboard</span></button>
@@ -338,8 +352,6 @@ function renderLeaders() {
   const giftItems = n(B.GIFTS.map((g) => g.items.length));
   const stat = (num, label, how) => `<div class="lstat"><b>${num}</b><span>${label}</span><small>${how}</small></div>`;
   const yes = `<span class="ck" role="img" aria-label="Yes"></span>`, part = `<span class="ck part" role="img" aria-label="Partly"></span>`, no = `<span class="ck no" role="img" aria-label="No"></span>`;
-  const mk = { y: yes, p: part, n: no };
-  const rows = [...CMP_AREAS.map(([l, ...m]) => [l, ...m.map((x) => mk[x])]), ["Cost to your network", ...CMP_COST]];
   const steps = [
     ["Set it up", "5 minutes", "Enter the couple's names, emails and city. Plumbline emails each person a private link."],
     ["They answer on their own", "About 35 and 25 minutes", "Planter and spouse answer separately, one question at a time, with two progress bars. Answers save as they go, so they can stop and finish on any device."],
@@ -352,7 +364,7 @@ function renderLeaders() {
   return `<div class="deck">
   <section class="slide hero-slide"><div class="wrap">
     <span class="kicker">For network leaders</span>
-    <h1>The planter assessment your network can trust. Free.</h1>
+    <h1>The planter assessment your network can trust.</h1>
     <p class="lede">Plumbline hears from four people separately: the planter, the spouse, their references and you. Then it shows you where they agree, where they don't, and what to talk about. Built by a church planter, for the people who send them.</p>
     <div class="row"><button class="btn" data-act="nav" data-to="leader">Start as a network leader</button><button class="btn ghost" data-act="open-sample">See a sample report</button></div>
   </div></section>
@@ -387,9 +399,8 @@ function renderLeaders() {
   </div></section>
 
   <section class="slide" id="compare"><div class="wrap stack-lg">
-    <div class="stack"><span class="kicker">How it compares</span><h2>One assessment instead of five.</h2><p class="muted" style="margin:0">What each kind of tool is designed to cover. <span class="ck"></span> yes · <span class="ck part"></span> partly · <span class="ck no"></span> no</p></div>
-    <div class="scroll-x"><table class="tbl compare"><thead><tr><th></th><th>Plumbline</th><th>DISC or Myers-Briggs</th><th>CliftonStrengths or Predictive Index</th><th>PREPARE/ENRICH</th><th>Assessment retreat</th></tr></thead>
-      <tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td>${r.slice(1).map((c, i) => `<td class="${i === 0 ? "us" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <div class="stack"><span class="kicker">How it compares</span><h2>One assessment instead of five.</h2><p class="muted" style="margin:0">What each kind of tool is designed to cover, and what it costs a couple.</p></div>
+    ${compareTable()}
     <p class="small muted" style="margin:0">Based on what each tool says it measures. A retreat with trained assessors is still the gold standard for many networks. Plumbline can be the first step before one, or the whole process for networks that can't afford one.</p>
   </div></section>
 
@@ -414,11 +425,13 @@ function renderLeaders() {
 function renderPrivacy() {
   return `<div class="wrap stack-lg legal" style="max-width:46rem"><div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Privacy</h1><p class="muted" style="margin:0">Last updated October 2026</p></div>
   <div class="read stack">
-    <p>Plumbline is a free church planter assessment run by Parker Manuel. This page explains, in plain words, what we collect, who sees it, and how long we keep it.</p>
+    <p>Plumbline is a church planter assessment run by Parker Manuel. This page explains, in plain words, what we collect, who sees it, and how long we keep it.</p>
     <h3>What we collect</h3>
     <p>When a network leader sets up an assessment, we store the names, emails and city they enter. When you answer, we store your answers. Some answers are sensitive: your marriage, your health and stress, your beliefs, and a few private safety questions for spouses. If you choose to, you can also tell us about the city you plan to plant in and share results from other assessments you've taken, including files you upload. Uploaded files are private: only your network's team can open them, through links that expire after 10 minutes. Network leaders sign in with their email, and we store their name, email and network. We use no advertising or tracking cookies.</p>
     <h3>Who sees your answers</h3>
     <p><b>Your network's team</b> (the network leaders and assessors who invited you) sees your answers and the reports built from them. <b>Your spouse</b> never sees your individual answers, your private note or your safety answers. After your network leader releases them, each spouse sees their own report, which includes only summaries of the other spouse's answers. <b>References</b> see only their own form. <b>Other networks</b> never see anything of yours. <b>Parker Manuel</b>, who runs Plumbline, can see platform-wide counts (how many networks and assessments there are) and each network's name with its owner's name and email, so he can check in with network leaders. He never sees your answers, except to fix a problem you or your network asks him to fix.</p>
+    <h3>Payments</h3>
+    <p>When a network leader buys assessments, Stripe handles the payment. We never see or store card numbers. We keep a record of each purchase: the network, the amount, any discount code and the buyer's email.</p>
     <h3>How we keep it safe</h3>
     <p>Everything is sent over encrypted connections and stored with Supabase, a database provider in the United States. The database enforces who can see what, row by row. Your personal link works like a key, so please don't share it.</p>
     <h3>How long we keep it</h3>
@@ -434,7 +447,9 @@ function renderPrivacy() {
 function renderTerms() {
   return `<div class="wrap stack-lg legal" style="max-width:46rem"><div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Terms</h1><p class="muted" style="margin:0">Last updated October 2026</p></div>
   <div class="read stack">
-    <p>Plumbline is free. By using it you agree to these terms.</p>
+    <p>By using Plumbline you agree to these terms.</p>
+    <h3>Payment</h3>
+    <p>Each assessment costs $199 and covers one planter, their spouse and all their references. A network plan costs $4,999 a year for unlimited assessments and renews each year until you cancel. Payments are handled by Stripe, and Stripe emails your receipt. Assessments you buy don't expire. If you haven't used an assessment, you can ask for a refund within 30 days of buying it by emailing hello@plumblineassessment.com. To cancel a network plan, email the same address before it renews.</p>
     <h3>For network leaders and teams</h3>
     <p>Use Plumbline only to assess people who have agreed to take it, for church planting or ministry decisions. Treat their answers as confidential. Don't sell, publish or share them outside your team. A Plumbline report is one input, never the decision. Don't approve, decline or fund anyone on the report alone. Use it alongside interviews, references, background checks and prayerful discernment. You're responsible for who you invite to your team and for removing people who leave.</p>
     <h3>For planters, spouses and references</h3>
@@ -481,7 +496,7 @@ function renderLeader() {
         <div class="status-dots">${caseStatus(c).map(([l, d]) => `<span class="sdot ${d ? "done" : ""}">${l}${d ? " ✓" : ""}</span>`).join("")}</div>
         <div>${r ? `<span class="outcome tone-${r.outcome.tone}">${r.outcome.name}</span>` : `<span class="sdot">In progress</span>`}</div></button>`;
     }).join("")}</div>
-    <div class="notice chalk">This is the free pilot. Everything stays in this browser. Each person finishes on their own device and sends you a results code, and you paste it in with <b>Add results</b>. A shared online version with email invites is next.</div>
+    <div class="notice chalk">This is the demo. Everything stays in this browser. Each person finishes on their own device and sends you a results code, and you paste it in with <b>Add results</b>. A shared online version with email invites is next.</div>
     ${partnerBox()}
   </div>`;
 }
@@ -612,7 +627,7 @@ function leaderReport(c, r) {
       <div class="legend"><span><i style="width:10px;height:10px;border-radius:50%;background:var(--brass)"></i>${esc(pn)}</span>${c.married ? `<span><i style="width:10px;height:10px;border-radius:50%;background:var(--chalk)"></i>${esc(sn)}</span>` : ""}</div></div>
       <div class="verdict tone-${r.outcome.tone}"><span class="line"></span><div><div class="big">${r.outcome.name}</div><div class="why">${esc(r.outcome.line)} ${esc(r.outcome.why)}</div></div></div>
       ${missing(c).length ? `<div class="notice">Still waiting on ${esc(missing(c).join(" and "))}. The recommendation may change when they finish.</div>` : ""}
-      ${L.LIVE ? `<div class="no-print"><button class="btn sm ghost" data-act="print">Print or save as PDF</button></div>` : ""}
+      ${L.LIVE && !window.PLUMBLINE_CONFIG?.app ? `<div class="no-print"><button class="btn sm ghost" data-act="print">Print or save as PDF</button></div>` : ""}
       <div class="disclaim">This report is one input, not a decision. No one should be approved, declined or funded on this report alone. Use it with interviews, references, background checks, a ministry track record and prayerful discernment.</div>
     </header>
 
@@ -877,7 +892,7 @@ function personReport(c, r, who) {
     <section class="stack"><div class="section-head"><h2>Your next 90 days</h2><p class="muted">Growth areas aren't failures. They're the next faithful steps.</p></div>
       ${plan.length ? plan.map((p, i) => `<div class="plan-step"><span class="n">${i + 1}</span><div><b>${esc(p.scale)}</b><p>${esc(p.step)}</p></div></div>`).join("") : `<p class="muted">No growth areas stood out. Keep doing what you're doing, and ask your coach where to stretch.</p>`}</section>
 
-    ${L.LIVE ? `<div class="no-print"><button class="btn sm ghost" data-act="print">Print or save as PDF</button></div>` : ""}
+    ${L.LIVE && !window.PLUMBLINE_CONFIG?.app ? `<div class="no-print"><button class="btn sm ghost" data-act="print">Print or save as PDF</button></div>` : ""}
     <div class="disclaim">This report reflects how you described yourself on the day you took it. Your network leader will walk through it with you. It isn't a diagnosis or a final word, and you can grow in every area here.</div>
   </article>`;
 }
@@ -1187,6 +1202,7 @@ document.addEventListener("click", async (e) => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
   const act = el.dataset.act;
+  if (native() && el.closest(".qcard, .take")) tap();
   if (act === "nav") { e.preventDefault(); if (el.dataset.to === "admin") { go({ name: "admin" }); L.platformStats().then((st) => { if (view.name === "admin") { view.stats = st; render(); } }); return; } go({ name: el.dataset.to }); return; }
   if (act === "print") { window.print(); return; }
   if (act === "open-file") {
@@ -1378,6 +1394,12 @@ T.init({ esc, first, go, partnerBox, render: () => render(), toast, copy, progre
 
 // ---------------- live routing ----------------
 async function route() {
+  if (/[?&]paid=1/.test(location.hash)) {
+    history.replaceState(history.state, "", location.pathname + location.hash.replace(/\?.*$/, ""));
+    toast("Thank you. Your receipt is on its way by email.");
+    // Stripe tells us about the payment a moment after checkout; check twice.
+    [2000, 6000].forEach((ms) => setTimeout(() => L.state.session && L.refreshNetworks().catch(() => {}), ms));
+  }
   const h = location.hash || "";
   let m;
   if ((m = h.match(/^#\/t\/([a-f0-9]{20,})$/))) {
@@ -1405,7 +1427,7 @@ async function route() {
     return;
   }
   if ((m = h.match(/^#\/case\/([0-9a-f-]{36})$/))) { go({ name: "case", id: m[1], after: m[1] }); return; }
-  if ((m = h.match(/^#\/(privacy|terms|about|leaders|leader|settings|new)$/))) { go({ name: m[1] }); return; }
+  if ((m = h.match(/^#\/(privacy|terms|about|leaders|leader|settings|newcase)$/))) { go({ name: m[1] }); return; }
   if (h === "#/admin") { go({ name: "admin" }); L.platformStats().then((st) => { if (view.name === "admin") { view.stats = st; render(); } }); return; }
   if ((m = h.match(/^#\/r\/([a-f0-9]{20,})$/))) {
     const refToken = m[1];
@@ -1439,7 +1461,7 @@ if (L.LIVE) {
     const qs = new URLSearchParams(location.search);
     const join = qs.get("join"), caseId = qs.get("case");
     if (qs.has("code") || join || caseId) history.replaceState(null, "", location.pathname + (join ? "#/join/" + join : caseId ? "#/case/" + caseId : location.hash));
-    if (/^#\/(t|r|join|case|privacy|terms|about|leaders|leader|settings|new|admin)/.test(location.hash)) route();
+    if (/^#\/(t|r|join|case|privacy|terms|about|leaders|leader|settings|newcase|admin)/.test(location.hash)) route();
     else if (L.state.session && qs.has("code")) go({ name: "leader" });
     else render();
   });

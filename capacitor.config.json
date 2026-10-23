@@ -1,0 +1,14 @@
+{
+  "appId": "com.parkermanuel.plumbline",
+  "appName": "Plumbline",
+  "webDir": "dist-app",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#121212",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#121212", "showSpinner": false },
+    "StatusBar": { "overlaysWebView": true, "style": "LIGHT" }
+  }
+}

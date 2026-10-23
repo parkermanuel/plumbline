@@ -14,7 +14,9 @@ export function login(note = "") {
     <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Sign in</h1><p class="lede" style="margin:0">${note || "For network leaders and their teams. We'll email you a sign-in link, so there's no password to remember."}</p></div>
     <label class="field">Your email<input id="l-email" type="email" required autocomplete="email" placeholder="you@yournetwork.org"></label>
     <div id="l-msg"></div>
-    <div><button class="btn" type="submit">Email me a sign-in link</button></div>
+    <div><button class="btn" type="submit">${window.PLUMBLINE_CONFIG?.app ? "Email me a sign-in code" : "Email me a sign-in link"}</button></div>
+    <details class="small"><summary style="cursor:pointer">Use a password instead</summary>
+      <div class="row" style="gap:8px;margin-top:8px"><input id="l-pass" class="input" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" style="max-width:220px"><button type="button" class="btn sm ghost" data-act="pass-signin">Sign in</button></div></details>
     <p class="small">Planters, spouses and references don't need to sign in. They use the personal link their network leader sends.</p>
     <p class="small"><button type="button" class="link" data-act="nav" data-to="leaders">New to Plumbline? See how it's built.</button></p>
   </form></div>`;
@@ -30,6 +32,19 @@ function onboarding() {
     <div><button class="btn" type="submit">Create my network</button></div>
     <p class="small">Joining an existing network? Ask its owner to invite you, then open the link in that email.</p>
   </form></div>`;
+}
+
+// ---------- assessments left ----------
+const money = (n) => "$" + n.toLocaleString("en-US");
+function balanceCard() {
+  const b = L.balance(), app = !!window.PLUMBLINE_CONFIG?.app, admin = L.canAdmin();
+  const status = b.plan ? `<b>Unlimited assessments</b> on your network plan until ${fmt(b.until)}.`
+    : `<b>${b.credits} ${b.credits === 1 ? "assessment" : "assessments"} left.</b> Each one covers a planter, their spouse and all their references.`;
+  const buy = app ? `<p class="small" style="margin:0">To add assessments, sign in at plumblineassessment.com.</p>`
+    : admin ? `<div class="row" style="gap:8px">${b.plan ? "" : `<button class="btn sm" data-act="buy" data-kind="couples">Buy assessments · ${money(B.PRICING.couple)} each</button><button class="btn sm ghost" data-act="buy" data-kind="plan">Network plan · ${money(B.PRICING.plan)}/year, unlimited</button>`}</div>
+      <p class="small" style="margin:0">Have a discount code? Enter it at checkout.</p>`
+    : `<p class="small" style="margin:0">Ask your network's owner or an admin to add more.</p>`;
+  return `<section class="panel stack balance" aria-label="Assessments left"><p style="margin:0">${status}</p>${buy}</section>`;
 }
 
 // ---------- dashboard ----------
@@ -64,7 +79,7 @@ export function dashboard() {
         <div>${st === "review" ? `<span class="outcome tone-a">Ready to review</span>` : st === "progress" ? `<span class="sdot">In progress</span>` : `<span class="sdot">Not started</span>`}</div></button>`;
     }).join("")}${all.length && !shown.length ? `<p class="muted">Nothing matches that search.</p>` : ""}</div>
     <details class="stack"><summary class="small" style="cursor:pointer">Sample reports</summary><div class="cases" style="margin-top:12px">${H.SAMPLES.map((c) => { const r = H.scoreCase(c); return `<button class="case-row" data-act="open-case" data-id="${c.id}"><div><div class="case-name">${esc(c.label)}</div><div class="small">Sample</div></div><div></div><div><span class="outcome tone-${r.outcome.tone}">${r.outcome.name}</span></div></button>`; }).join("")}</div></details>
-    ${H.partnerBox(true)}
+    ${balanceCard()}
   </div>`;
 }
 
@@ -72,6 +87,8 @@ export function dashboard() {
 export function newCase() {
   const n = L.active();
   if (!n) return dashboard();
+  if (!L.balance(n).can) return `<div class="wrap stack-lg" style="max-width:40rem"><button class="link" data-act="nav" data-to="leader">← Assessments</button>
+    <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">You're out of assessments</h1><p class="lede" style="margin:0">Each assessment covers one planter, their spouse and all their references.</p></div>${balanceCard()}</div>`;
   const sg = n.settings?.signGifts !== false;
   return `<div class="wrap" style="max-width:40rem"><form class="stack-lg" id="newcase-live">
     <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">New assessment</h1><p class="lede" style="margin:0">Set up one planter (and spouse). Each person gets a personal link by email, and you'll see their progress live.</p></div>
@@ -148,6 +165,11 @@ export function settings() {
         ${admin && m.user_id !== me ? `<span class="row" style="gap:6px"><select class="input role-sel" data-uid="${m.user_id}" style="width:auto;padding:6px 10px" aria-label="Role for ${esc(m.name || m.email)}">${["owner", "admin", "assessor"].filter((r) => r !== "owner" || L.myRole() === "owner").map((r) => `<option value="${r}" ${m.role === r ? "selected" : ""}>${roleLabel[r]}</option>`).join("")}</select><button class="btn sm ghost" data-act="remove-member" data-uid="${m.user_id}">Remove</button></span>` : `<span class="chip">${roleLabel[m.role]}</span>`}</div>`).join("")}
       ${admin ? `<form id="invite-form" class="row" style="gap:8px"><input id="im-email" class="input" type="email" required placeholder="Email" style="max-width:280px"><select id="im-role" class="input" style="width:auto"><option value="assessor">Assessor</option><option value="admin">Admin</option></select><button class="btn sm" type="submit">Invite</button></form>
       ${L.state.invites.length ? `<div class="stack" style="gap:8px"><b class="small">Waiting to join</b>${L.state.invites.map((i) => `<div class="spread" data-copywrap><span>${esc(i.email)} <span class="small">· ${roleLabel[i.role]} · invited ${fmt(i.created_at)}${i.emailed_at ? "" : " · not emailed"}</span></span><span class="row" style="gap:6px"><button class="btn sm ghost" data-act="copy-text" data-text="${esc(L.joinLink(i.token))}">Copy join link</button><button class="btn sm ghost" data-act="revoke-invite" data-id="${i.id}">Cancel</button></span></div>`).join("")}</div>` : ""}` : ""}</div>
+
+    <div class="panel stack"><h3>Your account</h3>
+      <p class="small" style="margin:0">Signed in as ${esc(L.state.session.user.email || "")}.</p>
+      <div class="row" style="gap:8px"><button class="btn sm ghost" data-act="signout">Sign out</button><button class="btn sm ghost" data-act="delete-account-ask">Delete my account</button></div>
+      <div id="del-account"></div></div>
   </div>`;
 }
 
@@ -165,19 +187,72 @@ export function join() {
 // ---------- platform overview ----------
 export function admin() {
   const s = H.view().stats;
+  const v0 = H.view();
+  if (s && !v0.codes && !v0.codesErr && !v0.codesLoading) { v0.codesLoading = true; L.codes("list").then((d) => { v0.codes = d.codes || []; }).catch((e) => { v0.codesErr = e.message; }).finally(() => { v0.codesLoading = false; if (H.view() === v0) H.render(); }); }
   if (!s) return `<div class="wrap"><p class="muted">Loading…</p></div>`;
   const k = (v, l) => `<div class="kpi"><div class="v num">${v}</div><div class="l">${l}</div></div>`;
   return `<div class="wrap stack-lg" style="max-width:56rem"><button class="link" data-act="nav" data-to="leader">← Assessments</button>
     <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Platform</h1><p class="muted" style="margin:0">Counts and who to contact. No one's answers appear here.</p></div>
     <div class="kpis">${k(s.networks, "Networks")}${k(s.leaders, "Team members")}${k(s.assessments, "Assessments")}${k(s.finished, "People finished")}</div>
     <div class="kpis">${k(s.assessments30, "Assessments, last 30 days")}${k(s.finished30, "Finished, last 30 days")}${k(s.started, "People started")}${k(s.started ? Math.round((100 * s.finished) / s.started) + "%" : "—", "Finish rate (finished ÷ started)")}</div>
-    <div class="scroll-x"><table class="tbl"><thead><tr><th>Network</th><th>Owner</th><th>Team</th><th>Assessments</th><th>Last assessment</th><th>Joined</th></tr></thead><tbody>${(s.byNetwork || []).map((n) => `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.owner || "—")}${n.ownerEmail ? `<br><a href="mailto:${esc(n.ownerEmail)}?subject=${encodeURIComponent("How's Plumbline going?")}">${esc(n.ownerEmail)}</a>` : ""}</td><td class="num">${n.members}</td><td class="num">${n.assessments}</td><td>${esc(n.lastAssessment || "None yet")}</td><td>${esc(n.created)}</td></tr>`).join("")}</tbody></table></div></div>`;
+    <div class="scroll-x"><table class="tbl"><thead><tr><th>Network</th><th>Owner</th><th>Team</th><th>Assessments</th><th>Last assessment</th><th>Joined</th></tr></thead><tbody>${(s.byNetwork || []).map((n) => `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.owner || "—")}${n.ownerEmail ? `<br><a href="mailto:${esc(n.ownerEmail)}?subject=${encodeURIComponent("How's Plumbline going?")}">${esc(n.ownerEmail)}</a>` : ""}</td><td class="num">${n.members}</td><td class="num">${n.assessments}</td><td>${esc(n.lastAssessment || "None yet")}</td><td>${esc(n.created)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="panel stack" id="codes"><h3>Discount codes</h3>
+      <p class="small" style="margin:0">Codes work at checkout for single assessments and the yearly plan. Give one to an organization (like SLN2026, 50% off) or to one couple (100% off, used once).</p>
+      <form id="code-form" class="stack" style="gap:10px">
+        <div class="row" style="gap:8px"><input id="c-code" class="input" required maxlength="40" placeholder="Code, like SLN2026" style="max-width:220px;text-transform:uppercase" aria-label="Code">
+          <input id="c-amt" class="input" type="number" min="1" step="1" required placeholder="50" style="max-width:100px" aria-label="Discount">
+          <select id="c-kind" class="input" style="width:auto" aria-label="Discount type"><option value="pct">% off</option><option value="usd">$ off</option></select></div>
+        <div class="row" style="gap:8px"><input id="c-for" class="input" maxlength="200" placeholder="For (organization or couple)" style="max-width:260px" aria-label="For">
+          <input id="c-max" class="input" type="number" min="1" step="1" placeholder="Max uses" style="max-width:120px" aria-label="Max uses">
+          <label class="small row" style="gap:6px">Expires <input id="c-exp" class="input" type="date" style="width:auto"></label></div>
+        <div><button class="btn sm" type="submit">Create code</button></div></form>
+      ${H.view().codes ? (H.view().codes.length ? `<div class="scroll-x"><table class="tbl"><thead><tr><th>Code</th><th>Discount</th><th>For</th><th>Used</th><th>Expires</th><th></th></tr></thead><tbody>${H.view().codes.map((c) => `<tr><td><b>${esc(c.code)}</b>${c.active ? "" : ' <span class="small">off</span>'}</td><td>${esc(c.off)}</td><td>${esc(c.forWhom || c.note || "")}</td><td class="num">${c.used}${c.max ? " of " + c.max : ""}</td><td>${c.expires ? fmt(new Date(c.expires * 1000).toISOString()) : "Never"}</td><td>${c.active ? `<button class="btn sm ghost" data-act="code-off" data-id="${esc(c.id)}">Switch off</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="small muted" style="margin:0">No codes yet.</p>`) : `<p class="small muted" style="margin:0">${H.view().codesErr ? esc(H.view().codesErr) : "Loading codes…"}</p>`}
+    </div></div>`;
 }
 
 // ---------- events ----------
 export async function onClick(act, el) {
   const v = H.view();
   try {
+    if (act === "code-off") {
+      el.disabled = true;
+      try { await L.codes("off", { id: el.dataset.id }); v.codes = null; H.render(); H.toast("Code switched off"); } catch (err) { el.disabled = false; H.toast(err.message); }
+      return true;
+    }
+    if (act === "buy") {
+      el.disabled = true;
+      try { await L.buy(el.dataset.kind); } catch (err) { el.disabled = false; H.toast(err.message || "Checkout isn't available right now"); }
+      return true;
+    }
+    if (act === "delete-account-ask") {
+      const box = document.getElementById("del-account");
+      if (box) box.innerHTML = `<div class="notice stack" style="gap:10px"><p style="margin:0">This deletes your sign-in for good. Any network where you're the only team member is deleted too, with every assessment in it. Where others remain, they keep the network, and an admin becomes owner if you were the only one.</p><div><button class="btn sm" data-act="delete-account">Yes, delete my account</button></div></div>`;
+      return true;
+    }
+    if (act === "delete-account") {
+      el.disabled = true;
+      try { await L.deleteAccount(); } catch (err) { el.disabled = false; H.toast("Couldn't delete your account. Try again."); return true; }
+      H.go({ name: "home" }); H.toast("Your account was deleted");
+      return true;
+    }
+    if (act === "pass-signin") {
+      const form = el.closest("form"), email = form.querySelector("#l-email").value.trim(), pass = form.querySelector("#l-pass").value;
+      if (!email || !pass) { H.toast("Enter your email and password"); return true; }
+      el.disabled = true;
+      try { await L.signInPassword(email, pass); } catch { el.disabled = false; H.toast("That email and password didn't work."); return true; }
+      H.go({ name: "leader" });
+      return true;
+    }
+    if (act === "verify-code") {
+      const form = el.closest("form"), code = (form.querySelector("#l-code")?.value || "").replace(/\D/g, "");
+      if (code.length !== 6) { H.toast("Enter the 6-digit code from the email"); return true; }
+      el.disabled = true;
+      try { await L.verifyCode(el.dataset.email, code); }
+      catch { el.disabled = false; H.toast("That code didn't work. Check it, or send a new one."); return true; }
+      if (form.dataset.join) location.hash = "#/join/" + form.dataset.join;
+      else H.go({ name: "leader" });
+      return true;
+    }
     if (act === "dash-filter") { v.filter = el.dataset.f; H.render(); return true; }
     if (act === "send-email") {
       el.disabled = true;
@@ -227,7 +302,20 @@ export async function onSubmit(form) {
       busy(true);
       const back = form.dataset.join ? `?join=${form.dataset.join}` : H.view().after ? `?case=${H.view().after}` : "";
       await L.sendMagicLink(email, back);
-      msg.innerHTML = `<div class="notice">Check ${esc(email)} for a sign-in link. Open it in this browser.</div>`;
+      const app = !!window.PLUMBLINE_CONFIG?.app;
+      msg.innerHTML = `<div class="notice">${app ? `We emailed a 6-digit code to ${esc(email)}.` : `Check ${esc(email)} for a sign-in link, and open it in this browser. Or type the 6-digit code from the same email.`}</div>
+        <div class="row" style="gap:8px;margin-top:12px"><input id="l-code" class="input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit code" aria-label="6-digit code" style="max-width:180px;letter-spacing:.2em"><button type="button" class="btn" data-act="verify-code" data-email="${esc(email)}">Sign in</button></div>`;
+      busy(false);
+      if (app) $("#l-code")?.focus();
+      return true;
+    }
+    if (form.id === "code-form") {
+      busy(true);
+      const amt = Number($("#c-amt").value), pct = $("#c-kind").value === "pct";
+      try {
+        await L.codes("create", { code: $("#c-code").value, percentOff: pct ? amt : 0, amountOff: pct ? 0 : amt, forWhom: $("#c-for").value.trim(), note: $("#c-for").value.trim(), maxUses: Number($("#c-max").value) || 0, expires: $("#c-exp").value || null });
+        H.toast("Code created"); H.view().codes = null; H.render();
+      } catch (err) { busy(false); H.toast(err.message); }
       return true;
     }
     if (form.id === "onboard") { busy(true); await L.createNetwork($("#o-net").value.trim(), $("#o-me").value.trim()); H.go({ name: "leader" }); return true; }

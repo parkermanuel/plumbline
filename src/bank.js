@@ -953,3 +953,19 @@ export const PARTNER = {
   monthly: [["$10", "https://buy.stripe.com/14A4gze1C7OZc4afr39R601"], ["$25", "https://buy.stripe.com/28EdR92iU5GR7NUceR9R602"], ["$50", "https://buy.stripe.com/8x25kD1eQ9X70lsfr39R603"]],
   manage: "https://billing.stripe.com/p/login/28E7sL4r2d9j5FM6Ux9R600",
 };
+
+// ---------- PRICING ----------
+// Plumbline is $199 per couple (planter, spouse and all their references), or $4,999 a year for unlimited assessments.
+// What a couple pays elsewhere, from each publisher's public prices (checked 23 Oct 2026). Used for the savings line.
+export const PRICING = {
+  couple: 199,
+  plan: 4999,
+  others: [
+    { tool: "DISC (Everything DiSC)", cost: 147, how: "$73.50 per person, for planter and spouse", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },
+    { tool: "CliftonStrengths 34", cost: 120, how: "$59.99 per person, for planter and spouse", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },
+    { tool: "PREPARE/ENRICH", cost: 35, how: "$35 per couple", src: "https://www.prepare-enrich.com/" },
+    { tool: "Online church planter assessment", cost: 88, how: "LifeWay e-Church Planter Candidate Assessment, $88 for the planter", src: "https://lifeway.com/en/product/e-church-planter-candidate-assessment-individual-P005465560" },
+  ],
+  retreat: { low: 399, high: 3000, how: "Send Network NW retreat $399, Wesleyan CPAC $650, PCA Assessment Center $3,000 per couple", src: "https://resources.pcamna.org/resource/church-planting_assessmentcenter_assessmentschedule/" },
+  pi: { cost: 10000, how: "Predictive Index plans start at $10,000 a year", src: "https://predictiveindex.com/pricing" },
+};

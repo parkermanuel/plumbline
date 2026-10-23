@@ -24,7 +24,7 @@ ${button ? `<tr><td style="padding:4px 32px 28px"><a href="${escHtml(button.href
   return { html, text };
 }
 
-const FOOT = "Plumbline is a free church planter assessment. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.";
+const FOOT = "Plumbline is a church planter assessment for networks. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.";
 
 export function personEmail(kind, r, site) {
   const link = `${site}/#/t/${r.token}`;
@@ -68,7 +68,7 @@ export function teamInviteEmail(r, site) {
     paragraphs: [`${esc(r.sender_name || "A teammate")} invited you to help assess church planters as ${role}. You'll see your network's assessments, reports and interview guides.`,
       `This invite works for 30 days.`],
     button: { href: link, label: "Join the team" },
-    footer: "Plumbline is a free church planter assessment for networks. If you weren't expecting this, you can ignore it.", site,
+    footer: "Plumbline is a church planter assessment for networks. If you weren't expecting this, you can ignore it.", site,
   }) };
 }
 

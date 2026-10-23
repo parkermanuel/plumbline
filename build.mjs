@@ -8,12 +8,16 @@ const cfg = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, "utf8")) : {}
 cfg.supabaseUrl ||= process.env.SUPABASE_URL || "";
 cfg.supabaseAnonKey ||= process.env.SUPABASE_ANON_KEY || "";
 cfg.siteUrl ||= process.env.SITE_URL || "";
+// PL_APP=1 builds the iPhone app's bundle into dist-app/: same site, links always point at the real domain.
+const APP = process.env.PL_APP === "1";
+const OUT = APP ? "dist-app" : "dist";
+if (APP) { cfg.siteUrl = process.env.SITE_URL || "https://plumblineassessment.com"; cfg.app = true; }
 
 const out = await build({ entryPoints: ["src/app.js"], bundle: true, format: "iife", minify: true, write: false, target: "es2020", legalComments: "none" });
 const js = out.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 const css = readFileSync("src/styles.css", "utf8");
 const title = "Plumbline";
-const desc = "A free church planter assessment for networks. The planter, the spouse and their references each answer on their own. Network leaders get a graded report and interview guide.";
+const desc = "The church planter assessment for networks. The planter, the spouse and their references each answer on their own. Network leaders get a graded report and interview guide.";
 const cfgScript = `window.PLUMBLINE_CONFIG=${JSON.stringify(cfg)};`;
 const sha = (t) => "'sha256-" + createHash("sha256").update(t).digest("base64") + "'";
 let sbHost = ""; try { sbHost = new URL(cfg.supabaseUrl).host; } catch {}
@@ -47,9 +51,9 @@ ${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card-2
 <script>${cfgScript}</script>
 <script>${js}</script>
 </body></html>`;
-mkdirSync("dist", { recursive: true });
-writeFileSync("dist/index.html", html);
-writeFileSync("dist/404.html", html);
-for (const f of existsSync("public") ? readdirSync("public") : []) copyFileSync("public/" + f, "dist/" + f);
-if (cfg.domain) writeFileSync("dist/CNAME", cfg.domain + "\n");
-console.log(`built dist/index.html ${(html.length / 1024).toFixed(0)}KB, live=${!!(cfg.supabaseUrl && cfg.supabaseAnonKey)}`);
+mkdirSync(OUT, { recursive: true });
+writeFileSync(OUT + "/index.html", html);
+if (!APP) writeFileSync(OUT + "/404.html", html);
+for (const f of existsSync("public") ? readdirSync("public") : []) copyFileSync("public/" + f, OUT + "/" + f);
+if (cfg.domain && !APP) writeFileSync(OUT + "/CNAME", cfg.domain + "\n");
+console.log(`built ${OUT}/index.html ${(html.length / 1024).toFixed(0)}KB, live=${!!(cfg.supabaseUrl && cfg.supabaseAnonKey)}`);

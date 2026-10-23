@@ -44,6 +44,16 @@ export async function sendMagicLink(email, back = "") {
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: siteUrl() + "/" + back } });
   if (error) throw error;
 }
+// The same email carries a 6-digit code; the iPhone app signs in with it so nobody has to leave the app.
+// Only accounts given a password in Supabase (the App Store reviewer's) can use this; everyone else signs in by email.
+export async function signInPassword(email, password) {
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+export async function verifyCode(email, token) {
+  const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
+  if (error) throw error;
+}
 export async function signOut() { await sb.auth.signOut(); }
 
 // ---------- loading ----------
@@ -219,6 +229,19 @@ export async function deleteCase(id) {
   must(await sb.from("cases").delete().eq("id", id));
   state.cases = state.cases.filter((c) => c.id !== id); delete state.full[id]; emit("cases");
 }
+// Deletes the signed-in person's account. Networks they lead alone go too, with every assessment and uploaded file in them.
+export async function deleteAccount() {
+  const mine = must(await sb.from("network_members").select("network_id").eq("user_id", uid()));
+  for (const m of mine || []) {
+    const others = must(await sb.from("network_members").select("user_id").eq("network_id", m.network_id).neq("user_id", uid()));
+    if (others.length) continue;
+    const cases = must(await sb.from("cases").select("id").eq("network_id", m.network_id));
+    for (const c of cases || []) await deleteCase(c.id);
+  }
+  const { error } = await sb.rpc("pl_delete_account");
+  if (error) throw error;
+  await sb.auth.signOut();
+}
 export async function updatePerson(id, patch) {
   must(await sb.from("participants").update(patch).eq("id", id));
   const caseId = state.status.find((p) => p.participant_id === id)?.case_id;
@@ -235,6 +258,30 @@ export async function emailPeople(kind, ids) {
   const r = await email_(kind, { ids });
   await loadNetwork(); emit("progress");
   return r;
+}
+// ---------- payments ----------
+// How many assessments the active network can start: a yearly plan means unlimited until its date.
+export function balance(n = active()) {
+  if (!n) return { plan: false, credits: 0, can: false };
+  const until = n.plan_until ? new Date(n.plan_until) : null;
+  const plan = !!until && until > new Date();
+  return { plan, until, credits: n.credits || 0, can: plan || (n.credits || 0) > 0 };
+}
+// Sends an owner or admin to Stripe Checkout. kind: "couples" ($199 each, quantity adjustable there) or "plan" ($4,999 a year).
+export async function buy(kind, quantity = 1) {
+  const { data, error } = await sb.functions.invoke("plumbline-stripe", { body: { action: "checkout", kind, quantity, networkId: state.activeId } });
+  if (error || !data?.url) throw new Error(data?.error || error?.message || "Checkout isn't available right now");
+  location.href = data.url;
+}
+// Platform admin: list, create or switch off discount codes.
+export async function codes(op = "list", payload = {}) {
+  const { data, error } = await sb.functions.invoke("plumbline-stripe", { body: { action: "codes", op, ...payload } });
+  if (error || data?.error) throw new Error(data?.error || error?.message || "Couldn't reach Stripe");
+  return data;
+}
+export async function refreshNetworks() {
+  state.networks = must(await sb.from("networks").select("*").order("created_at", { ascending: true }));
+  emit("cases");
 }
 async function email_(action, payload) {
   const { data, error } = await sb.functions.invoke("plumbline-email", { body: { action, ...payload } });

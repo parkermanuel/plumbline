@@ -1,0 +1,11 @@
+<!-- Supabase → Authentication → Emails → Magic Link. Subject: Your Plumbline sign-in -->
+<div style="margin:0;padding:32px 16px;background:#f7f7f5;font-family:Helvetica,Arial,sans-serif;color:#121212">
+  <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #dcdcd7;border-radius:14px;padding:32px">
+    <img src="https://plumblineassessment.com/plumbline-email-logo.png" alt="plumbline." width="150" style="display:block;margin:0 0 28px">
+    <p style="font-size:17px;line-height:1.5;margin:0 0 20px">Here's how to sign in to Plumbline.</p>
+    <p style="margin:0 0 24px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#121212;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:999px">Sign in</a></p>
+    <p style="font-size:15px;line-height:1.5;margin:0 0 8px;color:#4a4a48">Using the iPhone app? Type this code instead:</p>
+    <p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:0 0 24px">{{ .Token }}</p>
+    <p style="font-size:13px;line-height:1.5;margin:0;color:#6b6b67">The link and code work once and expire in one hour. If you didn't ask to sign in, you can ignore this email.</p>
+  </div>
+</div>

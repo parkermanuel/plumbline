@@ -30,6 +30,8 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
       SITE_URL: ${{ vars.SITE_URL }}
     steps:
       - uses: actions/checkout@v4
@@ -42,11 +44,18 @@ jobs:
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
         with:
           version: 2.121.0
-      - name: Deploy the email and sweep functions
+      - name: Deploy the email, sweep and payment functions
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
         run: |
           supabase functions deploy plumbline-email --project-ref "$SUPABASE_PROJECT_REF" --use-api
           supabase functions deploy plumbline-sweep --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy plumbline-stripe --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          if [ -n "$STRIPE_SECRET_KEY" ]; then
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" STRIPE_SECRET_KEY="$STRIPE_SECRET_KEY"
+          fi
+          if [ -n "$STRIPE_WEBHOOK_SECRET" ]; then
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" STRIPE_WEBHOOK_SECRET="$STRIPE_WEBHOOK_SECRET"
+          fi
           if [ -n "$RESEND_API_KEY" ]; then
             supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" RESEND_API_KEY="$RESEND_API_KEY" SITE_URL="${SITE_URL:-https://plumblineassessment.com}" EMAIL_FROM="Plumbline <plumbline@parkermanuel.com>"
           fi

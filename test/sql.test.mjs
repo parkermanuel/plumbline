@@ -46,6 +46,15 @@ async function main() {
 
   // Networks and teams
   const nid = (await as(OWNER, () => q(`select public.pl_create_network('Front Range Planting', 'Dana Owner') as id`)))[0].id;
+  // Payments: no credits, no assessments; Stripe adds credits once per payment; admins can't give themselves credits
+  ok(/No assessments left/.test((await tryAs(OWNER, `insert into public.cases(network_id, created_by, planter_name, married) values ($1, $2, 'Nope', false)`, [nid, OWNER])) || ""), "a network with no assessments left can't start one");
+  ok(!!(await tryAs(OWNER, `update public.networks set credits = 50 where id = $1`, [nid])), "a network can't give itself assessments");
+  ok(!!(await tryAs(OWNER, `select public.pl_record_payment('cs_x', $1, 'couples', 50, 0, 'usd', null, null, null)`, [nid])), "only Stripe can record a payment");
+  await q(`set role service_role`);
+  const p1 = (await q(`select public.pl_record_payment('cs_1', $1, 'couples', 10, 199000, 'usd', 'dana@net.org', null, 'cus_1') as ok`, [nid]))[0].ok;
+  const p2 = (await q(`select public.pl_record_payment('cs_1', $1, 'couples', 10, 199000, 'usd', 'dana@net.org', null, 'cus_1') as ok`, [nid]))[0].ok;
+  await q(`reset role`);
+  ok(p1 === true && p2 === false && (await q(`select credits from public.networks where id=$1`, [nid]))[0].credits === 10, "a Stripe payment adds credits exactly once");
   ok(!!nid, "owner creates a network");
   const inv = (await as(OWNER, () => q(`select public.pl_invite_member($1, 'Assessor@Net.org', 'assessor') as id`, [nid])))[0].id;
   ok(!!inv, "owner invites an assessor");
@@ -161,6 +170,7 @@ async function main() {
   ok(!!(await tryAs(OWNER, `insert into public.cases(network_id, created_by, planter_name, ref_token) values ($1, $2, 'X', 'mine')`, [nid, OWNER])), "can't choose a reference link key");
   ok(!!(await tryAs(OWNER, `update public.participants set reminded_at=null where case_id=$1`, [c3])), "can't clear reminder stamps");
   const otherNet = (await as(OUTSIDER, () => q(`select public.pl_create_network('Elsewhere') as id`)))[0].id;
+  await q(`update public.networks set credits = 5 where id = $1`, [otherNet]);
   const otherCase = (await as(OUTSIDER, () => q(`insert into public.cases(network_id, created_by, planter_name, married) values ($1, $2, 'Other', false) returning id`, [otherNet, OUTSIDER])))[0].id;
   ok(!!(await tryAs(ASSESSOR, `update public.interview_scores set case_id=$1`, [otherCase])), "scores can't be moved into another network's case");
   const inv3 = (await as(OWNER, () => q(`select public.pl_invite_member($1, 'someone@else.org', 'admin') as id`, [nid])))[0].id;
@@ -200,6 +210,26 @@ async function main() {
   ok((await q(`select count(*)::int n from public.participants where case_id=$1`, [caseId2]))[0].n === 0, "owner deletes permanently, people go too");
   await q(`update public.cases set created_at = now() - interval '25 months' where id=$1`, [caseId]);
   ok((await q(`select public.pl_purge() as n`))[0].n === 1 && (await q(`select count(*)::int n from public.participants where case_id=$1`, [caseId]))[0].n === 0 && (await q(`select count(*)::int n from public.cases`))[0].n === 3, "retention removes only assessments older than 24 months");
+
+  // Credits are used, and a yearly plan means unlimited
+  const left = (await q(`select credits from public.networks where id=$1`, [nid]))[0].credits;
+  const used = (await q(`select count(*)::int n from public.payments where network_id=$1`, [nid]))[0].n;
+  ok(left < 10 && used === 1, `each new assessment used a credit (${left} left)`);
+  await q(`update public.networks set credits = 0 where id=$1`, [nid]);
+  await q(`set role service_role`); await q(`select public.pl_record_payment('cs_plan', null, 'plan', 1, 499900, 'usd', null, null, 'cus_1')`); await q(`reset role`);
+  const planErr = await tryAs(OWNER, `insert into public.cases(network_id, created_by, planter_name, married) values ($1, $2, 'Plan', false)`, [nid, OWNER]); ok(!planErr, "a yearly plan allows assessments without credits (found by Stripe customer)");
+  ok(!!(await tryAs(OWNER, `select public.pl_grant($1, 5, 0)`, [nid])), "only the platform admin can give assessments");
+  await as(PARKER, () => q(`select public.pl_grant($1, 5, 0)`, [nid]));
+  ok((await q(`select credits from public.networks where id=$1`, [nid]))[0].credits === 5, "the platform admin can give assessments");
+
+  // Delete my account
+  ok(!!(await tryAs(null, `select public.pl_delete_account()`)), "you must be signed in to delete an account");
+  await as(OUTSIDER, () => q(`select public.pl_delete_account()`));
+  ok((await q(`select count(*)::int n from public.networks where id=$1`, [otherNet]))[0].n === 0 && (await q(`select count(*)::int n from auth.users where id=$1`, [OUTSIDER]))[0].n === 0, "deleting your account removes a network you lead alone, and your login");
+  const netId = (await q(`select network_id from public.network_members where user_id=$1 and role='owner'`, [OWNER]))[0].network_id;
+  await as(OWNER, () => q(`select public.pl_delete_account()`));
+  const owners = await q(`select user_id from public.network_members where network_id=$1 and role='owner'`, [netId]);
+  ok(owners.length === 1 && owners[0].user_id !== OWNER && (await q(`select count(*)::int n from public.networks where id=$1`, [netId]))[0].n === 1, "when an owner leaves, the network stays and someone else becomes owner");
 
   process.exit(failed ? 1 : 0);
 }

@@ -191,6 +191,10 @@ await click(owner, 'a[href="/leader"]'); await owner.waitForSelector("#o-net", {
 ok((await text(owner)).includes("Set up your network"), "new leader sees onboarding");
 await owner.fill("#o-net", "Front Range Planting"); await owner.fill("#o-me", "Dana Ellis");
 await submit(owner, "#onboard"); await wait(900);
+await owner.waitForSelector("text=assessments left", { timeout: 15000 }).catch(() => {});
+ok((await text(owner)).includes("0 assessments left"), "a new network starts with no assessments and sees how to buy them");
+await db.query(`update public.networks set credits = 3`); await owner.reload(); await owner.waitForSelector("text=3 assessments left", { timeout: 15000 }).catch(() => {});
+ok((await text(owner)).includes("3 assessments left"), "bought assessments show on the dashboard");
 ok((await text(owner)).includes("Front Range Planting"), "network created; dashboard shows it");
 
 // 2. Settings: a belief, a question, and a team invite

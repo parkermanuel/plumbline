@@ -537,6 +537,85 @@ begin
        from public.networks n left join public.cases c on c.network_id = n.id and not c.archived group by n.id) t));
 end $$;
 
+-- ============ Payments ============
+-- Each assessment (one couple and their references) uses one credit, unless the network has a yearly plan.
+-- Credits arrive only from Stripe (the plumbline-stripe function, using the service key) or from the platform admin.
+alter table public.networks add column if not exists credits int not null default 0 check (credits >= 0);
+alter table public.networks add column if not exists plan_until timestamptz;
+alter table public.networks add column if not exists stripe_customer text;
+create table if not exists public.payments (
+  id text primary key,                       -- Stripe checkout session or invoice id; makes every payment count once
+  network_id uuid references public.networks(id) on delete set null,
+  kind text not null check (kind in ('couples', 'plan', 'renewal', 'grant')),
+  quantity int not null default 0,
+  amount_total int not null default 0,       -- cents, after discounts
+  currency text not null default 'usd',
+  email text,
+  promo text,
+  created_at timestamptz not null default now()
+);
+alter table public.payments enable row level security;
+drop policy if exists "team reads payments" on public.payments;
+create policy "team reads payments" on public.payments for select to authenticated using (public.pl_is_admin(network_id));
+
+create or replace function public.pl_case_credit() returns trigger language plpgsql security definer set search_path = public as $$
+declare n public.networks;
+begin
+  select * into n from public.networks where id = new.network_id for update;
+  if n.plan_until is not null and n.plan_until > now() then return new; end if;
+  if coalesce(n.credits, 0) < 1 then raise exception 'No assessments left. Buy more at plumblineassessment.com.' using errcode = 'P0001'; end if;
+  update public.networks set credits = credits - 1 where id = new.network_id;
+  return new;
+end $$;
+drop trigger if exists pl_case_credit on public.cases;
+create trigger pl_case_credit before insert on public.cases for each row execute function public.pl_case_credit();
+
+-- Called only by the Stripe function (service key). Returns false when this payment was already counted.
+create or replace function public.pl_record_payment(p_id text, p_network uuid, p_kind text, p_qty int, p_amount int, p_currency text, p_email text, p_promo text, p_customer text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare net uuid := p_network;
+begin
+  if net is null and p_customer is not null then select id into net from public.networks where stripe_customer = p_customer limit 1; end if;
+  if net is null or not exists (select 1 from public.networks where id = net) then raise exception 'Unknown network'; end if;
+  insert into public.payments (id, network_id, kind, quantity, amount_total, currency, email, promo) values (p_id, net, p_kind, greatest(p_qty, 0), p_amount, coalesce(p_currency, 'usd'), p_email, p_promo)
+    on conflict (id) do nothing;
+  if not found then return false; end if;
+  if p_kind = 'couples' then update public.networks set credits = credits + greatest(p_qty, 0) where id = net;
+  elsif p_kind in ('plan', 'renewal') then update public.networks set plan_until = greatest(coalesce(plan_until, now()), now()) + interval '1 year' where id = net;
+  end if;
+  if p_customer is not null then update public.networks set stripe_customer = p_customer where id = net and stripe_customer is null; end if;
+  return true;
+end $$;
+
+-- The platform admin can give assessments (or a plan) to a network, for pilots and partners.
+create or replace function public.pl_grant(p_network uuid, p_credits int, p_months int default 0) returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.platform_admins where user_id = auth.uid()) then raise exception 'Only the platform admin can do that'; end if;
+  update public.networks set credits = greatest(0, credits + coalesce(p_credits, 0)),
+    plan_until = case when coalesce(p_months, 0) > 0 then greatest(coalesce(plan_until, now()), now()) + make_interval(months => p_months) else plan_until end
+  where id = p_network;
+  insert into public.payments (id, network_id, kind, quantity) values ('grant_' || gen_random_uuid(), p_network, 'grant', coalesce(p_credits, 0));
+end $$;
+
+-- ============ Delete my account (required by the App Store; also on the web) ============
+-- Networks you lead alone are deleted with everything in them. Where others remain and you were the only owner,
+-- the longest-serving admin (else assessor) becomes owner, so no network is left without one. Then the login itself goes.
+create or replace function public.pl_delete_account() returns void language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); n record; heir uuid;
+begin
+  if me is null then raise exception 'Not signed in'; end if;
+  for n in select network_id, role from public.network_members where user_id = me loop
+    if not exists (select 1 from public.network_members where network_id = n.network_id and user_id <> me) then
+      delete from public.networks where id = n.network_id;
+    elsif n.role = 'owner' and not exists (select 1 from public.network_members where network_id = n.network_id and user_id <> me and role = 'owner') then
+      select user_id into heir from public.network_members where network_id = n.network_id and user_id <> me
+        order by (role = 'admin') desc, created_at asc limit 1;
+      update public.network_members set role = 'owner' where network_id = n.network_id and user_id = heir;
+    end if;
+  end loop;
+  delete from auth.users where id = me;
+end $$;
+
 -- ============ Data retention ============
 -- Deletes assessments older than each network's retention setting (default 24 months), and stale invites.
 create or replace function public.pl_purge() returns int language plpgsql security definer set search_path = public as $$
@@ -554,8 +633,8 @@ end $$;
 -- Supabase gives anon and authenticated full rights on new tables and functions. Take them all back, then grant only
 -- what the app uses, column by column. Row-level security above then decides which rows.
 revoke all on public.networks, public.network_members, public.network_invites, public.cases, public.participants,
-  public.interview_scores, public.platform_admins, public.email_log from anon, authenticated;
-grant select on public.networks, public.network_members, public.network_invites, public.cases, public.participants, public.interview_scores to authenticated;
+  public.interview_scores, public.platform_admins, public.email_log, public.payments from anon, authenticated;
+grant select on public.networks, public.network_members, public.network_invites, public.cases, public.participants, public.interview_scores, public.payments to authenticated;
 grant update (name, logo_url, settings) on public.networks to authenticated;
 grant delete on public.network_invites to authenticated;
 grant insert (network_id, created_by, planter_name, spouse_name, planter_email, spouse_email, married, city, settings) on public.cases to authenticated;
@@ -579,7 +658,9 @@ grant execute on function public.pl_open(text), public.pl_save(text, jsonb, int,
 -- What a signed-in team member can do (each checks membership itself)
 grant execute on function public.pl_create_network(text, text), public.pl_invite_member(uuid, text, text), public.pl_accept_invite(text, text),
   public.pl_set_member(uuid, uuid, text), public.pl_email_people(uuid[], text), public.pl_member_invite_email(uuid), public.pl_platform_stats(),
-  public.pl_rotate_ref(uuid) to authenticated;
+  public.pl_rotate_ref(uuid), public.pl_delete_account(), public.pl_grant(uuid, int, int) to authenticated;
+-- Only the Stripe function (service key) records payments
+grant execute on function public.pl_record_payment(text, uuid, text, int, int, text, text, text, text) to service_role;
 -- Used by column defaults and triggers when a team member adds a case or a reference
 grant execute on function public.pl_new_token() to authenticated;
 -- Helpers the security rules call
