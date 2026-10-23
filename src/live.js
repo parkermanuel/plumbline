@@ -10,6 +10,7 @@ export const state = {
   memberships: [], networks: [], activeId: null, // the network being viewed
   cases: [], status: [], full: {}, // full: caseId -> participants with answers (loaded on open)
   team: [], invites: [], scores: {}, isPlatformAdmin: false,
+  billing: null, // { couples_used, couples_bought } for the active network
 };
 const listeners = new Set();
 export const onChange = (fn) => listeners.add(fn);
@@ -61,13 +62,14 @@ export async function loadAll() {
 }
 export async function loadNetwork() {
   const nid = state.activeId;
-  if (!nid) { state.cases = []; state.status = []; state.team = []; state.invites = []; return; }
+  if (!nid) { state.cases = []; state.status = []; state.team = []; state.invites = []; state.billing = null; return; }
   const [c, s, t] = await Promise.all([
     sb.from("cases").select("id,network_id,created_by,planter_name,spouse_name,married,city,settings,ref_token,reports_released,created_at,archived").eq("network_id", nid).eq("archived", false).order("created_at", { ascending: false }).limit(500),
     sb.from("participant_status").select("*").eq("network_id", nid),
     sb.from("network_members").select("user_id,role,name,email,created_at").eq("network_id", nid),
   ]);
   state.cases = must(c); state.status = must(s); state.team = must(t);
+  try { state.billing = must(await sb.from("network_billing").select("couples_used,couples_bought").eq("network_id", nid).maybeSingle()); } catch { state.billing = null; }
   state.invites = canAdmin(nid) ? must(await sb.from("network_invites").select("id,email,role,token,created_at,emailed_at,accepted_at").eq("network_id", nid)).filter((i) => !i.accepted_at) : [];
 }
 export async function switchNetwork(id) {
@@ -176,12 +178,29 @@ export async function acceptInvite(token, name) {
 export async function platformStats() { return must(await sb.rpc("pl_platform_stats")); }
 
 // ---------- assessments ----------
+// Billing (owner, 23 Oct 2026): first couple free, then one purchased credit per couple. Credits come from the Stripe webhook.
+export const FREE_COUPLES = 1;
+export function couplesLeft() {
+  const b = state.billing || { couples_used: 0, couples_bought: 0 };
+  return Math.max(0, FREE_COUPLES + b.couples_bought - b.couples_used);
+}
+/** The Stripe checkout link, tagged with this network so the purchase lands on its balance. */
+export function buyLink(base) {
+  const u = new URL(base);
+  if (state.activeId) u.searchParams.set("client_reference_id", state.activeId);
+  const email = state.session?.user?.email;
+  if (email) u.searchParams.set("prefilled_email", email);
+  return u.toString();
+}
+export const NEEDS_PURCHASE = "Your free couple is used. Buy more assessments to add another couple. Beta networks can use code BETA at checkout.";
 export async function createCase(f) {
-  const row = must(await sb.from("cases").insert({
+  const res = await sb.from("cases").insert({
     network_id: state.activeId, created_by: uid(), planter_name: f.planterName, spouse_name: f.married ? f.spouseName : null,
     planter_email: f.planterEmail || null, spouse_email: f.married ? f.spouseEmail || null : null,
     married: f.married, city: f.city || null, settings: { signGifts: f.signGifts, bankVersion: f.bankVersion },
-  }).select().single());
+  }).select().single();
+  if (res.error && /PL_NEEDS_PURCHASE/.test(res.error.message || "")) { await loadNetwork(); emit("cases"); throw new Error(NEEDS_PURCHASE); }
+  const row = must(res);
   await loadNetwork();
   if (f.sendNow) {
     const ids = state.status.filter((p) => p.case_id === row.id).map((p) => p.participant_id);

@@ -75,6 +75,7 @@ export function newCase() {
   const sg = n.settings?.signGifts !== false;
   return `<div class="wrap" style="max-width:40rem"><form class="stack-lg" id="newcase-live">
     <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">New assessment</h1><p class="lede" style="margin:0">Set up one planter (and spouse). Each person gets a personal link by email, and you'll see their progress live.</p></div>
+    ${L.couplesLeft() < 1 ? `<div class="notice chalk">${esc(L.NEEDS_PURCHASE)} <a href="${esc(L.buyLink(B.CHECKOUT))}" target="_blank" rel="noopener">Buy assessments</a></div>` : ""}
     <div class="panel stack">
       <div class="two" style="gap:12px"><label class="field">Planter's full name<input id="f-pn" required maxlength="120" autocomplete="off"></label><label class="field">Planter's email<input id="f-pe" type="email" autocomplete="off"></label></div>
       <div class="field"><span>Married?</span><div class="seg" role="group"><button type="button" data-act="seg" data-for="f-m" data-v="1" aria-pressed="true">Married</button><button type="button" data-act="seg" data-for="f-m" data-v="0" aria-pressed="false">Single</button></div><input type="hidden" id="f-m" value="1"></div>

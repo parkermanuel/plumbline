@@ -47,6 +47,7 @@ async function main() {
   // Networks and teams
   const nid = (await as(OWNER, () => q(`select public.pl_create_network('Front Range Planting', 'Dana Owner') as id`)))[0].id;
   ok(!!nid, "owner creates a network");
+  await q(`select public.pl_add_couples('seed-credits', $1, 10, 0)`, [nid]); // the main flow below adds several couples
   const inv = (await as(OWNER, () => q(`select public.pl_invite_member($1, 'Assessor@Net.org', 'assessor') as id`, [nid])))[0].id;
   ok(!!inv, "owner invites an assessor");
   ok(!!(await tryAs(ASSESSOR, `select public.pl_invite_member($1, 'a@b.co', 'admin')`, [nid])), "non-member can't invite");
@@ -200,6 +201,28 @@ async function main() {
   ok((await q(`select count(*)::int n from public.participants where case_id=$1`, [caseId2]))[0].n === 0, "owner deletes permanently, people go too");
   await q(`update public.cases set created_at = now() - interval '25 months' where id=$1`, [caseId]);
   ok((await q(`select public.pl_purge() as n`))[0].n === 1 && (await q(`select count(*)::int n from public.participants where case_id=$1`, [caseId]))[0].n === 0 && (await q(`select count(*)::int n from public.cases`))[0].n === 3, "retention removes only assessments older than 24 months");
+
+  // Billing: first couple free, then purchased credits (owner, 23 Oct 2026)
+  {
+    const FREE = "55555555-5555-5555-5555-555555555555";
+    await db.exec(`insert into auth.users values ('${FREE}','new@net.org')`);
+    const bn = (await as(FREE, () => q(`select public.pl_create_network('New Network') as id`)))[0].id;
+    const add = (name) => tryAs(FREE, `insert into public.cases(network_id, created_by, planter_name, married) values ($1, $2, '${name}', false)`, [bn, FREE]);
+    ok(!(await add("First")), "first couple is free");
+    const second = await add("Second");
+    ok(second && second.includes("PL_NEEDS_PURCHASE"), "second couple needs a purchase");
+    ok((await as(FREE, () => q(`select couples_used, couples_bought from public.network_billing where network_id=$1`, [bn])))[0].couples_used === 1, "team can read its balance");
+    ok(!!(await tryAs(FREE, `update public.network_billing set couples_bought = 99 where network_id=$1`, [bn])) || (await q(`select couples_bought from public.network_billing where network_id=$1`, [bn]))[0].couples_bought === 0, "team can't give itself credits");
+    ok(!!(await tryAs(FREE, `select public.pl_add_couples('cs_fake', $1, 5, 0)`, [bn])), "team can't call the credit function");
+    ok((await as(OUTSIDER, () => q(`select count(*)::int n from public.network_billing where network_id=$1`, [bn])))[0].n === 0, "outsider can't see another network's balance");
+    ok((await q(`select public.pl_add_couples('cs_1', $1, 2, 13200) as r`, [bn]))[0].r === true, "webhook adds two couples");
+    ok((await q(`select public.pl_add_couples('cs_1', $1, 2, 13200) as r`, [bn]))[0].r === false, "a retried webhook adds nothing");
+    ok(!(await add("Second")) && !(await add("Third")), "purchased couples can be used");
+    ok(((await add("Fourth")) || "").includes("PL_NEEDS_PURCHASE"), "stops again when credits run out");
+    const first = (await q(`select id from public.cases where network_id=$1 and planter_name='First'`, [bn]))[0].id;
+    await as(FREE, () => q(`delete from public.cases where id=$1`, [first]));
+    ok(((await add("Again")) || "").includes("PL_NEEDS_PURCHASE"), "deleting a case doesn't return the credit");
+  }
 
   process.exit(failed ? 1 : 0);
 }

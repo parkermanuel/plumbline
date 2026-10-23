@@ -236,12 +236,22 @@ const LOGO = `<svg class="logo" viewBox="0 0 4350 939" role="img" aria-label="pl
 
 // ---------------- home ----------------
 // Owner, 23 Oct 2026: first couple free for every network, then $99 per couple. Beta code until launch (5 Jan 2027).
-function partnerBox() {
+function partnerBox(dash) {
+  // Signed in: show this network's balance, and tag the checkout with the network so the purchase lands on it.
+  if (dash && L.LIVE && L.active()) {
+    const left = L.couplesLeft(), b = L.state.billing || { couples_bought: 0 };
+    return `<section class="partner compact" aria-label="Your assessments">
+    <div class="partner-free"><span class="pill pill-planter">Beta</span><h2>${left} ${left === 1 ? "couple" : "couples"} left</h2><p>${b.couples_bought ? `Your network has bought ${b.couples_bought}, plus your first couple free.` : "Your first couple is free."} Each couple after that is $99. Buy several at once and they wait here until you need them.</p></div>
+    <div class="partner-options"><p><b>Beta networks:</b> use code <b>BETA</b> at checkout for a third off, for life.</p>
+      <div class="row" style="gap:8px"><a class="btn" href="${esc(L.buyLink(B.CHECKOUT))}" target="_blank" rel="noopener">Buy assessments</a><button class="btn ghost" data-act="refresh-billing">I just bought</button></div>
+      <p class="small">Secure checkout through Stripe. Couples show up here within a minute of paying.</p></div>
+  </section>`;
+  }
   return `<section class="partner compact" aria-label="Pricing">
     <div class="partner-free"><span class="pill pill-planter">Beta</span><h2>Your first couple is free.</h2><p>Every network gets one full assessment free: planter, spouse, references, graded report and interview guide. After that it's $99 per couple. No subscription, no seats.</p></div>
     <div class="partner-options"><p><b>Beta networks:</b> use code <b>BETA</b> at checkout for a third off, for life.</p>
-      <div class="row" style="gap:8px"><a class="btn" href="${esc(B.CHECKOUT)}" target="_blank" rel="noopener">Buy assessments</a></div>
-      <p class="small">Secure checkout through Stripe. Buy one or several couples at once.</p></div>
+      <div class="row" style="gap:8px"><button class="btn" data-act="nav" data-to="leader">Start free</button></div>
+      <p class="small">Sign in as a network leader to start your free couple. You buy more from your dashboard.</p></div>
   </section>`;
 }
 // What each kind of tool is designed to cover, based on what each tool says it measures. y = yes, p = partly, n = no.
@@ -1209,6 +1219,7 @@ document.addEventListener("click", async (e) => {
   if (act === "signout") { await L.signOut(); go({ name: "home" }); return; }
   if (act === "copy-link") { copy(L.personLink(el.dataset.token), el); return; }
   if (act === "copy-text") { copy(el.dataset.text, el); return; }
+  if (act === "refresh-billing") { el.disabled = true; L.loadNetwork().then(() => { render(); toast("Updated"); }).catch(() => toast("Couldn't refresh. Try again in a minute.")); return; }
   if (act === "open-link") { location.hash = "#/t/" + el.dataset.token; return; }
   if (act === "release") { try { await L.setReleased(view.id, el.dataset.on === "1"); toast(el.dataset.on === "1" ? "Reports released" : "Reports hidden"); } catch (err) { toast("Couldn't update. Try again."); } return; }
   if (act === "retry-finish") { finishTake(); return; }
