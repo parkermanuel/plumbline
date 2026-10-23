@@ -1,5 +1,5 @@
 // Plumbline payments (Supabase Edge Function), deployed with --no-verify-jwt because it checks every caller itself.
-//   action "checkout"  a network owner/admin buys assessments ($199 per couple) or the yearly plan ($4,999). Returns a Stripe Checkout URL.
+//   action "checkout"  a network owner/admin buys assessments ($99 per couple) or the yearly plan ($2,500). Returns a Stripe Checkout URL.
 //                      Stripe emails a paid invoice and receipt with the network's name on it.
 //   action "codes"     the platform admin lists, creates or switches off discount codes (Stripe promotion codes).
 //   Stripe webhook     checkout.session.completed and invoice.paid add credits or extend the plan, once per payment.
@@ -7,7 +7,7 @@
 //          STRIPE_WEBHOOK_SECRET (from the webhook endpoint in Stripe).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
-const COUPLE_CENTS = 19900, PLAN_CENTS = 499900;
+const COUPLE_CENTS = 9900, PLAN_CENTS = 250000;
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 

@@ -243,7 +243,7 @@ function partnerBox() {
   if (window.PLUMBLINE_CONFIG?.app) return "";
   const P = B.PRICING;
   return `<section class="partner compact pricing" aria-label="Pricing">
-    <div class="partner-free"><h2>${money(P.couple)}</h2><p>Per couple: the planter, the spouse and every reference. Or ${money(P.plan)} a year for unlimited assessments across your network. Discount codes work at checkout.</p></div>
+    <div class="partner-free"><h2>${money(P.couple)}</h2><p>Per couple: the planter, the spouse and every reference. Or ${money(P.plan)} a year for unlimited assessments across your network. Discount codes work at checkout. If cost is the obstacle, <a href="mailto:hello@plumblineassessment.com">tell me</a>.</p></div>
     <button class="btn" data-act="nav" data-to="leader">Start as a network leader</button>
   </section>`;
 }
@@ -260,7 +260,7 @@ const CMP_AREAS = [
   ["Honesty and consistency checks", "y", "p", "p", "p", "n"],
   ["Graded report and interview guide", "y", "n", "n", "n", "y"],
 ];
-const CMP_PRICE = ["$199 per couple", "About $147 per couple", "About $120 per couple, or $10,000+ a year", "$35 per couple", "$399 to $3,000 per couple"];
+const CMP_PRICE = ["$99 per couple", "About $147 per couple", "About $120 per couple, or $10,000+ a year", "$35 per couple", "$399 to $3,000 per couple"];
 const money = (n) => "$" + n.toLocaleString("en-US");
 // The savings line at the top of the home page. Every number shows how it was reached and where it came from.
 function savingsLine() {
@@ -449,7 +449,7 @@ function renderTerms() {
   <div class="read stack">
     <p>By using Plumbline you agree to these terms.</p>
     <h3>Payment</h3>
-    <p>Each assessment costs $199 and covers one planter, their spouse and all their references. A network plan costs $4,999 a year for unlimited assessments and renews each year until you cancel. Payments are handled by Stripe, and Stripe emails your receipt. Assessments you buy don't expire. If you haven't used an assessment, you can ask for a refund within 30 days of buying it by emailing hello@plumblineassessment.com. To cancel a network plan, email the same address before it renews.</p>
+    <p>Each assessment costs $99 and covers one planter, their spouse and all their references. A network plan costs $2,500 a year for unlimited assessments and renews each year until you cancel. Payments are handled by Stripe, and Stripe emails your receipt. Assessments you buy don't expire. If you haven't used an assessment, you can ask for a refund within 30 days of buying it by emailing hello@plumblineassessment.com. To cancel a network plan, email the same address before it renews.</p>
     <h3>For network leaders and teams</h3>
     <p>Use Plumbline only to assess people who have agreed to take it, for church planting or ministry decisions. Treat their answers as confidential. Don't sell, publish or share them outside your team. A Plumbline report is one input, never the decision. Don't approve, decline or fund anyone on the report alone. Use it alongside interviews, references, background checks and prayerful discernment. You're responsible for who you invite to your team and for removing people who leave.</p>
     <h3>For planters, spouses and references</h3>

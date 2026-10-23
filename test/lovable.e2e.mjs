@@ -210,7 +210,7 @@ await shot(owner, "settings");
 
 // 3. Assessor joins from the email
 const sam = await device("assessor");
-await sam.goto(linkIn(teamMail)); await wait(1000);
+await sam.goto(linkIn(teamMail)); await sam.waitForSelector("text=Join Front Range Planting", { timeout: 15000 }).catch(() => {});
 ok((await text(sam)).includes("Join Front Range Planting"), "join page names the network");
 await sam.fill("#j-name", "Sam Ortiz"); await submit(sam, "#join-team"); await wait(1000);
 ok((await text(sam)).includes("Front Range Planting") && (await text(sam)).includes("New assessment"), "assessor joined and sees the dashboard");
@@ -227,7 +227,7 @@ const joshLink = linkIn(inv.find((e) => e.to === "josh@kim.org")), hannahLink = 
 
 // 5. Planter starts on a phone, finishes on a laptop
 const phone = await device(null, 390);
-await phone.goto(joshLink); await wait(1200);
+await phone.goto(joshLink); await phone.waitForSelector("text=Welcome, Josh", { timeout: 15000 }).catch(() => {});
 ok((await text(phone)).includes("Welcome, Josh"), "planter opens his emailed link");
 ok((await answer(phone, 400, 30)) === "paused", "planter answers until 30%");
 await wait(1500);

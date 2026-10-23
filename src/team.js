@@ -42,7 +42,7 @@ function balanceCard() {
     : `<b>${b.credits} ${b.credits === 1 ? "assessment" : "assessments"} left.</b> Each one covers a planter, their spouse and all their references.`;
   const buy = app ? `<p class="small" style="margin:0">To add assessments, sign in at plumblineassessment.com.</p>`
     : admin ? `<div class="row" style="gap:8px">${b.plan ? "" : `<button class="btn sm" data-act="buy" data-kind="couples">Buy assessments · ${money(B.PRICING.couple)} each</button><button class="btn sm ghost" data-act="buy" data-kind="plan">Network plan · ${money(B.PRICING.plan)}/year, unlimited</button>`}</div>
-      <p class="small" style="margin:0">Have a discount code? Enter it at checkout.</p>`
+      <p class="small" style="margin:0">Have a discount code? Enter it at checkout. If cost is the obstacle, <a href="mailto:hello@plumblineassessment.com">tell me</a>.</p>`
     : `<p class="small" style="margin:0">Ask your network's owner or an admin to add more.</p>`;
   return `<section class="panel stack balance" aria-label="Assessments left"><p style="margin:0">${status}</p>${buy}</section>`;
 }

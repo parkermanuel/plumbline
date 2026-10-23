@@ -267,7 +267,7 @@ export function balance(n = active()) {
   const plan = !!until && until > new Date();
   return { plan, until, credits: n.credits || 0, can: plan || (n.credits || 0) > 0 };
 }
-// Sends an owner or admin to Stripe Checkout. kind: "couples" ($199 each, quantity adjustable there) or "plan" ($4,999 a year).
+// Sends an owner or admin to Stripe Checkout. kind: "couples" ($99 each, quantity adjustable there) or "plan" ($2,500 a year).
 export async function buy(kind, quantity = 1) {
   const { data, error } = await sb.functions.invoke("plumbline-stripe", { body: { action: "checkout", kind, quantity, networkId: state.activeId } });
   if (error || !data?.url) throw new Error(data?.error || error?.message || "Checkout isn't available right now");

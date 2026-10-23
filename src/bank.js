@@ -955,11 +955,12 @@ export const PARTNER = {
 };
 
 // ---------- PRICING ----------
-// Plumbline is $199 per couple (planter, spouse and all their references), or $4,999 a year for unlimited assessments.
+// Plumbline is $99 per couple (planter, spouse and all their references), or $2,500 a year for unlimited assessments.
+// Launch prices, set low on purpose; the yearly plan may rise toward $5,000 as Plumbline grows.
 // What a couple pays elsewhere, from each publisher's public prices (checked 23 Oct 2026). Used for the savings line.
 export const PRICING = {
-  couple: 199,
-  plan: 4999,
+  couple: 99,
+  plan: 2500,
   others: [
     { tool: "DISC (Everything DiSC)", cost: 147, how: "$73.50 per person, for planter and spouse", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },
     { tool: "CliftonStrengths 34", cost: 120, how: "$59.99 per person, for planter and spouse", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },
