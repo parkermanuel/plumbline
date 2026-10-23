@@ -2,6 +2,7 @@
 import {
   PILLARS, SCALES, SPOUSE_SCALES, SPOUSE_SEES, COUPLE_AREAS, WIRING, GIFTS, SIGN_GIFTS, FIVEFOLD,
   FIVEFOLD_BLOCKS, SCENARIOS, CANDOR, BOGUS, CONSISTENCY_PAIRS, SAFETY, BELIEFS, FACTS, REF_ITEMS, OTHER, OTHER_LINKS, CONTEXT,
+  AUD, setAudience,
 } from "./bank.js";
 
 export const BANDS = [
@@ -145,18 +146,19 @@ export function wgGaps(P, S) {
   const p = P?.wg, s = S?.wg;
   if (!p) return [];
   const T = Object.fromEntries(OTHER.wg.types), ours = OTHER.wg.ours, out = [];
+  const pl = AUD.id === "planting";
   const drains = (x, k) => x?.[k] === "frus", strong = (x, k) => x?.[k] === "genius" || x?.[k] === "comp";
   const fill = (k) => (s && s[k] === "genius" ? ` {s} lists ${T[k]} as a genius, so ask how they'll share this work without {s} carrying the church.` : "");
-  if (drains(p, "G")) out.push({ text: `{p} lists Galvanizing (${ours.G}) as a frustration. A new church needs someone rallying people every week.${fill("G")}`,
-    ask: "Who will recruit and rally your launch team, and what part of that can only you do?" });
-  if (drains(p, "T") && !strong(s, "T")) out.push({ text: `{p} lists Tenacity (${ours.T}) as a frustration${s ? ", and {s} didn't list it as a strength" : ""}. Early plants run on follow-through.`,
+  if (drains(p, "G")) out.push({ text: `{p} lists Galvanizing (${ours.G}) as a frustration. ${pl ? "A new church needs someone rallying people every week." : "Leading a team means rallying people again and again."}${fill("G")}`,
+    ask: pl ? "Who will recruit and rally your launch team, and what part of that can only you do?" : "Who will help you rally the team, and what part of that can only you do?" });
+  if (drains(p, "T") && !strong(s, "T")) out.push({ text: `{p} lists Tenacity (${ours.T}) as a frustration${s ? ", and {s} didn't list it as a strength" : ""}. ${pl ? "Early plants run on follow-through." : "Most roles are won or lost on follow-through."}`,
     ask: "Who will make sure things get finished week after week, and how will you know when they aren't?" });
   if (drains(p, "W") && drains(p, "I")) out.push({ text: `{p} lists both Wonder and Invention (${ours.W}; ${ours.I}) as frustrations.${fill("W") || fill("I")}`,
-    ask: "Where will fresh vision and new ideas come from in your first three years?" });
+    ask: pl ? "Where will fresh vision and new ideas come from in your first three years?" : "Where will fresh ideas come from in your first year in this role?" });
   if (drains(p, "D")) out.push({ text: `{p} lists Discernment (${ours.D}) as a frustration.${fill("D")}`,
     ask: "Who will tell you, honestly and early, when a plan isn't going to work?" });
-  if (drains(p, "E")) out.push({ text: `{p} lists Enablement (${ours.E}) as a frustration. In the first year a planter says yes to a lot of small tasks for other people.${fill("E")}`,
-    ask: "How will you handle the season when much of the work is helping other people's plans succeed?" });
+  if (drains(p, "E")) out.push({ text: `{p} lists Enablement (${ours.E}) as a frustration. ${pl ? "In the first year a planter says yes to a lot of small tasks for other people." : "Much of any role is helping other people's plans succeed."}${fill("E")}`,
+    ask: pl ? "How will you handle the season when much of the work is helping other people's plans succeed?" : "How will you handle the parts of this role that are mostly helping other people's plans succeed?" });
   return out;
 }
 
@@ -327,10 +329,11 @@ export function couple(p, s) {
 
 // ---------- full case ----------
 export function scoreCase(c) {
+  setAudience(c.settings?.audience || c.audience, c.settings?.faith ?? c.faith);
   const P = c.planter, S = c.spouse;
-  const married = c.married != null ? !!c.married : !!P?.meta?.married;
+  const married = AUD.sections.spouse ? (c.married != null ? !!c.married : !!P?.meta?.married) : false;
   const signGifts = c.network?.signGifts !== false;
-  const out = { married, names: { planter: P?.meta?.name || "Planter", spouse: S?.meta?.name || "Spouse" } };
+  const out = { audience: AUD.id, words: AUD.words, sections: AUD.sections, married, names: { planter: P?.meta?.name || "Planter", spouse: S?.meta?.name || "Spouse" } };
 
   // planter scales
   const self = {};
@@ -347,15 +350,15 @@ export function scoreCase(c) {
   });
   out.validity = P ? validity(P) : null;
   out.wiring = P ? wiring(P) : null;
-  out.gifts = P ? gifts(P, { signGifts }) : null;
+  out.gifts = P && AUD.sections.gifts ? gifts(P, { signGifts }) : null;
   out.other = P ? otherTools(P, out.wiring) : null;
   out.wgGaps = [];
-  out.context = P ? contextFit(P, "planter", married) : null;
-  out.fivefold = P ? fivefold(P) : null;
+  out.context = P && AUD.sections.city ? contextFit(P, "planter", married) : null;
+  out.fivefold = P && AUD.sections.fivefold ? fivefold(P) : null;
   out.scenarios = P ? scenarios(P, married) : null;
   out.facts = P ? facts(P) : null;
   const belief = (v) => (v === true || v === "yes" ? "yes" : v === "no" ? "no" : v === false || v === "unsure" ? "unsure" : null);
-  const allBeliefs = [...BELIEFS, ...((c.settings?.beliefs || []).map((x) => ({ ...x, network: true })))];
+  const allBeliefs = AUD.sections.beliefs ? [...BELIEFS, ...((c.settings?.beliefs || []).map((x) => ({ ...x, network: true })))] : [];
   out.beliefs = allBeliefs.map((b) => { const a = belief(P?.beliefs?.[b.id]); return { ...b, answer: a, ok: a === "yes", answered: a != null }; });
   out.netq = (c.settings?.questions || []).map((q) => ({ ...q, planter: P?.netq?.[q.id], spouse: S?.netq?.[q.id] }));
   out.work = P?.work || {};
@@ -398,7 +401,7 @@ function buildFlags(o) {
   Object.entries(o.scales).forEach(([k, v]) => {
     if (!v) return;
     const sc = SCALES[k];
-    if (NON_NEGOTIABLE.includes(k)) {
+    if (AUD.nonNegotiable.includes(k)) {
       const pil = PILLARS.find((x) => x.id === sc.pillar).name;
       if (v.band.id === "growth") push("concern", pil, `${sc.name} is a growth area`, sc.growth, sc.q, sc.probes, k === "integrity" || k === "load");
       else if (v.band.id === "developing") push("watch", pil, `${sc.name} is developing`, sc.growth, sc.q, sc.probes);
@@ -408,8 +411,8 @@ function buildFlags(o) {
     if (b.answer === "no") push("concern", "Beliefs", "Did not affirm a core belief", `Answered No to: "${b.t}"`, "Help me understand where you land on this, and how you'd teach it.", [], true);
     else if (b.answer === "unsure") push("watch", "Beliefs", "Unsure about a core belief", `Answered Not sure to: "${b.t}"`, "Help me understand where you land on this, and how you'd teach it.", []);
   });
-  if (o.facts) o.facts.flags.forEach((f) => push(f.level, "Experience", f.ft || f.q, `${f.q} Answered: ${f.a}.`, FACT_Q[f.id] || null, []));
-  if (o.scenarios && o.scenarios.pct < 50) push("watch", "Judgment", "Scenario judgment is developing", "Several scenario choices differed from what experienced planters chose.", "Walk me through how you'd handle one of the scenarios you found hardest.", []);
+  if (o.facts) o.facts.flags.forEach((f) => push(f.level, "Experience", f.ft || f.q, `${f.q} Answered: ${f.a}.`, (AUD.factQ || FACT_Q)[f.id] || null, []));
+  if (o.scenarios && o.scenarios.pct < 50) push("watch", "Judgment", "Scenario judgment is developing", `Several scenario choices differed from what experienced ${AUD.id === "planting" ? "planters" : "leaders"} chose.`, "Walk me through how you'd handle one of the scenarios you found hardest.", []);
   if (o.validity?.idealized) push("watch", "Response quality", "Answers may be idealized", o.validity.notes[0], null, []);
   if (o.validity?.quality === "Retake recommended") push("concern", "Response quality", "Answers may not be reliable", `${o.validity.notes.join(" ")} Consider asking for a retake before relying on this report.`, null, [], true);
   else if (o.validity?.quality === "Some concerns") push("watch", "Response quality", "Some answers look rushed or inconsistent", o.validity.notes.filter((n) => !n.includes("candor")).join(" "), null, []);
@@ -473,7 +476,7 @@ function decide(o) {
 function interviewGuide(o) {
   const pl = [];
   const call = SCALES.call;
-  pl.push({ kind: "open", title: "Calling story", q: call.q, probes: call.probes, look: call.look });
+  if (call) pl.push({ kind: "open", title: AUD.id === "planting" ? "Calling story" : call.name, q: call.q, probes: call.probes, look: call.look });
   o.strengths.slice(0, 2).forEach((k) => pl.push({ kind: "strength", title: `Confirm a strength: ${SCALES[k].name}`, q: `Your results point to ${SCALES[k].name.toLowerCase()} as a strength. Give me a specific example from the last year.`, probes: ["What did you do personally?", "What happened as a result?"], look: SCALES[k].look }));
   const seen = new Set();
   o.flags.filter((f) => f.q && f.area !== "Spouse" && f.area !== "Couple" && f.area !== "Confidential" && !seen.has(f.q) && seen.add(f.q)).forEach((f) =>
@@ -504,7 +507,7 @@ function growthPlan(o) {
   const steps = o.growth.slice(0, 3).map((k) => ({ scale: SCALES[k].name, step: SCALES[k].plan }));
   const extras = [];
   const fact = (id) => o.facts?.rows.find((r) => r.id === id)?.a;
-  if (fact("coach") && fact("coach") !== "Yes, meeting regularly") extras.push({ scale: "Coach", step: "Get a coach who has planted, and meet at least monthly (weekly is even better). In Stetzer's research, planters with a coach led churches 12 to 25% larger." });
-  if (fact("peers") && fact("peers") !== "Yes, at least monthly") extras.push({ scale: "Peer group", step: "Join a monthly peer group of planters. In the 2007 survivability study, planters in one saw 83% survival compared with 67%." });
+  if (AUD.id === "planting" && fact("coach") && fact("coach") !== "Yes, meeting regularly") extras.push({ scale: "Coach", step: "Get a coach who has planted, and meet at least monthly (weekly is even better). In Stetzer's research, planters with a coach led churches 12 to 25% larger." });
+  if (AUD.id === "planting" && fact("peers") && fact("peers") !== "Yes, at least monthly") extras.push({ scale: "Peer group", step: "Join a monthly peer group of planters. In the 2007 survivability study, planters in one saw 83% survival compared with 67%." });
   return [...steps, ...extras].slice(0, 5);
 }

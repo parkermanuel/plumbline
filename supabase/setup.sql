@@ -301,7 +301,10 @@ declare ns jsonb; nn text; nl text;
 begin
   select settings, name, logo_url into ns, nn, nl from public.networks where id = new.network_id;
   new.settings := coalesce(ns, '{}'::jsonb) || jsonb_build_object('networkName', nn, 'logoUrl', nl)
-                  || jsonb_strip_nulls(jsonb_build_object(  -- the only two choices made when creating an assessment
+                  || jsonb_strip_nulls(jsonb_build_object(  -- the only choices made when creating an assessment
+                       'audience', case when new.settings->>'audience' in ('planting', 'staff', 'nonprofit', 'business') then to_jsonb(new.settings->>'audience') end,
+                       'faith', case when jsonb_typeof(new.settings->'faith') = 'boolean' then new.settings->'faith' end,
+                       'role', case when jsonb_typeof(new.settings->'role') = 'string' then to_jsonb(left(new.settings->>'role', 80)) end,
                        'signGifts', case when jsonb_typeof(new.settings->'signGifts') = 'boolean' then new.settings->'signGifts' end,
                        'bankVersion', case when jsonb_typeof(new.settings->'bankVersion') = 'string' then to_jsonb(left(new.settings->>'bankVersion', 20)) end));
   return new;
@@ -326,7 +329,8 @@ create or replace function public.pl_case_header(c public.cases) returns jsonb l
     'city', c.city, 'network', c.settings->>'networkName', 'logoUrl', c.settings->>'logoUrl',
     'signGifts', coalesce((c.settings->>'signGifts')::boolean, true),
     'beliefs', coalesce(c.settings->'beliefs', '[]'::jsonb), 'questions', coalesce(c.settings->'questions', '[]'::jsonb),
-    'bankVersion', c.settings->>'bankVersion', 'released', c.reports_released)
+    'bankVersion', c.settings->>'bankVersion', 'released', c.reports_released,
+    'audience', coalesce(c.settings->>'audience', 'planting'), 'faith', coalesce((c.settings->>'faith')::boolean, true), 'role', c.settings->>'role')
 $$;
 
 create or replace function public.pl_open(p_token text) returns jsonb language sql security definer set search_path = public stable as $$
@@ -449,7 +453,8 @@ create or replace function public.pl_report(p_token text) returns jsonb language
     'released', true,
     'case', jsonb_build_object('id', me.case_id, 'planterName', me.planter_name, 'spouseName', me.spouse_name, 'married', me.married,
                                'network', me.settings->>'networkName', 'logoUrl', me.settings->>'logoUrl', 'city', me.city,
-                               'signGifts', coalesce((me.settings->>'signGifts')::boolean, true)),
+                               'signGifts', coalesce((me.settings->>'signGifts')::boolean, true),
+                               'audience', coalesce(me.settings->>'audience', 'planting'), 'faith', coalesce((me.settings->>'faith')::boolean, true), 'role', me.settings->>'role'),
     'role', me.role,
     'me', me.answers - 'privateNote' - 'safety',
     'other', (select public.pl_summary(o.answers) from public.participants o

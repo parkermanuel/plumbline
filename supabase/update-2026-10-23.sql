@@ -1,5 +1,6 @@
 -- Plumbline update, 23 Oct 2026: payments ($99 per couple, $79 founding, $2,500 a year), discount codes, delete-my-account,
--- and the Platform page's credits and founding switch. Safe to run more than once.
+-- the Platform page's credits and founding switch, and the audience choice (church planting, church staff, nonprofit, business).
+-- Safe to run more than once.
 
 -- ============ Payments ============
 -- Each assessment (one couple and their references) uses one credit, unless the network has a yearly plan.
@@ -117,3 +118,49 @@ grant execute on function public.pl_record_payment(text, uuid, text, int, int, t
 
 -- Networks that already exist started while Plumbline was free. This gives each of them 5 assessments so nothing breaks.
 update public.networks set credits = 5 where credits = 0;
+
+
+-- ============ Audiences ============
+-- Each assessment remembers who it's for: church planting (the default), church staff hiring, nonprofit or business.
+create or replace function public.case_snapshot() returns trigger language plpgsql security definer set search_path = public as $$
+declare ns jsonb; nn text; nl text;
+begin
+  select settings, name, logo_url into ns, nn, nl from public.networks where id = new.network_id;
+  new.settings := coalesce(ns, '{}'::jsonb) || jsonb_build_object('networkName', nn, 'logoUrl', nl)
+                  || jsonb_strip_nulls(jsonb_build_object(  -- the only choices made when creating an assessment
+                       'audience', case when new.settings->>'audience' in ('planting', 'staff', 'nonprofit', 'business') then to_jsonb(new.settings->>'audience') end,
+                       'faith', case when jsonb_typeof(new.settings->'faith') = 'boolean' then new.settings->'faith' end,
+                       'role', case when jsonb_typeof(new.settings->'role') = 'string' then to_jsonb(left(new.settings->>'role', 80)) end,
+                       'signGifts', case when jsonb_typeof(new.settings->'signGifts') = 'boolean' then new.settings->'signGifts' end,
+                       'bankVersion', case when jsonb_typeof(new.settings->'bankVersion') = 'string' then to_jsonb(left(new.settings->>'bankVersion', 20)) end));
+  return new;
+end $$;
+
+create or replace function public.pl_case_header(c public.cases) returns jsonb language sql stable set search_path = public as $$
+  select jsonb_build_object('id', c.id, 'planterName', c.planter_name, 'spouseName', c.spouse_name, 'married', c.married,
+    'city', c.city, 'network', c.settings->>'networkName', 'logoUrl', c.settings->>'logoUrl',
+    'signGifts', coalesce((c.settings->>'signGifts')::boolean, true),
+    'beliefs', coalesce(c.settings->'beliefs', '[]'::jsonb), 'questions', coalesce(c.settings->'questions', '[]'::jsonb),
+    'bankVersion', c.settings->>'bankVersion', 'released', c.reports_released,
+    'audience', coalesce(c.settings->>'audience', 'planting'), 'faith', coalesce((c.settings->>'faith')::boolean, true), 'role', c.settings->>'role')
+$$;
+
+create or replace function public.pl_report(p_token text) returns jsonb language sql security definer set search_path = public stable as $$
+  with me as (
+    select p.*, c.reports_released, c.married, c.planter_name, c.spouse_name, c.settings, c.city
+    from public.participants p join public.cases c on c.id = p.case_id
+    where p.token = p_token and p.role in ('planter', 'spouse') and p.status = 'finished' and not c.archived
+  )
+  select case when not me.reports_released then jsonb_build_object('released', false) else jsonb_build_object(
+    'released', true,
+    'case', jsonb_build_object('id', me.case_id, 'planterName', me.planter_name, 'spouseName', me.spouse_name, 'married', me.married,
+                               'network', me.settings->>'networkName', 'logoUrl', me.settings->>'logoUrl', 'city', me.city,
+                               'signGifts', coalesce((me.settings->>'signGifts')::boolean, true),
+                               'audience', coalesce(me.settings->>'audience', 'planting'), 'faith', coalesce((me.settings->>'faith')::boolean, true), 'role', me.settings->>'role'),
+    'role', me.role,
+    'me', me.answers - 'privateNote' - 'safety',
+    'other', (select public.pl_summary(o.answers) from public.participants o
+              where o.case_id = me.case_id and o.role <> me.role and o.role in ('planter', 'spouse') and o.status = 'finished')
+  ) end
+  from me;
+$$;

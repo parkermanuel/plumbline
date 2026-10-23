@@ -8,7 +8,7 @@ export const LIKERT = ["Strongly disagree", "Disagree", "Not sure", "Agree", "St
 export const OBS = ["Rarely", "Sometimes", "Often", "Very often", "Always"]; // reference frequency
 export const NOT_OBSERVED = 0;
 
-export const PILLARS = [
+const PILLARS_0 = [
   { id: "calling", name: "Calling & Faith", icon: "flame", blurb: "A call you can name, a walk with God that's real, and faith that steps out.",
     why: "Calling is the first question every major network asks. Exercising faith is one of Charles Ridley's 13 traits of effective planters, drawn from planters across 13 denominations.", src: ["ridley", "send"] },
   { id: "character", name: "Character", icon: "shield", blurb: "Integrity, teachability and self-control: the things that keep a planter in the game.",
@@ -25,7 +25,7 @@ export const PILLARS = [
     why: "In the 2007 survivability study, plants whose planter held realistic expectations survived at 87% compared with 61%, and plants with a stewardship plan survived at 81% compared with 68%.", src: ["survive2007"] },
 ];
 
-export const SOURCES = {
+const SOURCES_0 = {
   ridley: { t: "Charles Ridley, behavioral dimensions of effective church planters (Indiana University, late 1980s)", url: "https://www.dakotasumc.org/vital-congregations/church-planting/resources-for-future-church-planters/thirteen-characteristics-of-successful-planters" },
   send: { t: "Send Network / NAMB church planter assessment", url: "https://namb.net/church-planter-assessment" },
   pca: { t: "PCA Mission to North America, What Is Church Planter Assessment", url: "https://resources.pcamna.org/wp-content/uploads/sites/3/2024/09/What-is-Church-Planter-Assessment.pdf" },
@@ -37,19 +37,19 @@ export const SOURCES = {
   angoff: { t: "Modified Angoff standard-setting method", url: "https://assess.com/?p=25449" },
 };
 
-export const WORK_SAMPLES = [
+const WORK_SAMPLES_0 = [
   { id: "ws_vision", q: "A video of you casting the vision for your plant (about 3 minutes)", hint: "YouTube, Vimeo or Drive link" },
   { id: "ws_sermon", q: "A recent sermon", hint: "Video or audio link" },
   { id: "ws_plan", q: "Your launch plan or prospectus, if you have one", hint: "Link to a document" },
 ];
-export const WORK_RUBRIC = [
+const WORK_RUBRIC_0 = [
   { id: "ws_vision", name: "Vision cast", anchors: ["Unclear or generic", "Clear but not compelling", "Clear, specific and compelling, ends with an ask", "Moving; I'd want to join"] },
   { id: "ws_sermon", name: "Sermon", anchors: ["Hard to follow or not grounded in the text", "Biblical but dry or insider-focused", "Clear, biblical and accessible to outsiders", "Clear, biblical, compelling and calls for a response"] },
   { id: "ws_plan", name: "Launch plan", anchors: ["Missing or vague", "Some pieces in place", "Realistic plan with people, money and timeline", "Thorough, realistic and grounded in the city"] },
 ];
 
 // q: interview question (STAR). probes: follow-ups. plan: 90-day growth step. look: what a strong answer shows.
-export const SCALES = {
+const SCALES_0 = {
   // ---------- CALLING & FAITH ----------
   call: {
     pillar: "calling", name: "Clarity of Call",
@@ -741,7 +741,7 @@ export const FIVEFOLD_BLOCKS = [
 ];
 
 // ---------- SCENARIOS (pick best + worst). key: 1 (poor) .. 4 (best) ----------
-export const SCENARIOS = [
+const SCENARIOS_0 = [
   { id: "sj1", title: "The pushback", text: "In a launch team meeting, your most generous volunteer pushes hard for a direction that cuts against the vision. Others start nodding.", options: [
     { t: "Correct them firmly right there so the team hears the vision clearly.", k: 2 },
     { t: "Thank them for caring, keep the meeting on track, then meet one-on-one this week to listen and restate the vision.", k: 4 },
@@ -786,7 +786,7 @@ export const SCENARIOS = [
 
 // ---------- VALIDITY ----------
 // idealized: "agree" means agreeing (4-5) is idealized; "disagree" means disagreeing (1-2) is idealized.
-export const CANDOR = [
+const CANDOR_0 = [
   { id: "cd1", t: "I have never felt jealous of another pastor's success.", idealized: "agree" },
   { id: "cd2", t: "I have never been impatient with someone I love.", idealized: "agree" },
   { id: "cd3", t: "There are times I care more about how I look than about being faithful.", idealized: "disagree" },
@@ -821,7 +821,7 @@ export const OPEN_HANDS = ["Women in pastoral leadership", "Baptism", "Tongues a
 
 // ---------- READINESS FACTS (planter) ----------
 // pts: contribution to the Experience & Readiness score (0-4). flag: concern level when chosen.
-export const FACTS = [
+const FACTS_0 = [
   { id: "edu", q: "Highest education", opts: [
     { t: "High school", pts: 1 }, { t: "Some college", pts: 1 }, { t: "Bachelor's degree", pts: 2 },
     { t: "Bachelor's in Bible or ministry", pts: 3 }, { t: "Some seminary", pts: 3 }, { t: "Master's (MDiv, MA or similar)", pts: 4 }, { t: "Doctorate", pts: 4 } ] },
@@ -855,8 +855,8 @@ export const FACTS = [
 ];
 
 // ---------- REFERENCES (360) ----------
-export const REF_RELATIONSHIPS = ["Sending or supervising pastor", "Ministry peer", "Someone they've led", "Friend outside the church", "Family member"];
-export const REF_ITEMS = [
+const REF_RELATIONSHIPS_0 = ["Sending or supervising pastor", "Ministry peer", "Someone they've led", "Friend outside the church", "Family member"];
+const REF_ITEMS_0 = [
   { id: "rf_call", scale: "call", t: "Has a clear, compelling sense of calling to plant." },
   { id: "rf_devotion", scale: "devotion", t: "Walks closely with God, and it shows in how they live." },
   { id: "rf_integrity", scale: "integrity", t: "Is trustworthy. Their word is good." },
@@ -880,8 +880,8 @@ export const REF_ITEMS = [
   { id: "rf_comms", scale: "comms", t: "Communicates God's Word clearly and compellingly." },
   { id: "rf_systems", scale: "systems", t: "Follows through on details, or makes sure someone does." },
 ];
-export const FOLLOW_TEST = "If they planted a church in your city, how likely would you be to join the launch team?";
-export const FOLLOW_SCALE = ["Not likely", "Unlikely", "Maybe", "Likely", "I'd be the first one there"];
+const FOLLOW_TEST_0 = "If they planted a church in your city, how likely would you be to join the launch team?";
+const FOLLOW_SCALE_0 = ["Not likely", "Unlikely", "Maybe", "Likely", "I'd be the first one there"];
 export const REF_READY = ["Ready now", "Ready within a year", "Not yet", "I'm not sure"];
 
 // ---------- OTHER ASSESSMENTS (optional; results people already have) ----------
@@ -986,3 +986,59 @@ export const PRICING = {
   retreat: { low: 399, high: 3000, how: "Send Network NW retreat $399, Wesleyan CPAC $650, PCA Assessment Center $3,000 per couple", src: "https://resources.pcamna.org/resource/church-planting_assessmentcenter_assessmentschedule/" },
   pi: { cost: 10000, how: "Predictive Index plans start at $10,000 a year", src: "https://predictiveindex.com/pricing" },
 };
+
+// ---------- AUDIENCES ----------
+// Church planting is the bank above. Church staff hiring, nonprofit and business swap in their own wording, scales,
+// scenarios, facts and references from src/aud/. Item ids never change, so scoring works the same for every audience.
+// The app calls setAudience() before it builds a take or scores a case; these exports are live bindings.
+import AUD_STAFF from "./aud/staff.js";
+import AUD_NONPROFIT from "./aud/nonprofit.js";
+import AUD_BUSINESS from "./aud/business.js";
+export const PLANTING = {
+  id: "planting", label: "Church planting", short: "Church planting",
+  intro: "",
+  words: { person: "planter", Person: "Planter", people: "planters", org: "church", Org: "Church", role: "planting", leader: "network leader" },
+  faithOptional: false, sections: { beliefs: true, gifts: true, fivefold: true, city: true, spouse: true },
+  nonNegotiable: ["integrity", "devotion", "load", "partnership"],
+};
+export const AUDIENCES = { planting: PLANTING, staff: AUD_STAFF, nonprofit: AUD_NONPROFIT, business: AUD_BUSINESS };
+export const AUDIENCE_IDS = Object.keys(AUDIENCES);
+export let PILLARS = PILLARS_0, SOURCES = SOURCES_0, WORK_SAMPLES = WORK_SAMPLES_0, WORK_RUBRIC = WORK_RUBRIC_0, SCALES = SCALES_0,
+  SCENARIOS = SCENARIOS_0, CANDOR = CANDOR_0, FACTS = FACTS_0, REF_RELATIONSHIPS = REF_RELATIONSHIPS_0, REF_ITEMS = REF_ITEMS_0,
+  FOLLOW_TEST = FOLLOW_TEST_0, FOLLOW_SCALE = FOLLOW_SCALE_0;
+export let AUD = { ...PLANTING, faith: true };
+let current = "";
+/** Switch the bank to an audience. faith matters only where the audience makes it optional (nonprofit, business). */
+export function setAudience(id = "planting", faith = true) {
+  const A = AUDIENCES[id] || PLANTING;
+  const f = A.faithOptional ? faith !== false : true;
+  const key = A.id + ":" + f;
+  if (key === current) return AUD;
+  current = key;
+  if (A.id === "planting") {
+    PILLARS = PILLARS_0; SOURCES = SOURCES_0; WORK_SAMPLES = WORK_SAMPLES_0; WORK_RUBRIC = WORK_RUBRIC_0; SCALES = SCALES_0;
+    SCENARIOS = SCENARIOS_0; CANDOR = CANDOR_0; FACTS = FACTS_0; REF_RELATIONSHIPS = REF_RELATIONSHIPS_0; REF_ITEMS = REF_ITEMS_0;
+    FOLLOW_TEST = FOLLOW_TEST_0; FOLLOW_SCALE = FOLLOW_SCALE_0;
+    AUD = { ...PLANTING, faith: true };
+    return AUD;
+  }
+  const sc = { ...A.scales, ...(f ? A.faithScales || {} : {}) };
+  SCALES = Object.fromEntries(Object.keys(SCALES_0).filter((k) => sc[k]).map((k) => {
+    const base = SCALES_0[k], o = sc[k];
+    return [k, { ...base, ...o, married: undefined, single: undefined, items: base.items.map((it) => ({ ...it, t: o.items[it.id] })) }];
+  }));
+  PILLARS = PILLARS_0.map((p) => ({ ...p, ...A.pillars[p.id], ...(p.id === "calling" && f && A.faith?.pillarCalling ? A.faith.pillarCalling : {}) }))
+    .filter((p) => Object.values(SCALES).some((s) => s.pillar === p.id));
+  SOURCES = { ...SOURCES_0, ...(A.sources || {}) };
+  WORK_SAMPLES = A.work.samples; WORK_RUBRIC = A.work.rubric;
+  SCENARIOS = A.scenarios;
+  CANDOR = CANDOR_0.map((c) => ({ ...c, t: A.candor[c.id] || c.t }));
+  FACTS = A.facts;
+  REF_RELATIONSHIPS = A.refRelationships;
+  REF_ITEMS = Object.entries(A.refItems).filter(([k]) => SCALES[k.replace(/^rf_/, "")]).map(([id, t]) => ({ id, scale: id.replace(/^rf_/, ""), t }));
+  FOLLOW_TEST = A.followTest; FOLLOW_SCALE = A.followScale;
+  const sections = { ...A.sections, spouse: false };
+  if (A.faithOptional && f) Object.assign(sections, { beliefs: true, gifts: true });
+  AUD = { ...A, faith: f, sections, nonNegotiable: (A.nonNegotiable || []).filter((k) => SCALES[k]) };
+  return AUD;
+}

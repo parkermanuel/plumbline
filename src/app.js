@@ -4,6 +4,10 @@ import { SAMPLE_CASES } from "./samples.js";
 import { giftFan, radar } from "./charts.js";
 import * as L from "./live.js";
 import * as T from "./team.js";
+// Audience wording: church planting by default; church staff, nonprofit and business swap these.
+const AW = () => B.AUD.words;
+const PLANTING = () => B.AUD.id === "planting";
+const LDR = () => (PLANTING() ? "network leader" : AW().leader);
 
 // ---------------- utilities ----------------
 const $ = (s, el = document) => el.querySelector(s);
@@ -101,17 +105,18 @@ function buildFlow(role, ctx) {
 
   if (role === "planter") {
     const keys = (pill) => Object.keys(B.SCALES).filter((k) => B.SCALES[k].pillar === pill && !(B.SCALES[k].married && !married) && !(B.SCALES[k].single && married));
-    chapter("called", "Called", "Chapter 1 of " + (married ? 6 : 5), "Your call, your walk with God, your character and your health. Answer for how life actually is right now, not how you wish it were.", 9);
+    const CH = PLANTING() ? null : B.AUD.chapters;
+    chapter("called", CH ? CH.called.name : "Called", "Chapter 1 of " + (married ? 6 : 5), CH ? CH.called.text : "Your call, your walk with God, your character and your health. Answer for how life actually is right now, not how you wish it were.", 9);
     const c1 = roundRobin([...keys("calling"), ...keys("character"), ...keys("health"), ...keys("family")], B.SCALES);
     insertAt(c1, [...B.CANDOR, B.BOGUS[0]].map((x) => ({ ...x })), 8);
     likert("called", c1);
-    S.push({ t: "beliefs", chapter: "called" });
-    chapter("ready", "Ready", "Chapter 2", "How you lead, how you live on mission, and what you bring to building something from nothing.", 9);
+    if (B.AUD.sections.beliefs) S.push({ t: "beliefs", chapter: "called" });
+    chapter("ready", CH ? CH.ready.name : "Ready", "Chapter 2", CH ? CH.ready.text : "How you lead, how you live on mission, and what you bring to building something from nothing.", 9);
     const c2 = roundRobin([...keys("leadership"), ...keys("mission"), ...keys("capacity")], B.SCALES);
     insertAt(c2, [B.BOGUS[1]], 30);
     likert("ready", c2);
     wired(S, "wired", "Chapter 3", ctx);
-    chapter("tested", "Tested", "Chapter 4", "Eight real situations planters face. For each one, pick the response you think is best and the one you think is worst.", 5);
+    chapter("tested", CH ? CH.tested.name : "Tested", "Chapter 4", CH ? CH.tested.text : "Eight real situations planters face. For each one, pick the response you think is best and the one you think is worst.", 5);
     B.SCENARIOS.filter((sc) => married || !sc.married).forEach((sc) => S.push({ t: "scenario", chapter: "tested", id: sc.id }));
     if (married) {
       chapter("together", "Together", "Chapter 5", `${sp} answers these same statements on their own. Answer for yourself, and please don't compare notes until you've both finished. The differences are some of the most useful things you'll learn.`, 5);
@@ -120,8 +125,8 @@ function buildFlow(role, ctx) {
       B.COUPLE_AREAS.forEach((a) => a.items.filter((i) => i.guess).forEach((it) => S.push({ t: "likert", chapter: "together", id: it.id, text: it.t, bucket: "guess", sub: `How do you think ${sp} answered?` })));
     }
     netQuestions(S, ctx, "planter");
-    contextSteps(S, "planter", ctx);
-    chapter("story", "Your story", married ? "Chapter 6" : "Chapter 5", "A few facts about your experience and preparation, plus links to your work if you have them.", 3);
+    if (B.AUD.sections.city) contextSteps(S, "planter", ctx);
+    chapter("story", CH ? CH.story.name : "Your story", married ? "Chapter 6" : "Chapter 5", CH ? CH.story.text : "A few facts about your experience and preparation, plus links to your work if you have them.", 3);
     B.FACTS.forEach((f) => S.push({ t: "fact", chapter: "story", id: f.id }));
     S.push({ t: "work", chapter: "story" });
   }
@@ -148,7 +153,7 @@ function buildFlow(role, ctx) {
   if (role === "reference") {
     chapter("seen", "What you've seen", "Part 1 of 2", `Rate what you've seen in ${pl}. Choose "Not seen" for anything you haven't had a chance to observe. That helps more than a guess.`, 5);
     B.REF_ITEMS.filter((it) => married || !it.married).forEach((it) => S.push({ t: "likert", chapter: "seen", id: it.id, text: it.t, bucket: "items", na: true, freq: true, sub: `${pl}…` }));
-    chapter("read", "Your read", "Part 2 of 2", "A few last questions. Your written answers go only to the network leader.", 3);
+    chapter("read", "Your read", "Part 2 of 2", `A few last questions. Your written answers go only to the ${LDR()}.`, 3);
     S.push({ t: "follow", chapter: "read" });
     S.push({ t: "refReady", chapter: "read" });
     S.push({ t: "refGifts", chapter: "read" });
@@ -175,6 +180,7 @@ function contextSteps(S, role, ctx) {
   C.texts[role].forEach((x) => S.push({ t: "cxText", chapter: "context", id: x.id, text: x.q }));
 }
 function rebuildFlow() {
+  B.setAudience(take.ctx.audience, take.ctx.faith);
   take.ctx.hasCity = take.resp.context?.has === true;
   take.steps = buildFlow(take.role, take.ctx);
   take.i = Math.min(take.i, take.steps.length - 2);
@@ -182,14 +188,15 @@ function rebuildFlow() {
 const allBeliefs = (ctx) => [...B.BELIEFS, ...((ctx && ctx.beliefs) || [])];
 
 function wired(S, ch, kicker, ctx = {}) {
-  S.push({ t: "intro", chapter: ch, name: "Wired", kicker, text: "How God made you: your natural style, your spiritual gifts, and how you serve the body. There are no right answers here, and this part isn't graded.", minutes: 10 });
+  const sec = B.AUD.sections;
+  S.push({ t: "intro", chapter: ch, name: "Wired", kicker, text: sec.gifts ? (sec.fivefold ? "How God made you: your natural style, your spiritual gifts, and how you serve the body. There are no right answers here, and this part isn't graded." : "How God made you: your natural style and your spiritual gifts. There are no right answers here, and this part isn't graded.") : "Your natural style and how you work best. There are no right answers here, and this part isn't graded.", minutes: sec.gifts ? 10 : 4 });
   B.WIRING.forEach((d) => d.items.forEach((pair, i) => S.push({ t: "pair", chapter: ch, dim: d.id, i, left: pair[0], right: pair[1] })));
   const gi = [];
-  B.GIFTS.filter((g) => ctx.signGifts !== false || !B.SIGN_GIFTS.includes(g.id)).forEach((g) => g.items.forEach((t, i) => gi.push({ g: g.id, i, t })));
+  if (sec.gifts) B.GIFTS.filter((g) => ctx.signGifts !== false || !B.SIGN_GIFTS.includes(g.id)).forEach((g) => g.items.forEach((t, i) => gi.push({ g: g.id, i, t })));
   // interleave gifts so the same gift doesn't repeat back to back
   const ordered = [0, 1, 2].flatMap((i) => gi.filter((x) => x.i === i));
   ordered.forEach((x) => S.push({ t: "gift", chapter: ch, g: x.g, i: x.i, text: x.t }));
-  B.FIVEFOLD_BLOCKS.forEach((_, i) => S.push({ t: "fivefold", chapter: ch, i }));
+  if (sec.fivefold) B.FIVEFOLD_BLOCKS.forEach((_, i) => S.push({ t: "fivefold", chapter: ch, i }));
   S.push({ t: "other", chapter: ch });
 }
 
@@ -904,7 +911,8 @@ function personReport(c, r, who) {
 // ---------------- taking ----------------
 function startTake(c, role, refIdx = null) {
   const key = `${c.id}:${role}`;
-  const ctx = { planterName: c.planterName, spouseName: c.spouseName, married: c.married, city: c.city, network: c.network?.name, signGifts: c.network?.signGifts !== false };
+  B.setAudience(c.audience, c.faith);
+  const ctx = { planterName: c.planterName, spouseName: c.spouseName, married: c.married, city: c.city, network: c.network?.name, signGifts: c.network?.signGifts !== false, audience: c.audience, faith: c.faith, jobRole: c.role };
   const draft = db.drafts[key];
   ctx.hasCity = draft?.resp?.context?.has === true;
   const steps = buildFlow(role, ctx);
@@ -923,7 +931,8 @@ function saveDraft() {
 function startTakeLive(token, data) {
   const cs = data.case, p = data.participant;
   const c = { id: cs.id, planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: { name: cs.network, signGifts: cs.signGifts } };
-  const ctx = { planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: cs.network, signGifts: cs.signGifts !== false, beliefs: cs.beliefs || [], questions: cs.questions || [], logoUrl: cs.logoUrl };
+  B.setAudience(cs.audience, cs.faith);
+  const ctx = { planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: cs.network, signGifts: cs.signGifts !== false, beliefs: cs.beliefs || [], questions: cs.questions || [], logoUrl: cs.logoUrl, audience: cs.audience, faith: cs.faith, jobRole: cs.role };
   let resp = p.answers && Object.keys(p.answers).length ? p.answers : blankResp(p.role, c);
   let i = p.step || 0;
   const b = L.backup(token);
@@ -982,14 +991,14 @@ function screen(s) {
   const pn = first(ctx.planterName), sn = first(ctx.spouseName);
   if (s.t === "welcome") {
     const who = role === "planter" ? ctx.planterName : role === "spouse" ? ctx.spouseName : "";
-    return `<div class="stack-lg"><div class="stack"><span class="small">${esc(ctx.network || "Plumbline")}</span><h1 style="font-size:clamp(2rem,4.5vw,3rem)">${role === "reference" ? `Speak into ${esc(pn)}'s readiness to plant.` : `Welcome${who ? ", " + esc(first(who)) : ""}.`}</h1>
-      <p class="lede" style="margin:0">${role === "planter" ? `This takes about 35 minutes. Answer honestly. The most helpful answers describe your life as it is right now. You can stop and pick up where you left off on this device.` : role === "spouse" ? `This takes about 25 minutes. It's about you, not just about ${esc(pn)}. Please take it on your own and don't compare answers until you've both finished.` : `This takes about 8 minutes. Your honest answers help ${esc(pn)} and the network make a wise decision. Rate only what you've actually seen.`}</p></div>
+    return `<div class="stack-lg"><div class="stack"><span class="small">${esc(ctx.network || "Plumbline")}</span><h1 style="font-size:clamp(2rem,4.5vw,3rem)">${role === "reference" ? (PLANTING() ? `Speak into ${esc(pn)}'s readiness to plant.` : `Speak into ${esc(pn)}'s readiness for ${esc(ctx.jobRole || AW().role)}.`) : `Welcome${who ? ", " + esc(first(who)) : ""}.`}</h1>
+      <p class="lede" style="margin:0">${role === "planter" && !PLANTING() && B.AUD.intro ? esc(B.AUD.intro) + " " : ""}${role === "planter" ? `This takes about ${PLANTING() ? 35 : 30} minutes. Answer honestly. The most helpful answers describe your life as it is right now. You can stop and pick up where you left off on this device.` : role === "spouse" ? `This takes about 25 minutes. It's about you, not just about ${esc(pn)}. Please take it on your own and don't compare answers until you've both finished.` : `This takes about 8 minutes. Your honest answers help ${esc(pn)} and ${PLANTING() ? "the network" : "the people hiring"} make a wise decision. Rate only what you've actually seen.`}</p></div>
       <form class="panel stack" id="welcome">
       ${role === "reference" ? `<label class="field">Your name<input id="w-name" required value="${esc(R.meta.name)}"></label>
         <label class="field">How do you know ${esc(pn)}?<select id="w-rel" required><option value="">Choose one</option>${B.REF_RELATIONSHIPS.map((x) => `<option ${R.meta.relationship === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
         <label class="field">Years you've known them<input id="w-years" inputmode="numeric" value="${esc(R.meta.years)}"></label>`
       : `<label class="field">Your name<input id="w-name" required value="${esc(R.meta.name || "")}"></label>`}
-      <label class="check"><input type="checkbox" id="w-consent" required> <span>${role === "reference" ? `I understand my answers go to the network leader. My written comments won't be shown to ${esc(pn)} by Plumbline.` : `I understand my answers go to ${esc(ctx.network || "my network leader")}, who will see a full report. ${role === "spouse" ? `${esc(pn)} won't see my individual answers, my private note or my safety answers.` : `My spouse won't see my individual answers.`} This isn't a clinical or psychological test.`}</span></label>
+      <label class="check"><input type="checkbox" id="w-consent" required> <span>${role === "reference" ? `I understand my answers go to the ${LDR()}. My written comments won't be shown to ${esc(pn)} by Plumbline.` : `I understand my answers go to ${esc(ctx.network || "my " + LDR())}, who will see a full report. ${role === "spouse" ? `${esc(pn)} won't see my individual answers, my private note or my safety answers.` : ctx.married ? `My spouse won't see my individual answers.` : ""} This isn't a clinical or psychological test.`}</span></label>
       <div><button class="btn" type="submit">Begin</button></div></form></div>`;
   }
   if (s.t === "intro") return `<div class="intro-card"><span class="kicker">${esc(s.kicker)}</span><h2>${esc(s.name)}</h2><p>${esc(s.text)}</p><span class="small" style="color:inherit;opacity:.7">About ${s.minutes} minutes</span><button class="btn" data-act="next">Continue</button></div>`;
@@ -1036,7 +1045,7 @@ function screen(s) {
     return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Your story</span><div class="qtext">${esc(f.q)}</div></div><div class="choice-list">${f.opts.map((o, i) => `<button class="choice" data-act="fact" data-i="${i}" aria-pressed="${v === i}"><span class="tag">${i + 1}</span><span>${esc(o.t)}</span></button>`).join("")}</div></div>`;
   }
   if (s.t === "work") {
-    return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Optional, but it helps</span><div class="qtext">Share links to your work so your network leader can see you in action.</div></div>
+    return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Optional, but it helps</span><div class="qtext">Share links to your work so your ${LDR()} can see you in action.</div></div>
       <div class="stack">${B.WORK_SAMPLES.map((w) => `<label class="field">${esc(w.q)}<input id="work-${w.id}" type="url" placeholder="${esc(w.hint)}" value="${esc(R.work[w.id] || "")}"></label>`).join("")}</div>
       <div><button class="btn" data-act="work-next">Finish</button></div></div>`;
   }
@@ -1046,7 +1055,7 @@ function screen(s) {
     const discOpts = O.disc.styles.map(([k, n]) => [k, `${k}: ${n}`]);
     const files = o.files || [];
     return `<div class="qcard" id="other-form"><div class="stack" style="gap:10px"><span class="qsub">Optional · about 2 minutes</span><div class="qtext">Taken any of these before? Add your results.</div>
-        <p class="small" style="margin:0">Type them in, or upload the report or a photo of it. Your network leader sees them next to your Wiring. Skip anything you haven't taken.</p></div>
+        <p class="small" style="margin:0">Type them in, or upload the report or a photo of it. Your ${LDR()} sees them next to your Wiring. Skip anything you haven't taken.</p></div>
       <div class="stack" style="gap:14px">
         <div class="two" style="gap:12px"><label class="field">DISC: highest style${sel("o-disc", discOpts, o.disc, "Haven't taken it")}</label><label class="field">DISC: second style${sel("o-disc2", discOpts, o.disc2, "None")}</label></div>
         <label class="field">${esc(O.mbti.name)}${sel("o-mbti", O.mbti.types.map((t) => [t, t]), o.mbti, "Haven't taken it")}</label>
@@ -1085,14 +1094,14 @@ function screen(s) {
   if (s.t === "private") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Private to your network leader</span><div class="qtext">Is there anything you'd want your network leader to know that's hard to say with ${esc(pn)} in the room?</div><p class="small" style="margin:0">Optional. ${esc(pn)} won't see this.</p></div>
       <textarea class="input" id="priv" placeholder="Write as much or as little as you'd like">${esc(R.privateNote || "")}</textarea><div><button class="btn" data-act="private-next">Finish</button></div></div>`;
   if (s.t === "follow") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">The Follow Test</span><div class="qtext">${esc(B.FOLLOW_TEST.replace("they", pn))}</div></div><div class="scale5" role="group">${B.FOLLOW_SCALE.map((l, i) => `<button class="opt" aria-pressed="${R.follow === i + 1}" data-act="ans" data-v="${i + 1}"><b>${i + 1}</b>${esc(l)}</button>`).join("")}</div></div>`;
-  if (s.t === "refReady") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Readiness</span><div class="qtext">How ready is ${esc(pn)} to plant a church?</div></div><div class="choice-list">${B.REF_READY.map((l, i) => `<button class="choice" data-act="ref-ready" data-i="${i}" aria-pressed="${R.ready === i}"><span class="tag">${i + 1}</span><span>${esc(l)}</span></button>`).join("")}</div></div>`;
+  if (s.t === "refReady") return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Readiness</span><div class="qtext">${PLANTING() ? `How ready is ${esc(pn)} to plant a church?` : `How ready is ${esc(pn)} for ${esc(take.ctx.jobRole || AW().role)}?`}</div></div><div class="choice-list">${B.REF_READY.map((l, i) => `<button class="choice" data-act="ref-ready" data-i="${i}" aria-pressed="${R.ready === i}"><span class="tag">${i + 1}</span><span>${esc(l)}</span></button>`).join("")}</div></div>`;
   if (s.t === "refGifts") {
     const list = B.GIFTS.filter((g) => ctx.signGifts !== false || !B.SIGN_GIFTS.includes(g.id));
     return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">Choose up to five</span><div class="qtext">Which spiritual gifts have you seen in ${esc(pn)}?</div></div><div class="row" style="gap:8px">${list.map((g) => `<button class="sdot" style="font-size:14px;padding:8px 12px;cursor:pointer;border:1px solid var(--rule);${R.gifts.includes(g.id) ? "background:var(--ink);color:var(--paper)" : ""}" data-act="ref-gift" data-g="${g.id}" aria-pressed="${R.gifts.includes(g.id)}">${esc(g.name)}</button>`).join("")}</div><div><button class="btn" data-act="next">Next</button></div></div>`;
   }
   if (s.t === "refText") return `<div class="qcard"><div class="stack"><label class="field">${esc(pn)}'s greatest strength<textarea class="input" id="rt-strength">${esc(R.strength || "")}</textarea></label>
-      <label class="field">One area to grow before planting<textarea class="input" id="rt-growth">${esc(R.growth || "")}</textarea></label>
-      <label class="field">Anything the network leader should know? <span class="hint">Confidential to the network leader. Optional.</span><textarea class="input" id="rt-conf">${esc(R.confidential || "")}</textarea></label></div><div><button class="btn" data-act="ref-finish">Finish</button></div></div>`;
+      <label class="field">${PLANTING() ? "One area to grow before planting" : "One area to grow"}<textarea class="input" id="rt-growth">${esc(R.growth || "")}</textarea></label>
+      <label class="field">Anything the ${LDR()} should know? <span class="hint">Confidential to the ${LDR()}. Optional.</span><textarea class="input" id="rt-conf">${esc(R.confidential || "")}</textarea></label></div><div><button class="btn" data-act="ref-finish">Finish</button></div></div>`;
   if (s.t === "done") return doneScreen();
   return "";
 }
@@ -1121,7 +1130,7 @@ function doneScreen() {
   }
   const c = getCase(take.caseId);
   const nm = take.role === "reference" ? first(take.resp.meta.name) : first(take.role === "planter" ? take.ctx.planterName : take.ctx.spouseName);
-  return `<div class="stack-lg"><div class="intro-card"><span class="kicker">Finished and sealed</span><h2>Thank you, ${esc(nm)}.</h2><p>${take.role === "reference" ? `Your answers will help ${esc(first(take.ctx.planterName))} and the network make a wise decision.` : "Your answers are sealed. Your network leader will set a time to walk through your report with you."}</p></div>
+  return `<div class="stack-lg"><div class="intro-card"><span class="kicker">Finished and sealed</span><h2>Thank you, ${esc(nm)}.</h2><p>${take.role === "reference" ? `Your answers will help ${esc(first(take.ctx.planterName))} and the network make a wise decision.` : `Your answers are sealed. Your ${LDR()} will set a time to walk through your report with you.`}</p></div>
     <div class="panel stack" data-copywrap><h3>Send this code to your network leader</h3><p class="small" style="margin:0">Copy it and paste it into an email or text to your network leader. It holds your answers.</p><div class="code-box" id="code-box">${doneCode ? esc(doneCode) : "Preparing your code…"}</div><div class="row"><button class="btn" data-act="copy-code">Copy code</button>${take.role !== "reference" && c?.planter ? `<button class="btn ghost" data-act="see-report">See my report</button>` : ""}</div></div></div>`;
 }
 
