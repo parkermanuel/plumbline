@@ -48,6 +48,8 @@ async function main() {
 
   // Networks and teams
   const nid = (await as(OWNER, () => q(`select public.pl_create_network('Front Range Planting', 'Dana Owner') as id`)))[0].id;
+  ok((await q(`select credits from public.networks where id = $1`, [nid]))[0].credits === 1, "a new network starts with its first couple free");
+  await q(`update public.networks set credits = 0 where id = $1`, [nid]);  // free couple used
   // Payments: no credits, no assessments; Stripe adds credits once per payment; admins can't give themselves credits
   ok(/No assessments left/.test((await tryAs(OWNER, `insert into public.cases(network_id, created_by, planter_name, married) values ($1, $2, 'Nope', false)`, [nid, OWNER])) || ""), "a network with no assessments left can't start one");
   ok(!!(await tryAs(OWNER, `update public.networks set credits = 50 where id = $1`, [nid])), "a network can't give itself assessments");
