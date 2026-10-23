@@ -344,6 +344,7 @@ function aboutBody(short) {
 }
 
 function renderAbout() {
+  B.setAudience("planting");
   const sources = Object.values(B.SOURCES);
   return `<div class="wrap stack-lg" style="max-width:56rem">
     <div class="stack"><h1>How Plumbline works</h1><p class="lede">Built by a church planter for network leaders, from the best of what the major planting networks have learned over 30 years. Every question is original.</p></div>
@@ -356,6 +357,7 @@ function renderAbout() {
 
 // The pitch page for network leaders: how it's built, how it compares, and how the process runs. Counts come from the question bank.
 function renderLeaders() {
+  B.setAudience("planting"); // counts and scenarios on this page are church planting's
   const n = (a) => a.reduce((x, y) => x + y, 0);
   const planterItems = n(Object.values(B.SCALES).map((x) => x.items.length));
   const spouseItems = n(Object.values(B.SPOUSE_SCALES).map((x) => x.items.length));
@@ -893,7 +895,7 @@ function personReport(c, r, who) {
   const areaMean = (a, k) => { const v = a.items.filter((i) => i[k] != null); return v.length ? (v.reduce((x, i) => x + i[k], 0) / v.length - 1) / 4 : 0; };
   return `<article class="report">
     <section class="hero-report"><div><span class="kicker">${esc(nm)}'s Plumbline</span><h1 style="margin-top:8px">${esc(nm)}, ${B.AUD.sections.gifts ? "here's how God has wired you." : "here's how you're wired."}</h1>
-      <p>You lean ${esc(leans.slice(0, 3).join(", ") || "balanced across the board")}. Your strongest gifts look like ${esc(G.top.slice(0, 3).map((g) => g.name.toLowerCase()).join(", "))}, and you serve most naturally as ${F ? (/^[AEIOU]/.test(F.primary.short) ? "an " : "a ") + esc(F.primary.short.toLowerCase()) : "part of the body"}.</p></div></section>
+      <p>You lean ${esc(leans.slice(0, 3).join(", ") || "balanced across the board")}. ${G ? `Your strongest gifts look like ${esc(G.top.slice(0, 3).map((g) => g.name.toLowerCase()).join(", "))}, and you serve most naturally as ${F ? (/^[AEIOU]/.test(F.primary.short) ? "an " : "a ") + esc(F.primary.short.toLowerCase()) : "part of the body"}.` : ""}</p></div></section>
 
     <section class="stack"><div class="section-head"><h2>Your wiring</h2><p class="muted">Five dimensions of your natural style.${C ? ` ${esc(other)} is shown too, so you can see how you fit together.` : ""}</p></div>
       <div class="panel flat">${wiringRows(W, C ? (isP ? r.spouseWiring : r.wiring) : null, nm, other)}
