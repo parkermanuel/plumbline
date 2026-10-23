@@ -195,7 +195,7 @@ export function admin() {
     <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Platform</h1><p class="muted" style="margin:0">Counts and who to contact. No one's answers appear here.</p></div>
     <div class="kpis">${k(s.networks, "Networks")}${k(s.leaders, "Team members")}${k(s.assessments, "Assessments")}${k(s.finished, "People finished")}</div>
     <div class="kpis">${k(s.assessments30, "Assessments, last 30 days")}${k(s.finished30, "Finished, last 30 days")}${k(s.started, "People started")}${k(s.started ? Math.round((100 * s.finished) / s.started) + "%" : "—", "Finish rate (finished ÷ started)")}</div>
-    <div class="scroll-x"><table class="tbl"><thead><tr><th>Network</th><th>Owner</th><th>Team</th><th>Assessments</th><th>Last assessment</th><th>Joined</th></tr></thead><tbody>${(s.byNetwork || []).map((n) => `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.owner || "—")}${n.ownerEmail ? `<br><a href="mailto:${esc(n.ownerEmail)}?subject=${encodeURIComponent("How's Plumbline going?")}">${esc(n.ownerEmail)}</a>` : ""}</td><td class="num">${n.members}</td><td class="num">${n.assessments}</td><td>${esc(n.lastAssessment || "None yet")}</td><td>${esc(n.created)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="scroll-x"><table class="tbl"><thead><tr><th>Network</th><th>Owner</th><th>Team</th><th>Assessments</th><th>Left</th><th>Last assessment</th><th>Joined</th><th>Give</th></tr></thead><tbody>${(s.byNetwork || []).map((n) => `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.owner || "—")}${n.ownerEmail ? `<br><a href="mailto:${esc(n.ownerEmail)}?subject=${encodeURIComponent("How's Plumbline going?")}">${esc(n.ownerEmail)}</a>` : ""}</td><td class="num">${n.members}</td><td class="num">${n.assessments}</td><td class="num">${n.planUntil && new Date(n.planUntil) > new Date() ? "Plan to " + esc(n.planUntil) : n.credits ?? ""}</td><td>${esc(n.lastAssessment || "None yet")}</td><td>${esc(n.created)}</td><td><span class="row" style="gap:6px;flex-wrap:nowrap"><input class="input grant-n" type="number" min="1" max="100" value="5" style="width:64px;padding:6px 8px" aria-label="Assessments to give ${esc(n.name)}"><button class="btn sm ghost" data-act="grant" data-id="${esc(n.id || "")}">Give</button></span></td></tr>`).join("")}</tbody></table></div>
     <div class="panel stack" id="codes"><h3>Discount codes</h3>
       <p class="small" style="margin:0">Codes work at checkout for single assessments and the yearly plan. Give one to an organization (like SLN2026, 50% off) or to one couple (100% off, used once).</p>
       <form id="code-form" class="stack" style="gap:10px">
@@ -214,6 +214,13 @@ export function admin() {
 export async function onClick(act, el) {
   const v = H.view();
   try {
+    if (act === "grant") {
+      const k = Number(el.parentElement.querySelector(".grant-n")?.value) || 0;
+      if (!el.dataset.id || k < 1) return true;
+      el.disabled = true;
+      try { await L.grant(el.dataset.id, k); v.stats = await L.platformStats(); H.render(); H.toast(`Gave ${k} assessments`); } catch (err) { el.disabled = false; H.toast(err.message); }
+      return true;
+    }
     if (act === "code-off") {
       el.disabled = true;
       try { await L.codes("off", { id: el.dataset.id }); v.codes = null; H.render(); H.toast("Code switched off"); } catch (err) { el.disabled = false; H.toast(err.message); }

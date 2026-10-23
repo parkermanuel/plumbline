@@ -25,6 +25,8 @@ export async function makeDb() {
   const sql = readFileSync(new URL("../supabase/setup.sql", import.meta.url), "utf8");
   await db.exec(sql);
   await db.exec(sql); // must be safe to run twice
+  const upd = readFileSync(new URL("../supabase/update-2026-10-23.sql", import.meta.url), "utf8");
+  await db.exec(upd); await db.exec(upd); // the pasted update must also be safe to run on top, twice
   return db;
 }
 

@@ -279,6 +279,10 @@ export async function codes(op = "list", payload = {}) {
   if (error || data?.error) throw new Error(data?.error || error?.message || "Couldn't reach Stripe");
   return data;
 }
+export async function grant(networkId, credits, months = 0) {
+  const { error } = await sb.rpc("pl_grant", { p_network: networkId, p_credits: credits, p_months: months });
+  if (error) throw error;
+}
 export async function refreshNetworks() {
   state.networks = must(await sb.from("networks").select("*").order("created_at", { ascending: true }));
   emit("cases");
