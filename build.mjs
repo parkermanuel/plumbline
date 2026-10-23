@@ -30,13 +30,13 @@ const html = `<!doctype html>
 <meta name="referrer" content="no-referrer">
 <title>${title}</title>
 <meta name="description" content="${desc}">
-<meta property="og:title" content="Plumbline: measure true, plant strong">
+<meta property="og:title" content="Plumbline: one assessment instead of five">
 <meta property="og:description" content="${desc}">
 <meta property="og:type" content="website">
-${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card.png"><meta name="twitter:card" content="summary_large_image">` : ""}
-<link rel="apple-touch-icon" href="plumbline-app-icon.png">
+${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card-2026.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:url" content="${cfg.siteUrl}/"><meta name="twitter:card" content="summary_large_image">` : ""}
+<link rel="apple-touch-icon" href="icon-2026.png">
 <meta name="theme-color" content="#121212">
-<link rel="icon" href="plumbline-app-icon.png" type="image/png">
+<link rel="icon" href="icon-2026.png" type="image/png" sizes="512x512"><link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}${css}</style>
