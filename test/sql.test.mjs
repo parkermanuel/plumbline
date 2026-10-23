@@ -223,6 +223,9 @@ async function main() {
   ok(!!(await tryAs(OWNER, `select public.pl_grant($1, 5, 0)`, [nid])), "only the platform admin can give assessments");
   await as(PARKER, () => q(`select public.pl_grant($1, 5, 0)`, [nid]));
   ok((await q(`select credits from public.networks where id=$1`, [nid]))[0].credits === 5, "the platform admin can give assessments");
+  ok(!!(await tryAs(OWNER, `select public.pl_set_founding($1, true)`, [nid])) && !!(await tryAs(OWNER, `update public.networks set founding = true where id=$1`, [nid])), "a network can't make itself founding");
+  await as(PARKER, () => q(`select public.pl_set_founding($1, true)`, [nid]));
+  ok((await q(`select founding from public.networks where id=$1`, [nid]))[0].founding === true, "the platform admin can mark a founding network");
 
   // Delete my account
   ok(!!(await tryAs(null, `select public.pl_delete_account()`)), "you must be signed in to delete an account");

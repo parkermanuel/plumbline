@@ -1,5 +1,5 @@
 // Plumbline payments (Supabase Edge Function), deployed with --no-verify-jwt because it checks every caller itself.
-//   action "checkout"  a network owner/admin buys assessments ($99 per couple) or the yearly plan ($2,500). Returns a Stripe Checkout URL.
+//   action "checkout"  a network owner/admin buys assessments ($99 per couple, $79 for founding networks) or the yearly plan ($2,500). Returns a Stripe Checkout URL.
 //                      Stripe emails a paid invoice and receipt with the network's name on it.
 //   action "codes"     the platform admin lists, creates or switches off discount codes (Stripe promotion codes).
 //   Stripe webhook     checkout.session.completed and invoice.paid add credits or extend the plan, once per payment.
@@ -7,7 +7,7 @@
 //          STRIPE_WEBHOOK_SECRET (from the webhook endpoint in Stripe).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
-const COUPLE_CENTS = 9900, PLAN_CENTS = 250000;
+const COUPLE_CENTS = 9900, FOUNDING_CENTS = 7900, PLAN_CENTS = 250000;  // founding = beta networks, $79 per couple for life
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
@@ -24,7 +24,7 @@ function form(obj: Record<string, unknown>, prefix = "", out = new URLSearchPara
 async function stripe(path: string, body?: Record<string, unknown>, method = body ? "POST" : "GET") {
   const key = Deno.env.get("STRIPE_SECRET_KEY");
   if (!key) throw new Error("Payments aren't set up yet");
-  const r = await fetch(`https://api.stripe.com/v1/${path}`, { method, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" }, body: body ? form(body) : undefined });
+  const r = await fetch(`${Deno.env.get("STRIPE_API_BASE") ?? "https://api.stripe.com/v1"}/${path}`, { method, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" }, body: body ? form(body) : undefined });
   const data = await r.json();
   if (!r.ok) throw new Error(data?.error?.message || "Stripe error");
   return data;
@@ -59,7 +59,12 @@ Deno.serve(async (req) => {
     try {
       if (ev.type === "checkout.session.completed" && (o.payment_status === "paid" || o.payment_status === "no_payment_required")) {
         const plan = o.mode === "subscription";
-        const qty = plan ? 1 : Math.max(1, Math.round((o.amount_subtotal ?? COUPLE_CENTS) / COUPLE_CENTS));
+        // How many couples were bought, read from Stripe itself (the quantity can be changed at checkout).
+        let qty = 1;
+        if (!plan) {
+          const items = await stripe(`checkout/sessions/${encodeURIComponent(o.id)}/line_items?limit=10`);
+          qty = Math.max(1, (items.data ?? []).reduce((t: number, li: any) => t + (li.quantity ?? 0), 0));
+        }
         const { error } = await admin.rpc("pl_record_payment", { p_id: o.id, p_network: o.client_reference_id || null, p_kind: plan ? "plan" : "couples", p_qty: qty,
           p_amount: o.amount_total ?? 0, p_currency: o.currency ?? "usd", p_email: o.customer_details?.email ?? null, p_promo: o.metadata?.promo ?? null, p_customer: o.customer ?? null });
         if (error) throw error;
@@ -83,7 +88,7 @@ Deno.serve(async (req) => {
     if (body.action === "checkout") {
       const { data: isAdmin } = await user.rpc("pl_is_admin", { p_network: body.networkId });
       if (!isAdmin) return json({ error: "Only the network's owners and admins can buy assessments" }, 403);
-      const { data: net } = await admin.from("networks").select("id,name,stripe_customer").eq("id", body.networkId).single();
+      const { data: net } = await admin.from("networks").select("id,name,stripe_customer,founding").eq("id", body.networkId).single();
       if (!net) return json({ error: "Network not found" }, 404);
       const plan = body.kind === "plan";
       const qty = Math.min(50, Math.max(1, Number(body.quantity) || 1));
@@ -95,8 +100,9 @@ Deno.serve(async (req) => {
         line_items: { 0: {
           quantity: plan ? 1 : qty,
           ...(plan ? {} : { adjustable_quantity: { enabled: true, minimum: 1, maximum: 50 } }),
-          price_data: { currency: "usd", unit_amount: plan ? PLAN_CENTS : COUPLE_CENTS,
-            product_data: { name: plan ? "Plumbline network plan (one year, unlimited assessments)" : "Plumbline assessment (one couple and their references)" },
+          price_data: { currency: "usd", unit_amount: plan ? PLAN_CENTS : net.founding ? FOUNDING_CENTS : COUPLE_CENTS,
+            product_data: { name: plan ? "Plumbline network plan (one year, unlimited assessments)"
+              : `Plumbline assessment (one couple and their references)${net.founding ? ", founding network price" : ""}` },
             ...(plan ? { recurring: { interval: "year" } } : {}) },
         } },
         allow_promotion_codes: true,

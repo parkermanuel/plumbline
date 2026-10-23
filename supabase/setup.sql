@@ -530,7 +530,7 @@ begin
     'finished', (select count(*) from public.participants where status = 'finished'),
     'finished30', (select count(*) from public.participants where finished_at > now() - interval '30 days'),
     'byNetwork', (select coalesce(jsonb_agg(x order by (x->>'assessments')::int desc), '[]'::jsonb) from (
-       select jsonb_build_object('id', n.id, 'credits', n.credits, 'planUntil', n.plan_until::date, 'name', n.name, 'assessments', count(c.id), 'members', (select count(*) from public.network_members m where m.network_id = n.id), 'created', n.created_at::date,
+       select jsonb_build_object('id', n.id, 'credits', n.credits, 'founding', n.founding, 'planUntil', n.plan_until::date, 'name', n.name, 'assessments', count(c.id), 'members', (select count(*) from public.network_members m where m.network_id = n.id), 'created', n.created_at::date,
          'lastAssessment', max(c.created_at)::date,
          'owner', (select coalesce(nullif(m.name, ''), u.email) from public.network_members m join auth.users u on u.id = m.user_id where m.network_id = n.id and m.role = 'owner' order by m.created_at limit 1),
          'ownerEmail', (select coalesce(nullif(m.email, ''), u.email) from public.network_members m join auth.users u on u.id = m.user_id where m.network_id = n.id and m.role = 'owner' order by m.created_at limit 1)) x
@@ -543,6 +543,7 @@ end $$;
 alter table public.networks add column if not exists credits int not null default 0 check (credits >= 0);
 alter table public.networks add column if not exists plan_until timestamptz;
 alter table public.networks add column if not exists stripe_customer text;
+alter table public.networks add column if not exists founding boolean not null default false;  -- beta networks: $79 per couple for life
 create table if not exists public.payments (
   id text primary key,                       -- Stripe checkout session or invoice id; makes every payment count once
   network_id uuid references public.networks(id) on delete set null,
@@ -595,6 +596,13 @@ begin
     plan_until = case when coalesce(p_months, 0) > 0 then greatest(coalesce(plan_until, now()), now()) + make_interval(months => p_months) else plan_until end
   where id = p_network;
   insert into public.payments (id, network_id, kind, quantity) values ('grant_' || gen_random_uuid(), p_network, 'grant', coalesce(p_credits, 0));
+end $$;
+
+-- The platform admin marks a beta network as founding ($79 per couple for life) or takes it off.
+create or replace function public.pl_set_founding(p_network uuid, p_on boolean) returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.platform_admins where user_id = auth.uid()) then raise exception 'Only the platform admin can do that'; end if;
+  update public.networks set founding = coalesce(p_on, false) where id = p_network;
 end $$;
 
 -- ============ Delete my account (required by the App Store; also on the web) ============
@@ -658,7 +666,7 @@ grant execute on function public.pl_open(text), public.pl_save(text, jsonb, int,
 -- What a signed-in team member can do (each checks membership itself)
 grant execute on function public.pl_create_network(text, text), public.pl_invite_member(uuid, text, text), public.pl_accept_invite(text, text),
   public.pl_set_member(uuid, uuid, text), public.pl_email_people(uuid[], text), public.pl_member_invite_email(uuid), public.pl_platform_stats(),
-  public.pl_rotate_ref(uuid), public.pl_delete_account(), public.pl_grant(uuid, int, int) to authenticated;
+  public.pl_rotate_ref(uuid), public.pl_delete_account(), public.pl_grant(uuid, int, int), public.pl_set_founding(uuid, boolean) to authenticated;
 -- Only the Stripe function (service key) records payments
 grant execute on function public.pl_record_payment(text, uuid, text, int, int, text, text, text, text) to service_role;
 -- Used by column defaults and triggers when a team member adds a case or a reference

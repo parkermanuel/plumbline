@@ -960,6 +960,7 @@ export const PARTNER = {
 // What a couple pays elsewhere, from each publisher's public prices (checked 23 Oct 2026). Used for the savings line.
 export const PRICING = {
   couple: 99,
+  founding: 79,  // beta networks that stay on after the November beta, locked for life
   plan: 2500,
   others: [
     { tool: "DISC (Everything DiSC)", cost: 147, how: "$73.50 per person, for planter and spouse", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },

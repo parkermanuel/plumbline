@@ -283,6 +283,10 @@ export async function grant(networkId, credits, months = 0) {
   const { error } = await sb.rpc("pl_grant", { p_network: networkId, p_credits: credits, p_months: months });
   if (error) throw error;
 }
+export async function setFounding(networkId, on) {
+  const { error } = await sb.rpc("pl_set_founding", { p_network: networkId, p_on: on });
+  if (error) throw error;
+}
 export async function refreshNetworks() {
   state.networks = must(await sb.from("networks").select("*").order("created_at", { ascending: true }));
   emit("cases");
