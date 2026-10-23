@@ -947,6 +947,8 @@ export const CONTEXT = {
   ],
 };
 
+// ---------- CHECKOUT (owner, 23 Oct 2026: first couple free, then $99 per couple; code BETA = a third off for life until 5 Jan 2027) ----------
+export const CHECKOUT = "https://buy.stripe.com/28EcN51eQd9jb06a6J9R60h";
 // ---------- PARTNER (Parker's Stripe links) ----------
 export const PARTNER = {
   once: "https://buy.stripe.com/28E7sL4r2d9j5FM6Ux9R600",
