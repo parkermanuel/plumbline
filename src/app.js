@@ -235,16 +235,13 @@ function render() {
 const LOGO = `<svg class="logo" viewBox="0 0 4350 939" role="img" aria-label="plumbline"><title>plumbline</title><g transform="translate(-51.0 732.0) scale(1 -1)"><g fill="currentColor"><path transform="translate(0.0 0)" d="M342 -10Q295 -10 255.0 7.0Q215 24 189.0 53.5Q163 83 157 122V360Q163 399 189.5 430.5Q216 462 255.5 480.5Q295 499 342 499Q413 499 467.0 466.5Q521 434 551.5 376.0Q582 318 582 244Q582 171 551.5 113.5Q521 56 467.0 23.0Q413 -10 342 -10ZM51 -207V489H225V366L196 248L221 129V-207ZM309 145Q338 145 360.0 158.0Q382 171 394.0 193.5Q406 216 406 245Q406 274 394.0 296.0Q382 318 360.0 331.0Q338 344 310 344Q283 344 261.0 331.5Q239 319 227.0 296.5Q215 274 215 245Q215 216 227.0 193.5Q239 171 260.5 158.0Q282 145 309 145Z"/><path transform="translate(553.0 0)" d="M51 0V729H225V0Z"/><path transform="translate(779.0 0)" d="M275 -11Q206 -11 152.5 16.5Q99 44 68.5 93.5Q38 143 38 206V489H212V206Q212 186 220.0 171.0Q228 156 242.0 148.0Q256 140 275 140Q303 140 320.5 158.0Q338 176 338 206V489H512V206Q512 142 482.0 93.0Q452 44 398.5 16.5Q345 -11 275 -11Z"/><path transform="translate(1279.0 0)" d="M51 0V489H225V0ZM358 0V283Q358 314 339.0 331.5Q320 349 292 349Q272 349 257.0 341.0Q242 333 233.5 318.5Q225 304 225 283L157 310Q157 369 183.0 411.0Q209 453 253.0 476.0Q297 499 353 499Q403 499 443.5 475.5Q484 452 508.0 410.0Q532 368 532 311V0ZM665 0V283Q665 314 646.0 331.5Q627 349 599 349Q580 349 564.5 341.0Q549 333 540.5 318.5Q532 304 532 283L430 288Q432 354 459.0 401.0Q486 448 533.5 473.5Q581 499 641 499Q698 499 743.0 475.0Q788 451 813.5 405.5Q839 360 839 297V0Z"/><path transform="translate(2108.0 0)" d="M342 -10Q295 -10 255.0 8.5Q215 27 189.0 59.0Q163 91 157 129V368Q163 406 189.5 436.0Q216 466 256.0 482.5Q296 499 342 499Q413 499 467.0 466.5Q521 434 551.5 376.0Q582 318 582 244Q582 171 551.5 113.5Q521 56 467.0 23.0Q413 -10 342 -10ZM51 0V729H225V369L196 251L221 131V0ZM311 145Q339 145 360.5 158.0Q382 171 394.0 193.5Q406 216 406 245Q406 273 394.0 295.5Q382 318 360.0 331.0Q338 344 310 344Q282 344 260.5 331.0Q239 318 227.0 296.0Q215 274 215 245Q215 215 227.0 192.5Q239 170 261.0 157.5Q283 145 311 145Z"/><path transform="translate(2661.0 0)" d="M51 0V729H225V0Z"/><path transform="translate(2887.0 0)" d="M50 0V489H225V0ZM137 546Q98 546 72.0 572.5Q46 599 46 639Q46 678 72.0 705.0Q98 732 137 732Q178 732 203.5 705.0Q229 678 229 639Q229 599 203.5 572.5Q178 546 137 546Z"/><path transform="translate(3112.0 0)" d="M368 0V276Q368 310 348.0 329.5Q328 349 297 349Q276 349 259.5 340.0Q243 331 234.0 315.0Q225 299 225 276L157 308Q157 367 183.0 409.5Q209 452 254.5 475.5Q300 499 358 499Q411 499 452.5 474.5Q494 450 518.0 409.0Q542 368 542 316V0ZM51 0V489H225V0Z"/><path transform="translate(3645.0 0)" d="M298 -11Q216 -11 153.0 21.5Q90 54 54.0 112.0Q18 170 18 245Q18 319 53.0 376.5Q88 434 148.5 467.5Q209 501 285 501Q359 501 416.5 469.5Q474 438 506.5 382.5Q539 327 539 256Q539 241 537.5 225.5Q536 210 531 190L100 188V300L462 303L384 254Q383 295 372.0 321.5Q361 348 340.0 362.0Q319 376 287 376Q254 376 230.0 360.0Q206 344 193.0 315.0Q180 286 180 245Q180 203 194.0 173.5Q208 144 234.0 129.0Q260 114 298 114Q334 114 361.5 126.0Q389 138 411 163L502 72Q466 31 414.5 10.0Q363 -11 298 -11Z"/></g><path transform="translate(4149.0 0)" d="M153 -11Q109 -11 81.0 18.0Q53 47 53 90Q53 133 81.0 162.0Q109 191 153 191Q196 191 224.0 162.0Q252 133 252 90Q252 47 224.0 18.0Q196 -11 153 -11Z" fill="#ff6b4a" class="logo-dot"/></g></svg>`;
 
 // ---------------- home ----------------
-// Free for networks, not free to run. Links go to Parker's Stripe pages.
+// Owner, 23 Oct 2026: first couple free for every network, then $99 per couple. Beta code until launch (5 Jan 2027).
 function partnerBox() {
-  const P = B.PARTNER, a = (u, l, cls) => `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>`;
-  return `<section class="partner compact" aria-label="Plumbline is free">
-    <div class="partner-free"><h2>Free.</h2><p>For every network, planter, spouse and reference. No fees, no seats, no upsell.</p></div>
-    <details class="partner-give"><summary class="btn ghost">Partner with Plumbline</summary>
-      <div class="partner-options"><p>It isn't free to build and run. If it helps you, you can give once or monthly.</p>
-        <div class="row" style="gap:8px">${a(P.once, "Give once", "btn")}${P.monthly.map(([amt, u]) => a(u, `${amt} a month`, "btn ghost")).join("")}</div>
-        <p class="small">Secure checkout through Stripe. Already giving monthly? ${a(P.manage, "Change or cancel", "")}.</p></div>
-    </details>
+  return `<section class="partner compact" aria-label="Pricing">
+    <div class="partner-free"><span class="pill pill-planter">Beta</span><h2>Your first couple is free.</h2><p>Every network gets one full assessment free: planter, spouse, references, graded report and interview guide. After that it's $99 per couple. No subscription, no seats.</p></div>
+    <div class="partner-options"><p><b>Beta networks:</b> use code <b>BETA</b> at checkout for a third off, for life.</p>
+      <div class="row" style="gap:8px"><a class="btn" href="${esc(B.CHECKOUT)}" target="_blank" rel="noopener">Buy assessments</a></div>
+      <p class="small">Secure checkout through Stripe. Buy one or several couples at once.</p></div>
   </section>`;
 }
 // What each kind of tool is designed to cover, based on what each tool says it measures. y = yes, p = partly, n = no.
@@ -260,14 +257,14 @@ const CMP_AREAS = [
   ["Honesty and consistency checks", "y", "p", "p", "p", "n"],
   ["Graded report and interview guide", "y", "n", "n", "n", "y"],
 ];
-const CMP_COST = ["Free", "Paid", "Paid", "Paid", "Paid"];
+const CMP_COST = ["1st free", "Paid", "Paid", "Paid", "Paid"];
 // Coverage score: yes = 1, partly = ½, no = 0, added across the areas.
 const cmpScore = (i) => CMP_AREAS.reduce((t, r) => t + (r[i + 1] === "y" ? 1 : r[i + 1] === "p" ? 0.5 : 0), 0);
 const half = (n) => (Number.isInteger(n) ? String(n) : `${Math.floor(n) || ""}½`);
 function compareHero() {
   const n = CMP_AREAS.length;
   return `<figure class="cmp" aria-labelledby="cmp-cap"><figcaption id="cmp-cap" class="cmp-cap">What each tool is built to cover</figcaption>
-    <ol class="cmp-bars">${CMP_TOOLS.map((t, i) => { const v = cmpScore(i); return `<li class="${i === 0 ? "us" : ""}" style="--w:${(v / n) * 100}%;--d:${i * 90}ms"><div class="cmp-row"><span class="cmp-name">${esc(t)}</span><span class="cmp-score"><b>${half(v)}</b> of ${n}<span class="cmp-cost${CMP_COST[i] === "Free" ? " free" : ""}">${CMP_COST[i]}</span></span></div><div class="cmp-track" aria-hidden="true"><span class="cmp-fill"></span></div></li>`; }).join("")}</ol>
+    <ol class="cmp-bars">${CMP_TOOLS.map((t, i) => { const v = cmpScore(i); return `<li class="${i === 0 ? "us" : ""}" style="--w:${(v / n) * 100}%;--d:${i * 90}ms"><div class="cmp-row"><span class="cmp-name">${esc(t)}</span><span class="cmp-score"><b>${half(v)}</b> of ${n}<span class="cmp-cost${i === 0 ? " free" : ""}">${CMP_COST[i]}</span></span></div><div class="cmp-track" aria-hidden="true"><span class="cmp-fill"></span></div></li>`; }).join("")}</ol>
     <p class="cmp-note">Across ${n} areas a network needs to know: character, marriage, leadership, wiring, gifts, references, city fit, honesty checks and a graded report. Yes counts 1, partly counts ½, based on what each tool says it measures. <button class="link" data-act="nav" data-to="leaders">See the full comparison</button></p></figure>`;
 }
 function renderHome() {
@@ -275,7 +272,7 @@ function renderHome() {
   <section class="hero">
     <div>
       <h1>One assessment instead of five.</h1>
-      <p class="lede">Plumbline is the free church planter assessment for networks. The planter, the spouse and their references each answer on their own. You get one graded report and an interview guide built from their answers.</p>
+      <p class="lede">Plumbline is the church planter assessment for networks, and your first couple is free. The planter, the spouse and their references each answer on their own. You get one graded report and an interview guide built from their answers.</p>
       <div class="row">
         <button class="btn" data-act="nav" data-to="leader">Start as a network leader</button>
         <button class="btn ghost" data-act="open-sample">See a sample report</button>
@@ -355,7 +352,7 @@ function renderLeaders() {
   return `<div class="deck">
   <section class="slide hero-slide"><div class="wrap">
     <span class="kicker">For network leaders</span>
-    <h1>The planter assessment your network can trust. Free.</h1>
+    <h1>The planter assessment your network can trust. First couple free.</h1>
     <p class="lede">Plumbline hears from four people separately: the planter, the spouse, their references and you. Then it shows you where they agree, where they don't, and what to talk about. Built by a church planter, for the people who send them.</p>
     <div class="row"><button class="btn" data-act="nav" data-to="leader">Start as a network leader</button><button class="btn ghost" data-act="open-sample">See a sample report</button></div>
   </div></section>
@@ -417,7 +414,7 @@ function renderLeaders() {
 function renderPrivacy() {
   return `<div class="wrap stack-lg legal" style="max-width:46rem"><div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Privacy</h1><p class="muted" style="margin:0">Last updated October 2026</p></div>
   <div class="read stack">
-    <p>Plumbline is a free church planter assessment run by Parker Manuel. This page explains, in plain words, what we collect, who sees it, and how long we keep it.</p>
+    <p>Plumbline is a church planter assessment run by Parker Manuel. This page explains, in plain words, what we collect, who sees it, and how long we keep it.</p>
     <h3>What we collect</h3>
     <p>When a network leader sets up an assessment, we store the names, emails and city they enter. When you answer, we store your answers. Some answers are sensitive: your marriage, your health and stress, your beliefs, and a few private safety questions for spouses. If you choose to, you can also tell us about the city you plan to plant in and share results from other assessments you've taken, including files you upload. Uploaded files are private: only your network's team can open them, through links that expire after 10 minutes. Network leaders sign in with their email, and we store their name, email and network. We use no advertising or tracking cookies.</p>
     <h3>Who sees your answers</h3>
@@ -437,7 +434,7 @@ function renderPrivacy() {
 function renderTerms() {
   return `<div class="wrap stack-lg legal" style="max-width:46rem"><div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Terms</h1><p class="muted" style="margin:0">Last updated October 2026</p></div>
   <div class="read stack">
-    <p>Plumbline is free. By using it you agree to these terms.</p>
+    <p>Each network's first assessed couple is free. Each couple after that is $99, paid through Stripe. By using Plumbline you agree to these terms.</p>
     <h3>For network leaders and teams</h3>
     <p>Use Plumbline only to assess people who have agreed to take it, for church planting or ministry decisions. Treat their answers as confidential. Don't sell, publish or share them outside your team. A Plumbline report is one input, never the decision. Don't approve, decline or fund anyone on the report alone. Use it alongside interviews, references, background checks and prayerful discernment. You're responsible for who you invite to your team and for removing people who leave.</p>
     <h3>For planters, spouses and references</h3>
