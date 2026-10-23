@@ -36,7 +36,7 @@ const html = `<!doctype html>
 ${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card.png"><meta name="twitter:card" content="summary_large_image">` : ""}
 <link rel="apple-touch-icon" href="plumbline-app-icon.png">
 <meta name="theme-color" content="#141c24">
-<link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 32"><line x1="10" y1="0" x2="10" y2="15" stroke="#141c24" stroke-width="2.4"/><path d="M10 14 L16 21 L10 32 L4 21 Z" fill="#a8802f"/></svg>')}">
+<link rel="icon" href="plumbline-app-icon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}${css}</style>

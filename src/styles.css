@@ -464,3 +464,8 @@ details[open] > summary::before { content: "− "; }
 .roles dt { font-weight: 700; }
 .roles dd { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
 @media (max-width: 560px) { .roles > div { grid-template-columns: 1fr; } }
+
+/* plumbline. wordmark */
+.brand .logo { height: 26px; width: auto; display: block; color: var(--ink); }
+.brand .logo .logo-dot { fill: #ff6b4a; }
+.top.on-night .brand .logo { color: #ffffff; }
