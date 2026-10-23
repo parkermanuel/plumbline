@@ -228,7 +228,7 @@ function renderHome() {
         <button class="btn" data-act="nav" data-to="leader">Start as a network leader</button>
         <button class="btn ghost" data-act="open-sample">See a sample report</button>
       </div>
-      <p class="small" style="margin:0"><button class="link" data-act="nav" data-to="leaders">How it's built, and how it compares →</button></p>
+      <p class="small" style="margin:20px 0 0"><button class="link" data-act="nav" data-to="leaders">How it's built, and how it compares →</button></p>
       <dl class="entry" aria-label="Definition of plumb line">
         <dt><span class="hw">plumb·line</span> <span class="pr">&#92; ˈpləm-ˌlīn &#92;</span> <span class="pos">noun</span></dt>
         <dd><ol>

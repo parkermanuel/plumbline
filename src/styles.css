@@ -437,3 +437,9 @@ details[open] > summary::before { content: "− "; }
 .lsteps li div { display: grid; } .lsteps li p { margin: 0; font-family: var(--read); color: var(--ink-2); }
 @media (max-width: 760px) { .lstats { grid-template-columns: 1fr 1fr; } .lsteps li { grid-template-columns: 32px 1fr; } .lsteps li p { grid-column: 2; } }
 @media (max-width: 460px) { .lstats { grid-template-columns: 1fr; } }
+
+/* Reference badge: a soft sage, readable in light and dark mode. */
+.pill-ref { background: #dbe5de; color: #2c3a33; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pill-ref { background: #3d5248; color: #e6eee8; } }
+:root[data-theme="dark"] .pill-ref { background: #3d5248; color: #e6eee8; }
+.home2 .pill-ref { background: #3d5248; color: #e6eee8; }
