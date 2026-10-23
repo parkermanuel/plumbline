@@ -191,7 +191,28 @@ function wired(S, ch, kicker, ctx = {}) {
 let view = { name: "home" };
 let take = null; // { caseId, role, refIdx, ctx, steps, i, resp, shownAt }
 const app = () => $("#app");
-function go(v) { view = v; render(); window.scrollTo(0, 0); }
+// Each page the person moves to gets its own browser history entry, so Back returns to the last page instead of leaving the site.
+const NAV_VIEWS = new Set(["home", "leader", "leaders", "about", "privacy", "terms", "settings", "admin", "case", "new"]);
+let popping = false;
+function urlFor(v) {
+  if (["leaders", "privacy", "terms", "about"].includes(v.name)) return "#/" + v.name;
+  if (v.name === "case" && /^[0-9a-f-]{36}$/.test(v.id || "")) return "#/case/" + v.id;
+  return location.pathname + location.search;
+}
+function go(v) {
+  view = v; render(); window.scrollTo(0, 0);
+  if (popping || !NAV_VIEWS.has(v.name)) return;
+  const st = { name: v.name, id: v.id, tab: v.tab, personal: v.personal };
+  const cur = history.state?.pl;
+  if (cur && cur.name === st.name && cur.id === st.id && cur.tab === st.tab) { history.replaceState({ pl: st }, "", urlFor(v)); return; }
+  try { history.pushState({ pl: st }, "", urlFor(v)); } catch {}
+}
+window.addEventListener("popstate", (e) => {
+  const st = e.state?.pl;
+  if (st) { popping = true; try { go(st.name === "admin" ? { name: "admin" } : { ...st }); } finally { popping = false; } return; }
+  if (/^#\/(t|r|join|case|privacy|terms|about|leaders)/.test(location.hash)) return; // hashchange routes these
+  popping = true; try { go({ name: "home" }); } finally { popping = false; }
+});
 
 function render() {
   const nav = L.LIVE ? [["home", "Home"], ["leader", L.state.session ? "Dashboard" : "Network leaders"], ["about", "How it works"]] : [["home", "Home"], ["leader", "Network leaders"], ["join", "I have a code"], ["about", "How it works"]];
@@ -199,7 +220,7 @@ function render() {
   $("#top").innerHTML = `<div class="top-in"><button class="brand" data-act="nav" data-to="home" aria-label="Plumbline home">${mark(28)}<span class="brand-word">plumbline</span></button>
     <nav>${nav.map(([k, l], i) => `<button class="navbtn ${k === "about" ? "opt-hide" : i === 0 ? "home-hide" : ""}" data-act="nav" data-to="${k}" ${cur === k ? 'aria-current="page"' : ""}>${l}</button>`).join("")}${L.LIVE && L.state.session && ["leader", "case", "newcase", "settings", "admin"].includes(view.name) ? `<button class="navbtn opt-hide" data-act="signout">Sign out</button>` : ""}</nav></div>`;
   const foot = $("#foot");
-  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span>Plumbline is free for every network.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="leaders">For network leaders</button><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by Parker Manuel</a></span></div>`;
+  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span>Plumbline is free for every network.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="leaders">For network leaders</button><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by parkermanuel.com</a></span></div>`;
   const r = { home: renderHome, leader: renderLeader, newcase: renderNewCase, case: renderCase, join: renderJoin, take: renderTake, about: renderAbout, addresult: renderAddResult, message: renderMessage, refjoin: renderRefJoin, myreport: renderMyReport,
     settings: () => (L.LIVE ? (L.state.session ? T.settings() : T.login()) : renderHome()), teamjoin: T.join, admin: T.admin, privacy: renderPrivacy, terms: renderTerms, leaders: renderLeaders }[view.name] || renderHome;
   app().innerHTML = r();
@@ -208,14 +229,15 @@ function render() {
 
 // ---------------- home ----------------
 // Free for networks, not free to run. Links go to Parker's Stripe pages.
-function partnerBox(strong) {
+function partnerBox() {
   const P = B.PARTNER, a = (u, l, cls) => `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener">${l}</a>`;
-  return `<section class="partner${strong ? " strong" : ""}" aria-label="Partner with Plumbline">
-    <div class="stack" style="gap:8px"><span class="kicker">Free for you. Not free for me.</span>
-      <h2>${strong ? "If Plumbline serves your network, help keep it free." : "Plumbline is free for every network."}</h2>
-      <p class="read" style="margin:0">${strong ? "Every planter, spouse and reference you send through Plumbline costs nothing. Behind it are servers, email, a database and many hours of building and keeping it safe. A one-time or monthly gift from your network keeps it free for the next one." : "No fees, no seats, no upsell. It isn't free to build and run, though. If it helps you, you can partner with Parker once or monthly."}</p></div>
-    <div class="row" style="gap:10px">${a(P.once, "Give once", "btn")}${P.monthly.map(([amt, u]) => a(u, `${amt} a month`, "btn ghost")).join("")}</div>
-    <p class="small" style="margin:0">Secure checkout through Stripe. Already giving monthly? ${a(P.manage, "Change or cancel", "")}.</p>
+  return `<section class="partner compact" aria-label="Plumbline is free">
+    <div class="partner-free"><h2>Free.</h2><p>For every network, planter, spouse and reference. No fees, no seats, no upsell.</p></div>
+    <details class="partner-give"><summary class="btn ghost">Partner with Plumbline</summary>
+      <div class="partner-options"><p>It isn't free to build and run. If it helps you, you can give once or monthly.</p>
+        <div class="row" style="gap:8px">${a(P.once, "Give once", "btn")}${P.monthly.map(([amt, u]) => a(u, `${amt} a month`, "btn ghost")).join("")}</div>
+        <p class="small">Secure checkout through Stripe. Already giving monthly? ${a(P.manage, "Change or cancel", "")}.</p></div>
+    </details>
   </section>`;
 }
 function renderHome() {
@@ -246,7 +268,7 @@ function renderHome() {
     <button class="path" data-act="nav" data-to="join"><span class="who pill-ref">R</span><h3>I'm a reference</h3><p>Someone asked you to speak into their readiness to plant. It takes about 8 minutes.</p><span class="go">Enter my code</span></button>`}
   </section>
   ${aboutBody(true)}
-  ${partnerBox(false)}
+  ${partnerBox()}
   </div>`;
 }
 
@@ -376,7 +398,7 @@ function renderLeaders() {
     <p class="small" style="margin:0"><button class="link" data-act="nav" data-to="privacy">Read the privacy page</button></p>
   </div></section>
 
-  <div class="wrap">${partnerBox(true)}
+  <div class="wrap">${partnerBox()}
     <div class="row" style="margin:40px 0 0"><button class="btn" data-act="nav" data-to="leader">Start as a network leader</button><button class="btn ghost" data-act="open-sample">See a sample report</button></div></div>
   </div>`;
 }
@@ -451,7 +473,7 @@ function renderLeader() {
         <div>${r ? `<span class="outcome tone-${r.outcome.tone}">${r.outcome.name}</span>` : `<span class="sdot">In progress</span>`}</div></button>`;
     }).join("")}</div>
     <div class="notice chalk">This is the free pilot. Everything stays in this browser. Each person finishes on their own device and sends you a results code, and you paste it in with <b>Add results</b>. A shared online version with email invites is next.</div>
-    ${partnerBox(true)}
+    ${partnerBox()}
   </div>`;
 }
 
@@ -1399,7 +1421,7 @@ if (L.LIVE) {
       render();
     }
   });
-  window.addEventListener("hashchange", route);
+  window.addEventListener("hashchange", () => { if (!history.state?.pl) route(); });
   window.addEventListener("beforeunload", (e) => { if (take?.token && L.saveStatus() !== "saved") { L.flush(); e.preventDefault(); e.returnValue = ""; } });
   render();
   L.initAuth().then(() => {
