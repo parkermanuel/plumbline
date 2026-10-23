@@ -512,3 +512,9 @@ h1, .h-title { letter-spacing: -0.035em; }
 .cmp-table .tbl tr.price td { font-weight: 600; font-size: 14px; border-top: 2px solid var(--rule); }
 .cmp-table .tbl tr.price td.us { color: var(--brass-text); font-weight: 800; }
 @media (max-width: 700px) { .cmp-table .tbl th:first-child, .cmp-table .tbl td:first-child { position: sticky; left: 0; background: var(--card); z-index: 1; min-width: 9.5rem; } }
+
+/* Working Genius picker: six types, each Genius / Competency / Frustration */
+.wg-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
+.wg-grid label { display: grid; gap: 4px; font-weight: 600; }
+@media (max-width: 520px) { .wg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.marks { font-size: 12px; line-height: 1.5; }

@@ -117,6 +117,11 @@ export function otherTools(r, w) {
   if (strengths.length) entries.push({ tool: "CliftonStrengths", value: strengths.join(", ") });
   if (ennea) entries.push({ tool: "Enneagram", value: OTHER.ennea.types[ennea - 1] });
   if (pi) entries.push({ tool: "Predictive Index", value: pi });
+  // Working Genius: { W: "genius" | "comp" | "frus", … }, at most two of each.
+  const wg = {}; const cnt = { genius: 0, comp: 0, frus: 0 };
+  for (const [k] of OTHER.wg.types) { const lv = o.wg?.[k]; if (lv in cnt && cnt[lv] < 2) { wg[k] = lv; cnt[lv]++; } }
+  const wgList = (lv) => OTHER.wg.types.filter(([k]) => wg[k] === lv).map(([, n]) => n);
+  if (Object.keys(wg).length) entries.push({ tool: "Working Genius", value: [["Geniuses", "genius"], ["Competencies", "comp"], ["Frustrations", "frus"]].filter(([, lv]) => wgList(lv).length).map(([l, lv]) => `${l}: ${wgList(lv).join(", ")}`).join(" · ") });
   if (notes) entries.push({ tool: "Other", value: notes });
   // Compare with Wiring: a lean at or past 65 (or at or below 35) counts as that end; 36–64 is the middle.
   const checks = [];
@@ -130,7 +135,29 @@ export function otherTools(r, w) {
   if (disc) add("disc", disc);
   if (mbti) { add("mbti", mbti[0]); add("mbti", mbti[3]); }
   if (!entries.length && !files.length) return null;
-  return { entries, files, when: when == null ? null : OTHER.when[when], checks, agree: checks.filter((c) => c.result === "agree").length };
+  const tools = [disc && "disc", mbti && "mbti", strengths.length && "strengths", ennea && "ennea", pi && "pi", Object.keys(wg).length && "wg"].filter(Boolean);
+  return { entries, files, when: when == null ? null : OTHER.when[when], checks, agree: checks.filter((c) => c.result === "agree").length, wg: Object.keys(wg).length ? wg : null, tools };
+}
+
+// Working Genius gaps worth talking through. Never scored and never part of the recommendation: each one is
+// a pattern from the couple's own results plus a question for the interview. {p} and {s} are the planter's and spouse's names.
+export function wgGaps(P, S) {
+  const p = P?.wg, s = S?.wg;
+  if (!p) return [];
+  const T = Object.fromEntries(OTHER.wg.types), ours = OTHER.wg.ours, out = [];
+  const drains = (x, k) => x?.[k] === "frus", strong = (x, k) => x?.[k] === "genius" || x?.[k] === "comp";
+  const fill = (k) => (s && s[k] === "genius" ? ` {s} lists ${T[k]} as a genius, so ask how they'll share this work without {s} carrying the church.` : "");
+  if (drains(p, "G")) out.push({ text: `{p} lists Galvanizing (${ours.G}) as a frustration. A new church needs someone rallying people every week.${fill("G")}`,
+    ask: "Who will recruit and rally your launch team, and what part of that can only you do?" });
+  if (drains(p, "T") && !strong(s, "T")) out.push({ text: `{p} lists Tenacity (${ours.T}) as a frustration${s ? ", and {s} didn't list it as a strength" : ""}. Early plants run on follow-through.`,
+    ask: "Who will make sure things get finished week after week, and how will you know when they aren't?" });
+  if (drains(p, "W") && drains(p, "I")) out.push({ text: `{p} lists both Wonder and Invention (${ours.W}; ${ours.I}) as frustrations.${fill("W") || fill("I")}`,
+    ask: "Where will fresh vision and new ideas come from in your first three years?" });
+  if (drains(p, "D")) out.push({ text: `{p} lists Discernment (${ours.D}) as a frustration.${fill("D")}`,
+    ask: "Who will tell you, honestly and early, when a plan isn't going to work?" });
+  if (drains(p, "E")) out.push({ text: `{p} lists Enablement (${ours.E}) as a frustration. In the first year a planter says yes to a lot of small tasks for other people.${fill("E")}`,
+    ask: "How will you handle the season when much of the work is helping other people's plans succeed?" });
+  return out;
 }
 
 export function gifts(r, { signGifts = true } = {}) {
@@ -322,6 +349,7 @@ export function scoreCase(c) {
   out.wiring = P ? wiring(P) : null;
   out.gifts = P ? gifts(P, { signGifts }) : null;
   out.other = P ? otherTools(P, out.wiring) : null;
+  out.wgGaps = [];
   out.context = P ? contextFit(P, "planter", married) : null;
   out.fivefold = P ? fivefold(P) : null;
   out.scenarios = P ? scenarios(P, married) : null;
@@ -357,6 +385,8 @@ export function scoreCase(c) {
   out.outcome = decide(out);
   out.strengths = Object.entries(self).filter(([, v]) => v && v.band.id === "strength").sort((a, b) => b[1].pct - a[1].pct).map(([k]) => k);
   out.growth = Object.entries(self).filter(([, v]) => v && rank(v.band) <= 2).sort((a, b) => a[1].pct - b[1].pct).map(([k]) => k);
+  // Working Genius gaps come after the recommendation is decided, so they can never change it.
+  out.wgGaps = wgGaps(out.other, out.spouseOther);
   out.interview = interviewGuide(out);
   out.plan = growthPlan(out);
   return out;
@@ -452,6 +482,7 @@ function interviewGuide(o) {
   const add = (x) => { if (!used.has(x.q) && pl.length < 9) { pl.push(x); used.add(x.q); } };
   o.gaps.blind.slice(0, 2).forEach((b) => add({ kind: "blind", title: `Blind spot: ${b.name}`, q: SCALES[b.scale].q, probes: SCALES[b.scale].probes, look: SCALES[b.scale].look }));
   o.growth.forEach((k) => add({ kind: "growth", title: `Growth area: ${SCALES[k].name}`, q: SCALES[k].q, probes: SCALES[k].probes, look: SCALES[k].look }));
+  (o.wgGaps || []).slice(0, 2).forEach((g) => { if (!used.has(g.ask)) { pl.push({ kind: "wg", title: "Working Genius gap (not scored)", q: g.ask, probes: ["Who specifically, and have you asked them?"], look: "Honest awareness of the gap and a real person or plan, not just good intentions." }); used.add(g.ask); } });
 
   const sp = [];
   if (o.spouse) {

@@ -159,7 +159,7 @@ async function answer(p, maxSteps, stopAtPct = 101) {
       const cn = document.querySelector('[data-act="city-name"]'); if (cn) { const f = document.querySelector("#cx-city"); if (!f.value) f.value = "Boulder, Colorado"; cn.click(); return "cityname"; }
       const cx = q('[data-act="cx"]'); if (cx.length) { cx[Math.min(2, cx.length - 1)].click(); return "cx"; }
       const ct = document.querySelector('[data-act="cx-text"]'); if (ct) { document.querySelector("#cx-text").value = "CITY-WHY-ANSWER"; ct.click(); return "cxtext"; }
-      const of = document.querySelector("#other-form"); if (of) { if (window.__wantUpload && !document.querySelector('[data-act="other-rm"]')) return "upload"; const m = document.querySelector("#o-mbti"); if (m) m.value = "ENFP"; const d = document.querySelector("#o-disc"); if (d) d.value = "I"; document.querySelector('[data-act="other-next"]').click(); return "other"; }
+      const of = document.querySelector("#other-form"); if (of) { if (window.__wantUpload && !document.querySelector('[data-act="other-rm"]')) return "upload"; const m = document.querySelector("#o-mbti"); if (m) m.value = "ENFP"; const d = document.querySelector("#o-disc"); if (d) d.value = "I"; for (const [k, lv] of [["W","genius"],["D","genius"],["G","frus"],["T","frus"]]) { const w = document.querySelector("#o-wg-" + k); if (w) w.value = lv; } document.querySelector('[data-act="other-next"]').click(); return "other"; }
       const nt = document.querySelector("#netq-text"); if (nt) { nt.value = "BOULDER-CALLING-ANSWER"; document.querySelector('[data-act="netq-next"]').click(); return "netq"; }
       const ans = q('[data-act="ans"]'); if (ans.length) { const o = [...ans].filter((b) => b.dataset.v !== "0"); o[3 % o.length].click(); return "ans"; }
       const ff = q(".ff-row"); if (ff.length) { if (!document.querySelector('.ff-row .m[aria-pressed="true"]')) ff[0].querySelector(".m").click(); else if (!document.querySelector('.ff-row .l[aria-pressed="true"]')) ff[1].querySelector(".l").click(); else document.querySelector('.qcard [data-act="next"]').click(); return "ff"; }
@@ -270,6 +270,7 @@ const rep = await text(sam);
 ok(/Ready|Pause|Development/.test(rep) && rep.includes("Interview guide") && rep.includes("From Front Range Planting") && rep.includes("BOULDER-CALLING-ANSWER"), "leader report includes the network's question and answer");
 ok(rep.includes("Context") && rep.includes("Boulder") && rep.includes("CITY-WHY-ANSWER") && /City fit \d+/.test(rep), "leader report shows the planter's city fit");
 ok(calls.some((c) => c.upload?.endsWith(".pdf")) && rep.includes("my-disc-report.pdf") && rep.includes("ENFP") && /Wiring/.test(rep), "planter's uploaded result and typed-in results reach the leader report");
+ok(rep.includes("Working Genius gaps to talk through") && rep.includes("Working Genius is a trademark of The Table Group"), "Working Genius gaps and trademark lines show in the leader report");
 await sam.evaluate(() => { window.open = () => ({ close() {}, set location(u) { window.__opened = u; } }); });
 await click(sam, '[data-act="open-file"]'); await wait(700);
 ok(calls.some((c) => c.signed) && /sign\/results/.test(await sam.evaluate(() => window.__opened || "")), "the team opens the uploaded file through a short-lived link");

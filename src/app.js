@@ -278,7 +278,8 @@ function compareTable() {
   return `<div class="cmp-table"><div class="scroll-x"><table class="tbl compare"><thead><tr><th><span class="small">What a network needs to know</span></th>${CMP_TOOLS.map((t, i) => `<th class="${i === 0 ? "us" : ""}">${esc(t)}</th>`).join("")}</tr></thead>
     <tbody>${CMP_AREAS.map(([l, ...m]) => `<tr><td>${esc(l)}</td>${m.map((x, i) => `<td class="${i === 0 ? "us" : ""}">${mk[x]}</td>`).join("")}</tr>`).join("")}
     ${app ? "" : `<tr class="price"><td>Cost</td>${CMP_PRICE.map((c, i) => `<td class="${i === 0 ? "us" : ""}">${esc(c)}</td>`).join("")}</tr>`}</tbody></table></div>
-    <p class="small muted" style="margin:10px 0 0"><span class="ck"></span> yes · <span class="ck part"></span> partly · <span class="ck no"></span> no. Based on what each tool says it measures.</p></div>`;
+    <p class="small muted" style="margin:10px 0 0"><span class="ck"></span> yes · <span class="ck part"></span> partly · <span class="ck no"></span> no. Based on what each tool says it measures.</p>
+    <p class="small muted marks" style="margin:6px 0 0">${["disc", "mbti", "strengths", "pi"].map((t) => esc(B.OTHER.marks[t])).join(" ")}</p></div>`;
 }
 function renderHome() {
   return `<div class="wrap">
@@ -737,6 +738,7 @@ function otherBlock(o, name, you) {
     ${o.checks.length ? `<div class="stack" style="gap:8px">${o.checks.map((c) => `<div><span class="chip tone-${tone[c.result]}">${word[c.result]}</span> <span class="small">${esc(c.tool)} ${esc(c.letter)} points to <b>${esc(c.theirs)}</b>. Wiring has ${who} at ${esc(c.ours.toLowerCase())} (${c.pos} of 100 on ${esc(c.trackName)}).</span></div>`).join("")}
       <p class="small muted" style="margin:0">How this is checked: a Wiring score of 65 or more counts as the right-hand end, 35 or less as the left, and anything between as the middle. ${[...new Set(o.checks.map((c) => c.basis))].map(esc).join(" ")}${o.checks.some((c) => c.result === "differ") && !you ? " A difference is a question to ask, not a problem: people change, and older results may reflect another season." : ""}</p></div>` : ""}
     ${o.files.length ? `<div class="row" style="gap:8px">${o.files.map((f) => `<button class="btn ghost small" data-act="open-file" data-path="${esc(f.path)}">${esc(f.name)}</button>`).join("")}</div>` : ""}
+    ${(o.tools || []).length ? `<p class="small muted marks" style="margin:0">${o.tools.map((t) => esc(B.OTHER.marks[t])).join(" ")}</p>` : ""}
   </div>`;
 }
 function contextSection(c, r) {
@@ -776,6 +778,8 @@ function wiredSection(c, r, leader) {
     <div class="panel flat"><h3 style="margin-bottom:8px">Wiring</h3>${wiringRows(r.wiring, r.spouseWiring, pn, sn)}
       ${ins.length ? `<ul class="list-clean" style="margin-top:14px">${ins.map((t) => `<li><span>${esc(t)}</span></li>`).join("")}</ul>` : ""}</div>
     ${r.other || r.spouseOther ? `<div class="two">${otherBlock(r.other, pn)}${otherBlock(r.spouseOther, sn)}</div>` : ""}
+    ${(r.wgGaps || []).length ? `<div class="panel flat stack"><h3>Working Genius gaps to talk through</h3><p class="small" style="margin:0">From the results they typed in. Not scored, and never part of the recommendation.</p>
+      <ul class="list-clean">${r.wgGaps.map((g) => `<li><span>${esc(g.text.replace(/\{p\}/g, pn).replace(/\{s\}/g, sn))}<br><b>Ask:</b> ${esc(g.ask)}</span></li>`).join("")}</ul></div>` : ""}
     <div class="two">
       <div class="panel flat stack"><h3>Fivefold</h3><p class="small" style="margin:0">From Ephesians 4:11, drawing on Alan Hirsch's APEST work. Our own questions.</p>${radar(ffAxes, series, { size: 380 })}
         <p class="small" style="margin:0">${esc(pn)}: ${r.fivefold?.primary.name}, then ${r.fivefold?.secondary.name}.${r.spouseFivefold ? ` ${esc(sn)}: ${r.spouseFivefold.primary.name}, then ${r.spouseFivefold.secondary.name}.` : ""}</p>
@@ -1049,14 +1053,17 @@ function screen(s) {
         <label class="field">${esc(O.strengths.name)}<input id="o-strengths" maxlength="220" placeholder="${esc(O.strengths.hint)}" value="${esc((o.strengths || []).join(", "))}"></label>
         <div class="two" style="gap:12px"><label class="field">${esc(O.ennea.name)}${sel("o-ennea", O.ennea.types.map((t, i) => [i + 1, t]), o.ennea, "Haven't taken it")}</label>
           <label class="field">${esc(O.pi.name)}<input id="o-pi" maxlength="60" placeholder="${esc(O.pi.hint)}" value="${esc(o.pi || "")}"></label></div>
-        <label class="field">Anything else <span class="hint">Working Genius, Birkman, a coach's assessment…</span><textarea id="o-notes" maxlength="1000" style="min-height:70px">${esc(o.notes || "")}</textarea></label>
+        <div class="field" style="display:grid;gap:8px"><span>${esc(O.wg.name)} <span class="hint" style="font-weight:400">Mark your two geniuses, two competencies and two frustrations</span></span>
+          <div class="wg-grid">${O.wg.types.map(([k, n]) => `<label class="small">${esc(n)}${sel("o-wg-" + k, O.wg.levels, (o.wg || {})[k], "–")}</label>`).join("")}</div></div>
+        <label class="field">Anything else <span class="hint">Birkman, a coach's assessment…</span><textarea id="o-notes" maxlength="1000" style="min-height:70px">${esc(o.notes || "")}</textarea></label>
         <label class="field">When did you take most of these?${sel("o-when", O.when.map((w, i) => [i, w]), o.when, "Choose one")}</label>
         <div class="field" style="font-weight:600;display:grid;gap:8px"><span>Upload results <span class="hint" style="font-weight:400">PDF or photo, up to ${O.maxFiles} files, ${O.maxMb} MB each</span></span>
           ${files.length ? `<ul class="list-clean" style="margin:4px 0 0">${files.map((f, i) => `<li><span>${esc(f.name)} <span class="muted small">${Math.max(1, Math.round((f.size || 0) / 1024))} KB</span></span><button class="link" data-act="other-rm" data-i="${i}">Remove</button></li>`).join("")}</ul>` : ""}
           ${files.length < O.maxFiles ? `<label class="btn ghost" style="justify-self:start;cursor:pointer;position:relative">${take.uploading ? "Uploading…" : "Choose files or take a photo"}<input id="o-files" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/heic,image/heif" multiple style="position:absolute;width:1px;height:1px;opacity:0" ${take.uploading ? "disabled" : ""}></label>` : ""}
           ${!take.token ? `<span class="small muted" style="font-weight:400">In this demo, files aren't stored. Only their names are kept.</span>` : ""}</div>
       </div>
-      <div class="row"><button class="btn" data-act="other-next" ${take.uploading ? "disabled" : ""}>Save and continue</button><button class="link" data-act="other-skip">Skip, I haven't taken any</button></div></div>`;
+      <div class="row"><button class="btn" data-act="other-next" ${take.uploading ? "disabled" : ""}>Save and continue</button><button class="link" data-act="other-skip">Skip, I haven't taken any</button></div>
+      <p class="small muted marks">Plumbline doesn't give these tests or use their questions, report text or definitions. ${Object.values(O.marks).map(esc).join(" ")}</p></div>`;
   }
   if (s.t === "cityAsk") {
     const v = R.context?.has;
@@ -1158,6 +1165,7 @@ function captureOther() {
   o.ennea = v("o-ennea") ? +v("o-ennea") : null; o.when = v("o-when") !== "" ? +v("o-when") : null;
   o.strengths = v("o-strengths").split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean).slice(0, 5);
   o.pi = v("o-pi").slice(0, 60); o.notes = v("o-notes").slice(0, 1000);
+  o.wg = Object.fromEntries(B.OTHER.wg.types.map(([k]) => [k, v("o-wg-" + k) || null]).filter(([, lv]) => lv));
   o.files = o.files || [];
   take.resp.other = o;
 }

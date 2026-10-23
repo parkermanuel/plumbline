@@ -891,9 +891,24 @@ export const OTHER = {
   disc: { name: "DISC", styles: [["D", "Dominance"], ["I", "Influence"], ["S", "Steadiness"], ["C", "Conscientiousness"]] },
   mbti: { name: "Myers-Briggs (MBTI) or 16Personalities", types: ["ISTJ", "ISFJ", "INFJ", "INTJ", "ISTP", "ISFP", "INFP", "INTP", "ESTP", "ESFP", "ENFP", "ENTP", "ESTJ", "ESFJ", "ENFJ", "ENTJ"] },
   strengths: { name: "CliftonStrengths (StrengthsFinder)", hint: "Your top five, separated by commas" },
-  ennea: { name: "Enneagram", types: ["1 Reformer", "2 Helper", "3 Achiever", "4 Individualist", "5 Investigator", "6 Loyalist", "7 Enthusiast", "8 Challenger", "9 Peacemaker"] },
-  pi: { name: "Predictive Index", hint: "Your reference profile, like Maverick or Collaborator" },
+  ennea: { name: "Enneagram", types: ["Type 1", "Type 2", "Type 3", "Type 4", "Type 5", "Type 6", "Type 7", "Type 8", "Type 9"] },
+  pi: { name: "Predictive Index", hint: "Your reference profile name, as it appears on your PI report" },
+  // Working Genius: people mark which of the six types are their geniuses, competencies and frustrations (two each).
+  // Only the type names are used; every description below is Plumbline's own wording.
+  wg: { name: "Working Genius", types: [["W", "Wonder"], ["I", "Invention"], ["D", "Discernment"], ["G", "Galvanizing"], ["E", "Enablement"], ["T", "Tenacity"]],
+    levels: [["genius", "Genius"], ["comp", "Competency"], ["frus", "Frustration"]],
+    ours: { W: "asking big questions about what could be", I: "coming up with new ideas", D: "sensing whether an idea will work", G: "rallying people to act",
+      E: "pitching in to help others' plans succeed", T: "finishing and following through" } },
   when: ["In the last year", "1 to 3 years ago", "More than 3 years ago"],
+  // Shown wherever these tools are named. Plumbline never uses their questions, report text, definitions or graphics.
+  marks: {
+    disc: "DiSC and Everything DiSC are trademarks of John Wiley & Sons, Inc. Plumbline is not affiliated with or endorsed by John Wiley & Sons, Inc.",
+    mbti: "Myers-Briggs, Myers-Briggs Type Indicator and MBTI are trademarks of The Myers & Briggs Foundation. 16Personalities is a trademark of NERIS Analytics Limited. Plumbline is not affiliated with or endorsed by either.",
+    strengths: "CliftonStrengths and StrengthsFinder are trademarks of Gallup, Inc. Plumbline is not affiliated with or endorsed by Gallup, Inc.",
+    ennea: "Plumbline doesn't use any Enneagram publisher's type names or descriptions, and isn't affiliated with or endorsed by any Enneagram organization.",
+    pi: "The Predictive Index and PI are trademarks of The Predictive Index LLC. Plumbline is not affiliated with or endorsed by The Predictive Index LLC.",
+    wg: "Working Genius is a trademark of The Table Group. Plumbline is not affiliated with or endorsed by The Table Group.",
+  },
   maxFiles: 5, maxMb: 5,
 };
 // How another tool's result is compared with Wiring. Only links with published research or a direct definitional match.
