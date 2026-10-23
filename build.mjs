@@ -37,7 +37,7 @@ const html = `<!doctype html>
 <meta property="og:title" content="Plumbline: one assessment instead of five">
 <meta property="og:description" content="${desc}">
 <meta property="og:type" content="website">
-${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card-2026.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:url" content="${cfg.siteUrl}/"><meta name="twitter:card" content="summary_large_image">` : ""}
+${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card-v3.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:url" content="${cfg.siteUrl}/"><meta name="twitter:card" content="summary_large_image">` : ""}
 <link rel="apple-touch-icon" href="icon-2026.png">
 <meta name="theme-color" content="#121212">
 <link rel="icon" href="icon-2026.png" type="image/png" sizes="512x512"><link rel="icon" href="favicon.ico" sizes="48x48">
