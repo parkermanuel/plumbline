@@ -35,10 +35,10 @@ const html = `<!doctype html>
 <meta property="og:type" content="website">
 ${cfg.siteUrl ? `<meta property="og:image" content="${cfg.siteUrl}/social-card.png"><meta name="twitter:card" content="summary_large_image">` : ""}
 <link rel="apple-touch-icon" href="plumbline-app-icon.png">
-<meta name="theme-color" content="#141c24">
+<meta name="theme-color" content="#121212">
 <link rel="icon" href="plumbline-app-icon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}${css}</style>
 </head><body>
 <header class="top" id="top"></header>

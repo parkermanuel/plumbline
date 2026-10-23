@@ -7,17 +7,17 @@ const first = (n) => clean(n).split(/\s+/)[0] || "";
 
 function layout({ preheader, heading, paragraphs, button, footer, site }) {
   const logo = `${site}/plumbline-email-logo.png`;
-  const p = paragraphs.map((t) => `<p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.55;color:#48535e">${t}</p>`).join("");
-  const html = `<!doctype html><html><body style="margin:0;background:#f6f7f4">
+  const p = paragraphs.map((t) => `<p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.55;color:#4a4a48">${t}</p>`).join("");
+  const html = `<!doctype html><html><body style="margin:0;background:#f7f7f5">
 <span style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</span>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f4;padding:32px 16px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #d9ddd6;border-radius:14px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f5;padding:32px 16px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #dcdcd7;border-radius:14px">
 <tr><td style="padding:28px 32px 8px"><img src="${logo}" width="146" height="30" alt="Plumbline" style="display:block;border:0"></td></tr>
-<tr><td style="padding:16px 32px 8px"><h1 style="margin:0 0 16px;font-family:Helvetica,Arial,sans-serif;font-size:26px;line-height:1.15;letter-spacing:-0.5px;color:#141c24">${heading}</h1>${p}</td></tr>
-${button ? `<tr><td style="padding:4px 32px 28px"><a href="${escHtml(button.href)}" style="display:inline-block;background:#141c24;color:#f6f7f4;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-weight:600;font-size:16px;padding:14px 24px;border-radius:999px">${esc(button.label)}</a>
-<p style="margin:16px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#636c76">Or copy this link: <span style="word-break:break-all">${escHtml(button.href)}</span></p></td></tr>` : ""}
+<tr><td style="padding:16px 32px 8px"><h1 style="margin:0 0 16px;font-family:Helvetica,Arial,sans-serif;font-size:26px;line-height:1.15;letter-spacing:-0.5px;color:#121212">${heading}</h1>${p}</td></tr>
+${button ? `<tr><td style="padding:4px 32px 28px"><a href="${escHtml(button.href)}" style="display:inline-block;background:#121212;color:#f7f7f5;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-weight:600;font-size:16px;padding:14px 24px;border-radius:999px">${esc(button.label)}</a>
+<p style="margin:16px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b67">Or copy this link: <span style="word-break:break-all">${escHtml(button.href)}</span></p></td></tr>` : ""}
 </table>
-<p style="max-width:560px;margin:16px auto 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#636c76">${footer}</p>
+<p style="max-width:560px;margin:16px auto 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#6b6b67">${footer}</p>
 </td></tr></table></body></html>`;
   const strip = (h) => h.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   const text = [strip(heading), "", ...paragraphs.map(strip), "", button ? `${button.label}: ${button.href}` : "", "", strip(footer)].join("\n");

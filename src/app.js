@@ -1,7 +1,7 @@
 import * as B from "./bank.js";
 import { scoreCase, scoreScale, BANDS, OUTCOMES, bandOf } from "./engine.js";
 import { SAMPLE_CASES } from "./samples.js";
-import { giftFan, radar, heroPlumb } from "./charts.js";
+import { giftFan, radar } from "./charts.js";
 import * as L from "./live.js";
 import * as T from "./team.js";
 
@@ -195,7 +195,7 @@ const app = () => $("#app");
 const NAV_VIEWS = new Set(["home", "leader", "leaders", "about", "privacy", "terms", "settings", "admin", "case", "new"]);
 let popping = false;
 function urlFor(v) {
-  if (["leaders", "privacy", "terms", "about"].includes(v.name)) return "#/" + v.name;
+  if (["leaders", "privacy", "terms", "about", "leader", "settings", "admin", "new"].includes(v.name)) return "#/" + v.name;
   if (v.name === "case" && /^[0-9a-f-]{36}$/.test(v.id || "")) return "#/case/" + v.id;
   return location.pathname + location.search;
 }
@@ -210,7 +210,7 @@ function go(v) {
 window.addEventListener("popstate", (e) => {
   const st = e.state?.pl;
   if (st) { popping = true; try { go(st.name === "admin" ? { name: "admin" } : { ...st }); } finally { popping = false; } return; }
-  if (/^#\/(t|r|join|case|privacy|terms|about|leaders)/.test(location.hash)) return; // hashchange routes these
+  if (/^#\/(t|r|join|case|privacy|terms|about|leaders|leader|settings|new|admin)/.test(location.hash)) return; // hashchange routes these
   popping = true; try { go({ name: "home" }); } finally { popping = false; }
 });
 
@@ -224,6 +224,7 @@ function render() {
   const r = { home: renderHome, leader: renderLeader, newcase: renderNewCase, case: renderCase, join: renderJoin, take: renderTake, about: renderAbout, addresult: renderAddResult, message: renderMessage, refjoin: renderRefJoin, myreport: renderMyReport,
     settings: () => (L.LIVE ? (L.state.session ? T.settings() : T.login()) : renderHome()), teamjoin: T.join, admin: T.admin, privacy: renderPrivacy, terms: renderTerms, leaders: renderLeaders }[view.name] || renderHome;
   app().innerHTML = r();
+  const cmpEl = document.querySelector(".cmp"); if (cmpEl) setTimeout(() => cmpEl.classList.add("on"), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 300);
   if (view.name === "take") afterTake();
 }
 
@@ -243,26 +244,41 @@ function partnerBox() {
     </details>
   </section>`;
 }
+// What each kind of tool is designed to cover, based on what each tool says it measures. y = yes, p = partly, n = no.
+const CMP_TOOLS = ["Plumbline", "DISC or Myers-Briggs", "CliftonStrengths or Predictive Index", "PREPARE/ENRICH", "Assessment retreat"];
+const CMP_AREAS = [
+  ["Character, calling and health", "y", "n", "n", "n", "p"],
+  ["Marriage, both spouses separately", "y", "n", "n", "y", "p"],
+  ["Leadership and planting capacity", "y", "p", "p", "n", "y"],
+  ["Personality and work style", "y", "y", "y", "n", "p"],
+  ["Spiritual gifts and fivefold", "y", "n", "n", "n", "p"],
+  ["References' 360 view", "y", "n", "n", "n", "y"],
+  ["Fit with a specific city", "y", "n", "n", "n", "p"],
+  ["Honesty and consistency checks", "y", "p", "p", "p", "n"],
+  ["Graded report and interview guide", "y", "n", "n", "n", "y"],
+];
+const CMP_COST = ["Free", "Paid", "Paid", "Paid", "Paid"];
+// Coverage score: yes = 1, partly = ½, no = 0, added across the areas.
+const cmpScore = (i) => CMP_AREAS.reduce((t, r) => t + (r[i + 1] === "y" ? 1 : r[i + 1] === "p" ? 0.5 : 0), 0);
+const half = (n) => (Number.isInteger(n) ? String(n) : `${Math.floor(n) || ""}½`);
+function compareHero() {
+  const n = CMP_AREAS.length;
+  return `<figure class="cmp" aria-labelledby="cmp-cap"><figcaption id="cmp-cap" class="cmp-cap">What each tool is built to cover</figcaption>
+    <ol class="cmp-bars">${CMP_TOOLS.map((t, i) => { const v = cmpScore(i); return `<li class="${i === 0 ? "us" : ""}" style="--w:${(v / n) * 100}%;--d:${i * 90}ms"><div class="cmp-row"><span class="cmp-name">${esc(t)}</span><span class="cmp-score"><b>${half(v)}</b> of ${n}<span class="cmp-cost${CMP_COST[i] === "Free" ? " free" : ""}">${CMP_COST[i]}</span></span></div><div class="cmp-track" aria-hidden="true"><span class="cmp-fill"></span></div></li>`; }).join("")}</ol>
+    <p class="cmp-note">Across ${n} areas a network needs to know: character, marriage, leadership, wiring, gifts, references, city fit, honesty checks and a graded report. Yes counts 1, partly counts ½, based on what each tool says it measures. <button class="link" data-act="nav" data-to="leaders">See the full comparison</button></p></figure>`;
+}
 function renderHome() {
   return `<div class="wrap">
   <section class="hero">
     <div>
-      <h1>Measure true. Plant strong.</h1>
-      <p class="lede">Plumbline is a free church planter assessment for networks. The planter, the spouse and their references each answer on their own. You get a graded report, a clear recommendation and an interview guide built from their answers.</p>
+      <h1>One assessment instead of five.</h1>
+      <p class="lede">Plumbline is the free church planter assessment for networks. The planter, the spouse and their references each answer on their own. You get one graded report and an interview guide built from their answers.</p>
       <div class="row">
         <button class="btn" data-act="nav" data-to="leader">Start as a network leader</button>
         <button class="btn ghost" data-act="open-sample">See a sample report</button>
       </div>
-      <p class="small" style="margin:20px 0 0"><button class="link" data-act="nav" data-to="leaders">How it's built, and how it compares →</button></p>
-      <dl class="entry" aria-label="Definition of plumb line">
-        <dt><span class="hw">plumb·line</span> <span class="pr">&#92; ˈpləm-ˌlīn &#92;</span> <span class="pos">noun</span></dt>
-        <dd><ol>
-          <li>A cord with a weight at one end, hung to show what is truly upright.</li>
-          <li>A measure of depth and alignment: how deep the roots go, and whether the walls stand straight before anything is built on them.</li>
-        </ol><p class="see">See Amos 7:8.</p></dd>
-      </dl>
     </div>
-    <div class="plumb-stage">${heroPlumb()}</div>
+    ${compareHero()}
   </section>
   <section class="paths" aria-label="Choose your path">
     <button class="path" data-act="nav" data-to="leader"><span class="who pill-leader">NL</span><h3>I'm a network leader</h3><p>Set up an assessment for a planting couple, send ${L.LIVE ? "their links" : "codes"}, and read the graded report.</p><span class="go">Open the dashboard</span></button>
@@ -322,18 +338,8 @@ function renderLeaders() {
   const giftItems = n(B.GIFTS.map((g) => g.items.length));
   const stat = (num, label, how) => `<div class="lstat"><b>${num}</b><span>${label}</span><small>${how}</small></div>`;
   const yes = `<span class="ck" role="img" aria-label="Yes"></span>`, part = `<span class="ck part" role="img" aria-label="Partly"></span>`, no = `<span class="ck no" role="img" aria-label="No"></span>`;
-  const rows = [
-    ["Character, calling and health", yes, no, no, no, part],
-    ["Marriage, both spouses separately", yes, no, no, yes, part],
-    ["Leadership and planting capacity", yes, part, part, no, yes],
-    ["Personality and work style", yes, yes, yes, no, part],
-    ["Spiritual gifts and fivefold", yes, no, no, no, part],
-    ["References' 360 view", yes, no, no, no, yes],
-    ["Fit with a specific city", yes, no, no, no, part],
-    ["Honesty and consistency checks", yes, part, part, part, no],
-    ["Graded report and interview guide", yes, no, no, no, yes],
-    ["Cost to your network", "Free", "Paid", "Paid", "Paid", "Paid"],
-  ];
+  const mk = { y: yes, p: part, n: no };
+  const rows = [...CMP_AREAS.map(([l, ...m]) => [l, ...m.map((x) => mk[x])]), ["Cost to your network", ...CMP_COST]];
   const steps = [
     ["Set it up", "5 minutes", "Enter the couple's names, emails and city. Plumbline emails each person a private link."],
     ["They answer on their own", "About 35 and 25 minutes", "Planter and spouse answer separately, one question at a time, with two progress bars. Answers save as they go, so they can stop and finish on any device."],
@@ -380,7 +386,7 @@ function renderLeaders() {
     </div>
   </div></section>
 
-  <section class="slide"><div class="wrap stack-lg">
+  <section class="slide" id="compare"><div class="wrap stack-lg">
     <div class="stack"><span class="kicker">How it compares</span><h2>One assessment instead of five.</h2><p class="muted" style="margin:0">What each kind of tool is designed to cover. <span class="ck"></span> yes · <span class="ck part"></span> partly · <span class="ck no"></span> no</p></div>
     <div class="scroll-x"><table class="tbl compare"><thead><tr><th></th><th>Plumbline</th><th>DISC or Myers-Briggs</th><th>CliftonStrengths or Predictive Index</th><th>PREPARE/ENRICH</th><th>Assessment retreat</th></tr></thead>
       <tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td>${r.slice(1).map((c, i) => `<td class="${i === 0 ? "us" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
@@ -846,8 +852,7 @@ function personReport(c, r, who) {
   const areaMean = (a, k) => { const v = a.items.filter((i) => i[k] != null); return v.length ? (v.reduce((x, i) => x + i[k], 0) / v.length - 1) / 4 : 0; };
   return `<article class="report">
     <section class="hero-report"><div><span class="kicker">${esc(nm)}'s Plumbline</span><h1 style="margin-top:8px">${esc(nm)}, here's how God has wired you.</h1>
-      <p>You lean ${esc(leans.slice(0, 3).join(", ") || "balanced across the board")}. Your strongest gifts look like ${esc(G.top.slice(0, 3).map((g) => g.name.toLowerCase()).join(", "))}, and you serve most naturally as ${F ? (/^[AEIOU]/.test(F.primary.short) ? "an " : "a ") + esc(F.primary.short.toLowerCase()) : "part of the body"}.</p></div>
-      <div class="mini-plumb">${heroPlumb(true)}</div></section>
+      <p>You lean ${esc(leans.slice(0, 3).join(", ") || "balanced across the board")}. Your strongest gifts look like ${esc(G.top.slice(0, 3).map((g) => g.name.toLowerCase()).join(", "))}, and you serve most naturally as ${F ? (/^[AEIOU]/.test(F.primary.short) ? "an " : "a ") + esc(F.primary.short.toLowerCase()) : "part of the body"}.</p></div></section>
 
     <section class="stack"><div class="section-head"><h2>Your wiring</h2><p class="muted">Five dimensions of your natural style.${C ? ` ${esc(other)} is shown too, so you can see how you fit together.` : ""}</p></div>
       <div class="panel flat">${wiringRows(W, C ? (isP ? r.spouseWiring : r.wiring) : null, nm, other)}
@@ -1400,7 +1405,8 @@ async function route() {
     return;
   }
   if ((m = h.match(/^#\/case\/([0-9a-f-]{36})$/))) { go({ name: "case", id: m[1], after: m[1] }); return; }
-  if ((m = h.match(/^#\/(privacy|terms|about|leaders)$/))) { go({ name: m[1] }); return; }
+  if ((m = h.match(/^#\/(privacy|terms|about|leaders|leader|settings|new)$/))) { go({ name: m[1] }); return; }
+  if (h === "#/admin") { go({ name: "admin" }); L.platformStats().then((st) => { if (view.name === "admin") { view.stats = st; render(); } }); return; }
   if ((m = h.match(/^#\/r\/([a-f0-9]{20,})$/))) {
     const refToken = m[1];
     let mine = null; try { mine = localStorage.getItem("pl.ref." + refToken); } catch {}
@@ -1433,7 +1439,7 @@ if (L.LIVE) {
     const qs = new URLSearchParams(location.search);
     const join = qs.get("join"), caseId = qs.get("case");
     if (qs.has("code") || join || caseId) history.replaceState(null, "", location.pathname + (join ? "#/join/" + join : caseId ? "#/case/" + caseId : location.hash));
-    if (/^#\/(t|r|join|case|privacy|terms|about|leaders)/.test(location.hash)) route();
+    if (/^#\/(t|r|join|case|privacy|terms|about|leaders|leader|settings|new|admin)/.test(location.hash)) route();
     else if (L.state.session && qs.has("code")) go({ name: "leader" });
     else render();
   });
