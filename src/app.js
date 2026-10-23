@@ -4,6 +4,9 @@ import { SAMPLE_CASES } from "./samples.js";
 import { giftFan, radar } from "./charts.js";
 import * as L from "./live.js";
 import * as T from "./team.js";
+const FEEDBACK_URL = "https://parkermanuel.com/beta-feedback?product=plumbline"; // owner, 23 Oct 2026: beta feedback link
+const feedbackLink = () => `<p class="muted" style="margin-top:12px">Testing Plumbline? <a href="${FEEDBACK_URL}" target="_blank" rel="noopener">Tell Parker what to fix</a>. Three quick questions.</p>`;
+
 
 // ---------------- utilities ----------------
 const $ = (s, el = document) => el.querySelector(s);
@@ -220,7 +223,7 @@ function render() {
   $("#top").innerHTML = `<div class="top-in"><button class="brand" data-act="nav" data-to="home" aria-label="Plumbline home">${LOGO}</button>
     <nav>${nav.map(([k, l], i) => `<button class="navbtn ${k === "about" ? "opt-hide" : i === 0 ? "home-hide" : ""}" data-act="nav" data-to="${k}" ${cur === k ? 'aria-current="page"' : ""}>${l}</button>`).join("")}${L.LIVE && L.state.session && ["leader", "case", "newcase", "settings", "admin"].includes(view.name) ? `<button class="navbtn opt-hide" data-act="signout">Sign out</button>` : ""}</nav></div>`;
   const foot = $("#foot");
-  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span class="tagline">Strong planters. Healthy families. Churches that last.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="leaders">For network leaders</button><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by parkermanuel.com</a></span></div>`;
+  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span class="tagline">Strong planters. Healthy families. Churches that last.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="leaders">For network leaders</button><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="${FEEDBACK_URL}" target="_blank" rel="noopener">Give feedback</a><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by parkermanuel.com</a></span></div>`;
   const r = { home: renderHome, leader: renderLeader, newcase: renderNewCase, case: renderCase, join: renderJoin, take: renderTake, about: renderAbout, addresult: renderAddResult, message: renderMessage, refjoin: renderRefJoin, myreport: renderMyReport,
     settings: () => (L.LIVE ? (L.state.session ? T.settings() : T.login()) : renderHome()), teamjoin: T.join, admin: T.admin, privacy: renderPrivacy, terms: renderTerms, leaders: renderLeaders }[view.name] || renderHome;
   app().innerHTML = r();
@@ -1095,11 +1098,11 @@ let doneCode = null;
 function doneScreen() {
   if (take.token) {
     const nm = take.role === "reference" ? first(take.resp.meta?.name) : first(take.role === "planter" ? take.ctx.planterName : take.ctx.spouseName);
-    return `<div class="stack-lg"><div class="intro-card"><span class="kicker">${take.finishError ? "Almost there" : "Finished and sealed"}</span><h2>Thank you, ${esc(nm)}.</h2><p>${take.finishError ? `We couldn't reach the server to seal your answers. Your answers are saved on this device. Check your connection and try again.` : take.role === "reference" ? `Your answers went straight to the network leader. You can close this page.` : `Your answers are sealed, and your network leader can see that you finished. After you meet, your personal report will appear at this same link. Bookmark it.`}</p>${take.finishError ? `<button class="btn" data-act="retry-finish">Try again</button>` : ""}</div></div>`;
+    return `<div class="stack-lg"><div class="intro-card"><span class="kicker">${take.finishError ? "Almost there" : "Finished and sealed"}</span><h2>Thank you, ${esc(nm)}.</h2><p>${take.finishError ? `We couldn't reach the server to seal your answers. Your answers are saved on this device. Check your connection and try again.` : take.role === "reference" ? `Your answers went straight to the network leader. You can close this page.` : `Your answers are sealed, and your network leader can see that you finished. After you meet, your personal report will appear at this same link. Bookmark it.`}</p>${take.finishError ? `<button class="btn" data-act="retry-finish">Try again</button>` : feedbackLink()}</div></div>`;
   }
   const c = getCase(take.caseId);
   const nm = take.role === "reference" ? first(take.resp.meta.name) : first(take.role === "planter" ? take.ctx.planterName : take.ctx.spouseName);
-  return `<div class="stack-lg"><div class="intro-card"><span class="kicker">Finished and sealed</span><h2>Thank you, ${esc(nm)}.</h2><p>${take.role === "reference" ? `Your answers will help ${esc(first(take.ctx.planterName))} and the network make a wise decision.` : "Your answers are sealed. Your network leader will set a time to walk through your report with you."}</p></div>
+  return `<div class="stack-lg"><div class="intro-card"><span class="kicker">Finished and sealed</span><h2>Thank you, ${esc(nm)}.</h2><p>${take.role === "reference" ? `Your answers will help ${esc(first(take.ctx.planterName))} and the network make a wise decision.` : "Your answers are sealed. Your network leader will set a time to walk through your report with you."}</p>${feedbackLink()}</div>
     <div class="panel stack" data-copywrap><h3>Send this code to your network leader</h3><p class="small" style="margin:0">Copy it and paste it into an email or text to your network leader. It holds your answers.</p><div class="code-box" id="code-box">${doneCode ? esc(doneCode) : "Preparing your code…"}</div><div class="row"><button class="btn" data-act="copy-code">Copy code</button>${take.role !== "reference" && c?.planter ? `<button class="btn ghost" data-act="see-report">See my report</button>` : ""}</div></div></div>`;
 }
 
