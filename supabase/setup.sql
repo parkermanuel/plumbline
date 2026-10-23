@@ -541,6 +541,8 @@ end $$;
 -- Each assessment (one couple and their references) uses one credit, unless the network has a yearly plan.
 -- Credits arrive only from Stripe (the plumbline-stripe function, using the service key) or from the platform admin.
 alter table public.networks add column if not exists credits int not null default 0 check (credits >= 0);
+alter table public.networks alter column credits set default 1;  -- every new network's first couple is free
+drop trigger if exists pl_count_case on public.cases;  -- an earlier billing draft, replaced by credits
 alter table public.networks add column if not exists plan_until timestamptz;
 alter table public.networks add column if not exists stripe_customer text;
 alter table public.networks add column if not exists founding boolean not null default false;  -- beta networks: $79 per couple for life
