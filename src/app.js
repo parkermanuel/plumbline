@@ -409,7 +409,7 @@ function renderPrivacy() {
     <h3>What we collect</h3>
     <p>When a network leader sets up an assessment, we store the names, emails and city they enter. When you answer, we store your answers. Some answers are sensitive: your marriage, your health and stress, your beliefs, and a few private safety questions for spouses. If you choose to, you can also tell us about the city you plan to plant in and share results from other assessments you've taken, including files you upload. Uploaded files are private: only your network's team can open them, through links that expire after 10 minutes. Network leaders sign in with their email, and we store their name, email and network. We use no advertising or tracking cookies.</p>
     <h3>Who sees your answers</h3>
-    <p><b>Your network's team</b> (the network leaders and assessors who invited you) sees your answers and the reports built from them. <b>Your spouse</b> never sees your individual answers, your private note or your safety answers. After your network leader releases them, each spouse sees their own report, which includes only summaries of the other spouse's answers. <b>References</b> see only their own form. <b>Other networks</b> never see anything of yours. <b>Parker Manuel</b>, who runs Plumbline, can see platform-wide counts (how many networks and assessments there are), never your answers, except to fix a problem you or your network asks him to fix.</p>
+    <p><b>Your network's team</b> (the network leaders and assessors who invited you) sees your answers and the reports built from them. <b>Your spouse</b> never sees your individual answers, your private note or your safety answers. After your network leader releases them, each spouse sees their own report, which includes only summaries of the other spouse's answers. <b>References</b> see only their own form. <b>Other networks</b> never see anything of yours. <b>Parker Manuel</b>, who runs Plumbline, can see platform-wide counts (how many networks and assessments there are) and each network's name with its owner's name and email, so he can check in with network leaders. He never sees your answers, except to fix a problem you or your network asks him to fix.</p>
     <h3>How we keep it safe</h3>
     <p>Everything is sent over encrypted connections and stored with Supabase, a database provider in the United States. The database enforces who can see what, row by row. Your personal link works like a key, so please don't share it.</p>
     <h3>How long we keep it</h3>
@@ -1410,10 +1410,12 @@ async function route() {
     return;
   }
 }
+// Only a fresh sign-in link jumps to the dashboard; a signed-in leader visiting the home page stays on it.
+let JUST_SIGNED_IN = /[?&]code=|access_token=/.test(location.search + location.hash);
 if (L.LIVE) {
   L.onChange((why) => {
     if (why === "save") { const el = $("#savestate"); if (el) el.textContent = saveLabel(); return; }
-    if (why === "auth" && L.state.session && view.name === "home" && !location.hash) { go({ name: "leader" }); return; }
+    if (why === "auth" && L.state.session && view.name === "home" && JUST_SIGNED_IN) { JUST_SIGNED_IN = false; go({ name: "leader" }); return; }
     if (why === "auth" && view.name === "teamjoin") { render(); return; }
     if (view.name === "leader" || view.name === "settings" || (view.name === "case" && (view.tab === "status" || !getCase(view.id)?.planter || why === "case"))) {
       if (view.name === "case" && why === "progress" && view.tab !== "status") return;

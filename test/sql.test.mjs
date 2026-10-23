@@ -141,7 +141,8 @@ async function main() {
   ok((await as(OWNER, () => q(`select public.pl_platform_stats() as j`)))[0].j === null, "non-admins get no platform stats");
   await q(`insert into public.platform_admins values ($1)`, [PARKER]);
   const st = (await as(PARKER, () => q(`select public.pl_platform_stats() as j`)))[0].j;
-  ok(st.networks === 1 && st.assessments === 2 && st.finished === 2 && st.byNetwork[0].name === "Front Range Planting", "platform stats: counts only");
+  ok(st.networks === 1 && st.assessments === 2 && st.finished === 2 && st.byNetwork[0].name === "Front Range Planting", "platform stats: counts");
+  ok(st.byNetwork[0].ownerEmail && st.byNetwork[0].owner && st.byNetwork[0].lastAssessment && !JSON.stringify(st).includes("answers"), "platform stats: each network's owner and last assessment, never answers");
 
   // Review fixes
   const open2 = (await as(null, () => q(`select public.pl_open($1) as j`, [tokS])))[0].j;

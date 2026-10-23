@@ -168,10 +168,10 @@ export function admin() {
   if (!s) return `<div class="wrap"><p class="muted">Loading…</p></div>`;
   const k = (v, l) => `<div class="kpi"><div class="v num">${v}</div><div class="l">${l}</div></div>`;
   return `<div class="wrap stack-lg" style="max-width:56rem"><button class="link" data-act="nav" data-to="leader">← Assessments</button>
-    <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Platform</h1><p class="muted" style="margin:0">Counts only. No one's answers appear here.</p></div>
+    <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">Platform</h1><p class="muted" style="margin:0">Counts and who to contact. No one's answers appear here.</p></div>
     <div class="kpis">${k(s.networks, "Networks")}${k(s.leaders, "Team members")}${k(s.assessments, "Assessments")}${k(s.finished, "People finished")}</div>
     <div class="kpis">${k(s.assessments30, "Assessments, last 30 days")}${k(s.finished30, "Finished, last 30 days")}${k(s.started, "People started")}${k(s.started ? Math.round((100 * s.finished) / s.started) + "%" : "—", "Finish rate (finished ÷ started)")}</div>
-    <div class="scroll-x"><table class="tbl"><thead><tr><th>Network</th><th>Team</th><th>Assessments</th><th>Joined</th></tr></thead><tbody>${(s.byNetwork || []).map((n) => `<tr><td>${esc(n.name)}</td><td class="num">${n.members}</td><td class="num">${n.assessments}</td><td>${esc(n.created)}</td></tr>`).join("")}</tbody></table></div></div>`;
+    <div class="scroll-x"><table class="tbl"><thead><tr><th>Network</th><th>Owner</th><th>Team</th><th>Assessments</th><th>Last assessment</th><th>Joined</th></tr></thead><tbody>${(s.byNetwork || []).map((n) => `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.owner || "—")}${n.ownerEmail ? `<br><a href="mailto:${esc(n.ownerEmail)}?subject=${encodeURIComponent("How's Plumbline going?")}">${esc(n.ownerEmail)}</a>` : ""}</td><td class="num">${n.members}</td><td class="num">${n.assessments}</td><td>${esc(n.lastAssessment || "None yet")}</td><td>${esc(n.created)}</td></tr>`).join("")}</tbody></table></div></div>`;
 }
 
 // ---------- events ----------

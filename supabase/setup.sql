@@ -517,7 +517,7 @@ begin
   returning i.email, i.token, i.role, n.name, coalesce(m.name, split_part(m.email, '@', 1)), m.email;
 end $$;
 
--- ============ Platform overview (counts only) ============
+-- ============ Platform overview (counts, plus each network's owner so Parker can check in; never answers) ============
 create or replace function public.pl_platform_stats() returns jsonb language plpgsql stable security definer set search_path = public as $$
 begin
   if not exists (select 1 from public.platform_admins where user_id = auth.uid()) then return null; end if;
@@ -530,7 +530,10 @@ begin
     'finished', (select count(*) from public.participants where status = 'finished'),
     'finished30', (select count(*) from public.participants where finished_at > now() - interval '30 days'),
     'byNetwork', (select coalesce(jsonb_agg(x order by (x->>'assessments')::int desc), '[]'::jsonb) from (
-       select jsonb_build_object('name', n.name, 'assessments', count(c.id), 'members', (select count(*) from public.network_members m where m.network_id = n.id), 'created', n.created_at::date) x
+       select jsonb_build_object('name', n.name, 'assessments', count(c.id), 'members', (select count(*) from public.network_members m where m.network_id = n.id), 'created', n.created_at::date,
+         'lastAssessment', max(c.created_at)::date,
+         'owner', (select coalesce(nullif(m.name, ''), u.email) from public.network_members m join auth.users u on u.id = m.user_id where m.network_id = n.id and m.role = 'owner' order by m.created_at limit 1),
+         'ownerEmail', (select coalesce(nullif(m.email, ''), u.email) from public.network_members m join auth.users u on u.id = m.user_id where m.network_id = n.id and m.role = 'owner' order by m.created_at limit 1)) x
        from public.networks n left join public.cases c on c.network_id = n.id and not c.archived group by n.id) t));
 end $$;
 
