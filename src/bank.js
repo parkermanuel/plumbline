@@ -808,13 +808,16 @@ export const SAFETY = [
   { id: "sf3", t: "I have sometimes felt afraid of my spouse.", concernIf: "high" },
 ];
 
-// ---------- BELIEFS (broad evangelical core) ----------
+// ---------- BELIEFS (Parker's core beliefs, the same ones Pastor To Pastor asks pastors to share) ----------
 export const BELIEFS = [
-  { id: "b1", t: "The Bible is God's inspired Word and the final authority for faith and life." },
-  { id: "b2", t: "I affirm the Trinity and the full deity and full humanity of Jesus Christ, as the historic creeds summarize." },
-  { id: "b3", t: "Salvation is by grace alone through faith alone in Jesus Christ alone." },
-  { id: "b4", t: "The church is called to make disciples of all nations." },
+  { id: "b2", t: "I affirm the Nicene Creed." },
+  { id: "b1", t: "The Bible is God's Word: true, without error, and the final authority for faith and life." },
+  { id: "b3", t: "Salvation is by grace through faith in Jesus alone." },
+  { id: "b5", t: "Marriage is one man and one woman for a lifetime, and I am not LGBTQ affirming." },
+  { id: "b6", t: "I am pro-life, from conception to natural death." },
 ];
+// Held with open hands: not a test for any planter.
+export const OPEN_HANDS = ["Women in pastoral leadership", "Baptism", "Tongues and the spiritual gifts", "Calvinism and Arminianism", "End times"];
 
 // ---------- READINESS FACTS (planter) ----------
 // pts: contribution to the Experience & Readiness score (0-4). flag: concern level when chosen.

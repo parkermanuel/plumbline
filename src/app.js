@@ -220,7 +220,7 @@ function render() {
   $("#top").innerHTML = `<div class="top-in"><button class="brand" data-act="nav" data-to="home" aria-label="Plumbline home">${mark(28)}<span class="brand-word">plumbline</span></button>
     <nav>${nav.map(([k, l], i) => `<button class="navbtn ${k === "about" ? "opt-hide" : i === 0 ? "home-hide" : ""}" data-act="nav" data-to="${k}" ${cur === k ? 'aria-current="page"' : ""}>${l}</button>`).join("")}${L.LIVE && L.state.session && ["leader", "case", "newcase", "settings", "admin"].includes(view.name) ? `<button class="navbtn opt-hide" data-act="signout">Sign out</button>` : ""}</nav></div>`;
   const foot = $("#foot");
-  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span>Plumbline is free for every network.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="leaders">For network leaders</button><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by parkermanuel.com</a></span></div>`;
+  if (foot) foot.innerHTML = view.name === "take" ? "" : `<div class="foot-in"><span class="tagline">Strong planters. Healthy families. Churches that last.</span><span class="row" style="gap:16px"><button class="link" data-act="nav" data-to="leaders">For network leaders</button><button class="link" data-act="nav" data-to="privacy">Privacy</button><button class="link" data-act="nav" data-to="terms">Terms</button><a href="https://parkermanuel.com" target="_blank" rel="noopener">Built by parkermanuel.com</a></span></div>`;
   const r = { home: renderHome, leader: renderLeader, newcase: renderNewCase, case: renderCase, join: renderJoin, take: renderTake, about: renderAbout, addresult: renderAddResult, message: renderMessage, refjoin: renderRefJoin, myreport: renderMyReport,
     settings: () => (L.LIVE ? (L.state.session ? T.settings() : T.login()) : renderHome()), teamjoin: T.join, admin: T.admin, privacy: renderPrivacy, terms: renderTerms, leaders: renderLeaders }[view.name] || renderHome;
   app().innerHTML = r();
@@ -509,7 +509,7 @@ function renderNewCase() {
       <label class="field" id="f-sn-wrap">Spouse's full name<input id="f-sn" autocomplete="off" placeholder="Elena Rivera"></label>
       <label class="field">City they're planting in<input id="f-city" autocomplete="off" placeholder="Denver, CO"></label>
       <label class="field">Your network<input id="f-net" autocomplete="off" placeholder="Front Range Planting Network"></label>
-      <label class="check"><input type="checkbox" id="f-sg" checked> <span>Include the sign gifts (healing, miracles, tongues, interpretation) in the spiritual gifts section</span></label>
+      <label class="check"><input type="checkbox" id="f-sg" checked> <span>Ask about the sign gifts (tongues, interpretation, healing, miracles)</span></label>
     </div>
     <div class="row"><button class="btn" type="submit">${L.LIVE ? "Create and get links" : "Create and get codes"}</button><button class="btn ghost" type="button" data-act="nav" data-to="leader">Cancel</button></div>
   </form></div>`;
