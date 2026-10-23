@@ -36,12 +36,14 @@ function onboarding() {
 
 // ---------- assessments left ----------
 const money = (n) => "$" + n.toLocaleString("en-US");
+// The founding price runs through 2027, then founding networks pay the regular price
+const foundingNow = () => !!L.active()?.founding && new Date().toISOString().slice(0, 10) <= B.PRICING.foundingUntil;
 function balanceCard() {
   const b = L.balance(), app = !!window.PLUMBLINE_CONFIG?.app, admin = L.canAdmin();
   const status = b.plan ? `<b>Unlimited assessments</b> on your network plan until ${fmt(b.until)}.`
     : `<b>${b.credits} ${b.credits === 1 ? "assessment" : "assessments"} left.</b> Each one covers a planter, their spouse and all their references.`;
   const buy = app ? `<p class="small" style="margin:0">To add assessments, sign in at plumblineassessment.com.</p>`
-    : admin ? `<div class="row" style="gap:8px">${b.plan ? "" : `<button class="btn sm" data-act="buy" data-kind="couples">Buy assessments · ${money(L.active()?.founding ? B.PRICING.founding : B.PRICING.couple)} each${L.active()?.founding ? " (founding network)" : ""}</button><button class="btn sm ghost" data-act="buy" data-kind="plan">Network plan · ${money(B.PRICING.plan)}/year, unlimited</button>`}</div>
+    : admin ? `<div class="row" style="gap:8px">${b.plan ? "" : `<button class="btn sm" data-act="buy" data-kind="couples">Buy assessments · ${money(foundingNow() ? B.PRICING.founding : B.PRICING.couple)} each${foundingNow() ? " (founding network)" : ""}</button><button class="btn sm ghost" data-act="buy" data-kind="plan">Network plan · ${money(B.PRICING.plan)}/year, unlimited</button>`}</div>
       <p class="small" style="margin:0">Have a discount code? Enter it at checkout. If cost is the obstacle, <a href="mailto:hello@plumblineassessment.com">tell me</a>.</p>`
     : `<p class="small" style="margin:0">Ask your network's owner or an admin to add more.</p>`;
   return `<section class="panel stack balance" aria-label="Assessments left"><p style="margin:0">${status}</p>${buy}</section>`;
@@ -219,7 +221,7 @@ export async function onClick(act, el) {
   const v = H.view();
   try {
     if (act === "founding") {
-      try { await L.setFounding(el.dataset.id, el.checked); H.toast(el.checked ? `Founding network: $${B.PRICING.founding} per couple for life` : "Back to the regular price"); }
+      try { await L.setFounding(el.dataset.id, el.checked); H.toast(el.checked ? `Founding network: $${B.PRICING.founding} per couple through 2027` : "Back to the regular price"); }
       catch (err) { el.checked = !el.checked; H.toast(err.message); }
       return true;
     }

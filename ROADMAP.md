@@ -3,11 +3,14 @@
 Nothing below may delay the January 5, 2027 launch or the App Store submission.
 
 ## 1. Now: church planting couples
-- Paid launch January 5, 2027: $99 per couple, $2,500 a year unlimited, founding networks $79 per couple for life.
+- Paid launch January 5, 2027: $99 per couple, $2,500 a year unlimited, founding networks $79 per couple through 2027.
 - November beta: 5 assessments for each beta network.
 - iPhone app submitted to the App Store.
 
-## 2. Next, after launch: individual mode
+## 2. Built (23 Oct 2026): church staff, nonprofit and business
+- One candidate, no spouse; each audience has its own questions, scenarios, references and wording.
+
+## (Earlier plan) individual mode
 - A single candidate: no spouse, no couple report, "candidate" wording instead of "planter".
 - First version is church staff hiring (for example a worship pastor or student pastor), with questions fitted to staff roles in place of planting questions.
 

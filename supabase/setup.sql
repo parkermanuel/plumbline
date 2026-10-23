@@ -550,7 +550,7 @@ alter table public.networks alter column credits set default 1;  -- every new ne
 drop trigger if exists pl_count_case on public.cases;  -- an earlier billing draft, replaced by credits
 alter table public.networks add column if not exists plan_until timestamptz;
 alter table public.networks add column if not exists stripe_customer text;
-alter table public.networks add column if not exists founding boolean not null default false;  -- beta networks: $79 per couple for life
+alter table public.networks add column if not exists founding boolean not null default false;  -- beta networks: $79 per couple through 2027
 create table if not exists public.payments (
   id text primary key,                       -- Stripe checkout session or invoice id; makes every payment count once
   network_id uuid references public.networks(id) on delete set null,
@@ -605,7 +605,7 @@ begin
   insert into public.payments (id, network_id, kind, quantity) values ('grant_' || gen_random_uuid(), p_network, 'grant', coalesce(p_credits, 0));
 end $$;
 
--- The platform admin marks a beta network as founding ($79 per couple for life) or takes it off.
+-- The platform admin marks a beta network as founding ($79 per couple through 2027) or takes it off.
 create or replace function public.pl_set_founding(p_network uuid, p_on boolean) returns void language plpgsql security definer set search_path = public as $$
 begin
   if not exists (select 1 from public.platform_admins where user_id = auth.uid()) then raise exception 'Only the platform admin can do that'; end if;

@@ -7,7 +7,8 @@
 //          STRIPE_WEBHOOK_SECRET (from the webhook endpoint in Stripe).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
-const COUPLE_CENTS = 9900, FOUNDING_CENTS = 7900, PLAN_CENTS = 250000;  // founding = beta networks, $79 per couple for life
+const COUPLE_CENTS = 9900, FOUNDING_CENTS = 7900, PLAN_CENTS = 250000;  // founding = beta networks, $79 per couple through 2027
+const FOUNDING_UNTIL = "2027-12-31";
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
@@ -89,6 +90,7 @@ Deno.serve(async (req) => {
       const { data: isAdmin } = await user.rpc("pl_is_admin", { p_network: body.networkId });
       if (!isAdmin) return json({ error: "Only the network's owners and admins can buy assessments" }, 403);
       const { data: net } = await admin.from("networks").select("id,name,stripe_customer,founding").eq("id", body.networkId).single();
+      const founding = !!net?.founding && new Date().toISOString().slice(0, 10) <= FOUNDING_UNTIL;
       if (!net) return json({ error: "Network not found" }, 404);
       const plan = body.kind === "plan";
       const qty = Math.min(50, Math.max(1, Number(body.quantity) || 1));
@@ -100,9 +102,9 @@ Deno.serve(async (req) => {
         line_items: { 0: {
           quantity: plan ? 1 : qty,
           ...(plan ? {} : { adjustable_quantity: { enabled: true, minimum: 1, maximum: 50 } }),
-          price_data: { currency: "usd", unit_amount: plan ? PLAN_CENTS : net.founding ? FOUNDING_CENTS : COUPLE_CENTS,
+          price_data: { currency: "usd", unit_amount: plan ? PLAN_CENTS : founding ? FOUNDING_CENTS : COUPLE_CENTS,
             product_data: { name: plan ? "Plumbline network plan (one year, unlimited assessments)"
-              : `Plumbline assessment (one couple and their references)${net.founding ? ", founding network price" : ""}` },
+              : `Plumbline assessment (one couple and their references)${founding ? ", founding network price" : ""}` },
             ...(plan ? { recurring: { interval: "year" } } : {}) },
         } },
         allow_promotion_codes: true,
