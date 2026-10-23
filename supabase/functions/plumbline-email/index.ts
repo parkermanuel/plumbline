@@ -6,6 +6,13 @@ import { personEmail, teamInviteEmail, finishedEmail } from "./templates.js";
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
+// Who each assessment is for (church planting, church staff, nonprofit or business), looked up by link token.
+async function audienceByToken(admin: any, tokens: string[]) {
+  if (!tokens.length) return {};
+  const { data } = await admin.from("participants").select("token, cases(settings)").in("token", tokens);
+  return Object.fromEntries((data ?? []).map((p: any) => [p.token, { audience: p.cases?.settings?.audience || "planting", job_role: p.cases?.settings?.role || "" }]));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -33,7 +40,8 @@ Deno.serve(async (req) => {
       const ids = Array.isArray(body.ids) ? body.ids.slice(0, 20) : [];
       const { data, error } = await user.rpc("pl_email_people", { p_ids: ids, p_kind: body.action });
       if (error) return json({ error: error.message }, 403);
-      for (const r of data ?? []) (await send(r.email, r.sender_email, personEmail(body.action, r, site))) ? sent++ : failed++;
+      const aud = await audienceByToken(admin, (data ?? []).map((r: any) => r.token));
+      for (const r of data ?? []) (await send(r.email, r.sender_email, personEmail(body.action, { ...r, ...(aud[r.token] || {}) }, site))) ? sent++ : failed++;
       return json({ sent, failed, skipped: ids.length - (data?.length ?? 0) });
     }
     if (body.action === "team") {
@@ -46,7 +54,10 @@ Deno.serve(async (req) => {
       if (typeof body.token !== "string" || body.token.length < 20) return json({ sent: 0 });
       const { data, error } = await admin.rpc("pl_finish_notice", { p_token: body.token });
       if (error) return json({ error: "Couldn't send" }, 500);
-      for (const r of data ?? []) (await send(r.email, null, finishedEmail(r, site))) ? sent++ : failed++;
+      const ids = [...new Set((data ?? []).map((r: any) => r.case_id))];
+      const { data: cs } = ids.length ? await admin.from("cases").select("id, settings").in("id", ids) : { data: [] };
+      const byCase = Object.fromEntries((cs ?? []).map((c: any) => [c.id, { audience: c.settings?.audience || "planting", job_role: c.settings?.role || "" }]));
+      for (const r of data ?? []) (await send(r.email, null, finishedEmail({ ...r, ...(byCase[r.case_id] || {}) }, site))) ? sent++ : failed++;
       return json({ sent, failed });
     }
     return json({ error: "Unknown action" }, 400);

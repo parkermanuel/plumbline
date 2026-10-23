@@ -24,6 +24,11 @@ ${button ? `<tr><td style="padding:4px 32px 28px"><a href="${escHtml(button.href
   return { html, text };
 }
 
+// r.audience: "planting" (default), "staff", "nonprofit" or "business". r.job_role: the role a candidate is being considered for.
+const AUD_WHAT = { staff: "a church staff role", nonprofit: "a nonprofit leadership role", business: "a business leadership role" };
+const what = (r) => (r.job_role ? `the ${esc(r.job_role)} role` : AUD_WHAT[r.audience] || "this role");
+const planting = (r) => !r.audience || r.audience === "planting";
+const footFor = (r) => (planting(r) ? FOOT : "Plumbline is a leadership assessment. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.");
 const FOOT = "Plumbline is a church planter assessment for networks. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.";
 
 export function personEmail(kind, r, site) {
@@ -35,27 +40,28 @@ export function personEmail(kind, r, site) {
   const reminder = kind === "remind";
   let subject, heading, paragraphs, label;
   if (r.role === "reference") {
-    subject = reminder ? `Reminder: your reference for ${first(r.planter_name)}` : `Would you speak into ${first(r.planter_name)}'s readiness to plant?`;
+    subject = reminder ? `Reminder: your reference for ${first(r.planter_name)}` : (planting(r) ? `Would you speak into ${first(r.planter_name)}'s readiness to plant?` : `Would you speak into ${first(r.planter_name)}'s readiness for ${r.job_role ? `the ${clean(r.job_role)} role` : "a new role"}?`);
     heading = reminder ? `A quick reminder, ${nm}` : `${pn} named you as a reference`;
     paragraphs = [
       reminder ? `${sender} is still hoping to hear from you about ${pn}. It takes about 8 minutes, and it picks up where you left off.`
-               : `${esc(r.planter_name)} is being assessed for church planting by ${esc(net)}, and you were named as someone who knows them well.`,
-      `Rate only what you've actually seen. Your written comments go only to the network leader.`,
+               : planting(r) ? `${esc(r.planter_name)} is being assessed for church planting by ${esc(net)}, and you were named as someone who knows them well.`
+               : `${esc(r.planter_name)} is being considered for ${what(r)} at ${esc(net)}, and you were named as someone who knows them well.`,
+      `Rate only what you've actually seen. Your written comments go only to ${planting(r) ? "the network leader" : "the people hiring"}.`,
     ];
     label = reminder ? "Finish my reference" : "Start the reference";
   } else {
-    const mins = r.role === "planter" ? 35 : 25;
+    const mins = r.role === "planter" ? (planting(r) ? 35 : 30) : 25;
     const other = r.role === "planter" ? sn : pn;
     subject = reminder ? `Pick up where you left off on Plumbline` : `Your Plumbline assessment from ${net}`;
     heading = reminder ? `Pick up where you left off, ${nm}` : `${nm}, your assessment is ready`;
     paragraphs = reminder ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`] : [
-      `${sender} at ${esc(net)} invited you to take Plumbline, a church planter assessment. It takes about ${mins} minutes.`,
+      planting(r) ? `${sender} at ${esc(net)} invited you to take Plumbline, a church planter assessment. It takes about ${mins} minutes.` : `${sender} at ${esc(net)} invited you to take Plumbline, a leadership assessment, as part of considering you for ${what(r)}. It takes about ${mins} minutes.`,
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
       other ? `${other} has a separate link. Please take it on your own, and don't compare answers until you've both finished. The differences are some of the most helpful things you'll learn.` : "",
     ].filter(Boolean);
     label = reminder ? "Continue my assessment" : "Start my assessment";
   }
-  return { subject, ...layout({ preheader: paragraphs[0].replace(/<[^>]+>/g, ""), heading, paragraphs, button: { href: link, label }, footer: FOOT, site }) };
+  return { subject, ...layout({ preheader: paragraphs[0].replace(/<[^>]+>/g, ""), heading, paragraphs, button: { href: link, label }, footer: footFor(r), site }) };
 }
 
 export function teamInviteEmail(r, site) {
@@ -79,8 +85,8 @@ export function finishedEmail(r, site) {
   return { subject, ...layout({
     preheader: `${clean(r.person_name) || "Someone"} finished.`,
     heading: r.all_done && r.person_role !== "reference" ? `The report for ${esc(r.planter_name)} is ready` : `${who} finished`,
-    paragraphs: [`${who} (${roleWord}) just finished their Plumbline assessment for ${esc(r.planter_name)}.`,
-      r.all_done ? `The planter and spouse are both done. Open the leader report to see the recommendation and the interview guide.` : `You can watch everyone else's progress on your dashboard.`],
+    paragraphs: [`${who} (${planting(r) || r.person_role === "reference" ? roleWord : "the candidate"}) just finished their Plumbline assessment for ${esc(r.planter_name)}.`,
+      r.all_done ? `${planting(r) ? "The planter and spouse are both done." : "The candidate is done."} Open the leader report to see the recommendation and the interview guide.` : `You can watch everyone else's progress on your dashboard.`],
     button: { href: `${site}/#/case/${r.case_id}`, label: "Open the assessment" },
     footer: "You're getting this because you're on this network's Plumbline team.", site,
   }) };

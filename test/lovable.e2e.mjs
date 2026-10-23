@@ -192,7 +192,7 @@ ok((await text(owner)).includes("Set up your network"), "new leader sees onboard
 await owner.fill("#o-net", "Front Range Planting"); await owner.fill("#o-me", "Dana Ellis");
 await submit(owner, "#onboard"); await wait(900);
 await owner.waitForSelector("text=assessments left", { timeout: 15000 }).catch(() => {});
-ok((await text(owner)).includes("0 assessments left"), "a new network starts with no assessments and sees how to buy them");
+ok((await text(owner)).includes("1 assessment left"), "a new network starts with its first couple free");
 await db.query(`update public.networks set credits = 3`); await owner.reload(); await owner.waitForSelector("text=3 assessments left", { timeout: 15000 }).catch(() => {});
 ok((await text(owner)).includes("3 assessments left"), "bought assessments show on the dashboard");
 ok((await text(owner)).includes("Front Range Planting"), "network created; dashboard shows it");

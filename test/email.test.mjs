@@ -15,4 +15,7 @@ const f = finishedEmail({ person_name: "Hannah Kim", person_role: "spouse", plan
 ok(f.subject.includes("report is ready") && f.html.includes("/#/case/c1"), "finished notice");
 const spam = personEmail("invite", { ...base, network_name: "Claim your prize at evil.com/win", role: "planter", name: "Visit www.evil.com now" }, "https://x");
 ok(!/evil/i.test(spam.html + spam.text + spam.subject) && spam.html.includes("/#/t/"), "links typed into names never reach an email; the real link stays");
+const st = personEmail("invite", { ...base, spouse_name: null, role: "planter", name: "Josh Kim", audience: "staff", job_role: "Student pastor" }, "https://x");
+const sr = personEmail("invite", { ...base, spouse_name: null, role: "reference", name: "Mike Lee", audience: "business" }, "https://x");
+ok(st.text.includes("Student pastor") && !/plant/i.test(st.text + st.subject) && !/plant/i.test(sr.text + sr.subject), "church staff and business emails never mention planting");
 process.exit(fail ? 1 : 0);

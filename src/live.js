@@ -96,6 +96,7 @@ export function caseView(row) {
     label: row.married && row.spouse_name ? `${row.planter_name.split(" ")[0]} & ${row.spouse_name}` : row.planter_name,
     planterName: row.planter_name, spouseName: row.spouse_name || "", married: row.married, city: row.city,
     network: { name: s.networkName, signGifts: s.signGifts !== false }, settings: s, created: row.created_at?.slice(0, 10),
+    audience: s.audience || "planting", faith: s.faith !== false, role: s.role || "",
     refToken: row.ref_token, released: row.reports_released, createdBy: row.created_by,
     people: (full ? full.map((p) => ({ ...(people.find((x) => x.participant_id === p.id) || {}), ...p })) : people.map((p) => ({ ...p, id: p.participant_id })))
       .sort((a, b) => ["planter", "spouse", "reference"].indexOf(a.role) - ["planter", "spouse", "reference"].indexOf(b.role) || String(a.created_at || "").localeCompare(String(b.created_at || ""))),
@@ -190,7 +191,7 @@ export async function createCase(f) {
   const row = must(await sb.from("cases").insert({
     network_id: state.activeId, created_by: uid(), planter_name: f.planterName, spouse_name: f.married ? f.spouseName : null,
     planter_email: f.planterEmail || null, spouse_email: f.married ? f.spouseEmail || null : null,
-    married: f.married, city: f.city || null, settings: { signGifts: f.signGifts, bankVersion: f.bankVersion },
+    married: f.married, city: f.city || null, settings: { signGifts: f.signGifts, bankVersion: f.bankVersion, audience: f.audience || "planting", faith: f.faith !== false, role: f.role || undefined },
   }).select().single());
   await loadNetwork();
   if (f.sendNow) {

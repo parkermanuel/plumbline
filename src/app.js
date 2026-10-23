@@ -158,7 +158,7 @@ function buildFlow(role, ctx) {
     chapter("read", "Your read", "Part 2 of 2", `A few last questions. Your written answers go only to the ${LDR()}.`, 3);
     S.push({ t: "follow", chapter: "read" });
     S.push({ t: "refReady", chapter: "read" });
-    S.push({ t: "refGifts", chapter: "read" });
+    if (B.AUD.sections.gifts) S.push({ t: "refGifts", chapter: "read" });
     S.push({ t: "refText", chapter: "read" });
   }
   S.push({ t: "done", chapter: "done" });
@@ -241,6 +241,7 @@ function render() {
   app().innerHTML = r();
   const cmpEl = document.querySelector(".cmp"); if (cmpEl) setTimeout(() => cmpEl.classList.add("on"), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 300);
   if (view.name === "take") afterTake();
+  if (document.getElementById("f-aud")) T.audienceToggle();
 }
 
 // The plumbline. wordmark (Outfit ExtraBold, outlined) with the coral dot.
@@ -428,6 +429,14 @@ function renderLeaders() {
     <p class="small" style="margin:0"><button class="link" data-act="nav" data-to="privacy">Read the privacy page</button></p>
   </div></section>
 
+  <section class="wrap stack" style="margin-top:48px"><div class="section-head"><h2>Hiring, too</h2><p class="muted">Built for planters first. The same assessment now works for one candidate at a time.</p></div>
+    <div class="three" style="align-items:start">
+      <div class="lpoint"><b>Church staff</b><p>For a student pastor, worship leader or executive pastor. Faith, character, leadership and fit with your church's vision, plus references and an interview guide.</p></div>
+      <div class="lpoint"><b>Nonprofits</b><p>For an executive or program director. Purpose, character, leadership, fundraising and the people you serve. Faith questions are optional.</p></div>
+      <div class="lpoint"><b>Businesses</b><p>For a manager or leader. Values, character, leadership, customers and results. Faith questions are optional.</p></div>
+    </div>
+    <p class="small" style="margin:0">Same price. Choose who it's for when you start a new assessment.</p></section>
+
   <div class="wrap">${partnerBox()}
     <div class="row" style="margin:40px 0 0"><button class="btn" data-act="nav" data-to="leader">Start as a network leader</button><button class="btn ghost" data-act="open-sample">See a sample report</button></div></div>
   </div>`;
@@ -477,15 +486,16 @@ function scoringExplainer() {
   return `<div class="read stack" style="gap:10px">
     <p>Each statement is answered from 1 (strongly disagree) to 5 (strongly agree). About one in four statements is worded in reverse, so agreeing with it counts against the score. Each scale is the average of its 4 or 5 statements, converted to 0–100.</p>
     <p>Scores are shown as bands, not exact numbers, because no short scale is precise to the point: <b>Strength</b> 80 and up, <b>Solid</b> 65–79, <b>Developing</b> 50–64, <b>Growth Area</b> below 50. A pillar's letter (A–D) is the average of its scales, using the same bands.</p>
-    <p>Integrity, walk with God, current load and the marriage partnership are non-negotiables. A growth area there is a concern, not just a growth area. Concerns also come from the spouse's own calling, couple answers, beliefs, safety, references and experience.</p>
+    ${PLANTING() ? `<p>Integrity, walk with God, current load and the marriage partnership are non-negotiables. A growth area there is a concern, not just a growth area. Concerns also come from the spouse's own calling, couple answers, beliefs, safety, references and experience.</p>`
+      : `<p>${esc(B.AUD.nonNegotiable.map((k) => B.SCALES[k].name).join(", ").replace(/, ([^,]*)$/, " and $1"))} are non-negotiables for this role. A growth area there is a concern, not just a growth area. Concerns also come from ${B.AUD.sections.beliefs ? "beliefs, " : ""}references and experience.</p>`}
     <p>The recommendation follows four rules, in order. <b>Pause & Talk</b> if there's a critical concern or three or more concerns. <b>Development Needed</b> if there's any concern or two pillars are growth areas. <b>Ready with Conditions</b> if there are more than two watch items or any pillar is below Solid. Otherwise <b>Ready</b>.</p>
-    <p>These cut points were set by design for this first version. The plan is for a panel of experienced planters and assessors to review them after the first 50 to 100 assessments using the modified Angoff method, a standard way to set cut scores without a large sample.</p>
+    <p>These cut points were set by design for this first version. The plan is for a panel of experienced ${PLANTING() ? "planters" : "leaders"} and assessors to review them after the first 50 to 100 assessments using the modified Angoff method, a standard way to set cut scores without a large sample.</p>
   </div>`;
 }
 
 // ---------------- leader dashboard ----------------
 function caseStatus(c) {
-  const st = [["Planter", !!c.planter]];
+  const st = [[(c.audience || "planting") === "planting" ? "Planter" : "Candidate", !!c.planter]];
   if (c.married) st.push(["Spouse", !!c.spouse]);
   st.push([`${(c.refs || []).length} reference${(c.refs || []).length === 1 ? "" : "s"}`, (c.refs || []).length >= 3]);
   return st;
@@ -517,9 +527,11 @@ function renderMessage() {
 function renderRefJoin() {
   const c = view.refCase;
   const pn = first(c.planterName);
+  B.setAudience(c.audience, c.faith);
+  const forWhat = c.role ? `the ${esc(c.role)} role` : esc(AW().role === "this role" ? "a new role" : AW().role);
   return `<div class="wrap" style="max-width:40rem"><form class="stack-lg" id="refjoin">
-    <div class="stack"><span class="small">${esc(c.network || "Plumbline")}</span><h1 style="font-size:clamp(2rem,4.5vw,3rem)">Speak into ${esc(pn)}'s readiness to plant.</h1>
-    <p class="lede" style="margin:0">${esc(c.planterName)}${c.married && c.spouseName ? ` and ${esc(c.spouseName)} are` : " is"} being assessed for church planting, and you were named as a reference. It takes about 8 minutes, and it saves as you go.</p></div>
+    <div class="stack"><span class="small">${esc(c.network || "Plumbline")}</span><h1 style="font-size:clamp(2rem,4.5vw,3rem)">${PLANTING() ? `Speak into ${esc(pn)}'s readiness to plant.` : `Speak into ${esc(pn)}'s readiness for ${forWhat}.`}</h1>
+    <p class="lede" style="margin:0">${esc(c.planterName)}${c.married && c.spouseName ? ` and ${esc(c.spouseName)} are` : " is"} ${PLANTING() ? "being assessed for church planting" : `being considered for ${forWhat}`}, and you were named as a reference. It takes about 8 minutes, and it saves as you go.</p></div>
     <label class="field">Your full name<input id="rj-name" required autocomplete="name"></label>
     <div><button class="btn" type="submit">Start</button></div>
   </form></div>`;
@@ -528,6 +540,7 @@ function renderMyReport() {
   const d = view.report, me = d.me, other = d.other;
   const cs = d.case;
   const c = { id: cs.id, label: cs.planterName, planterName: cs.planterName, spouseName: cs.spouseName, married: cs.married, city: cs.city, network: { name: cs.network, signGifts: cs.signGifts },
+    settings: { audience: cs.audience, faith: cs.faith }, audience: cs.audience, faith: cs.faith, role: cs.role,
     planter: d.role === "planter" ? me : other, spouse: d.role === "spouse" ? me : other, refs: [] };
   if (!c.planter) c.planter = { meta: { name: cs.planterName } };
   return `<div class="wrap">${personReport(c, scoreCase(c), d.role)}</div>`;
@@ -601,7 +614,7 @@ function statusTab(c) {
   if (c.married) rows.push(["spouse", c.spouseName, "Spouse", "pill-spouse", "S", !!c.spouse]);
   rows.push(["reference", "References", `${(c.refs || []).length} of 3–5 finished. One code works for every reference.`, "pill-ref", "R", (c.refs || []).length >= 3]);
   return `<div class="stack-lg" style="max-width:48rem">
-    <div class="stack"><h2>${esc(c.label)}</h2><p class="read" style="margin:0">Send each person their own code. Ask the couple not to talk about their answers until both have finished.</p></div>
+    <div class="stack"><h2>${esc(c.label)}</h2><p class="read" style="margin:0">Send each person their own code. ${c.married ? "Ask the couple not to talk about their answers until both have finished." : ""}</p></div>
     <div class="panel">${rows.map(([role, name, sub, pill, ini, done]) => `<div class="invite"><span class="who ${pill}">${ini}</span>
       <div><b>${esc(name)}</b><div class="small">${esc(sub)}${done ? " · Finished" : ""}</div></div>
       <div class="row">${c.sample ? "" : `<button class="btn sm ghost" data-act="copy-invite" data-role="${role}">Copy code</button>`}<button class="btn sm" data-act="take-here" data-role="${role}">Take it here</button></div></div>`).join("")}</div>
@@ -633,12 +646,12 @@ function leaderReport(c, r) {
   const refFollow = r.refs.follow ? r.refs.follow.avg.toFixed(1) : "—";
   return `<article class="report">
     <header class="stack">
-      <div class="rhead"><div class="stack" style="gap:8px"><span class="small">Leader report · ${esc(c.network?.name || P.meta?.network || "")}${c.created ? " · " + fmtDate(c.created) : ""}</span><h1>${esc(c.label)}</h1><span class="muted">${esc(P.meta?.city || c.city || "")}</span></div>
+      <div class="rhead"><div class="stack" style="gap:8px"><span class="small">Leader report · ${PLANTING() ? "" : esc(B.AUD.short + (c.role ? ": " + c.role : "")) + " · "}${esc(c.network?.name || P.meta?.network || "")}${c.created ? " · " + fmtDate(c.created) : ""}</span><h1>${esc(c.label)}</h1><span class="muted">${esc(P.meta?.city || c.city || "")}</span></div>
       <div class="legend"><span><i style="width:10px;height:10px;border-radius:50%;background:var(--brass)"></i>${esc(pn)}</span>${c.married ? `<span><i style="width:10px;height:10px;border-radius:50%;background:var(--chalk)"></i>${esc(sn)}</span>` : ""}</div></div>
       <div class="verdict tone-${r.outcome.tone}"><span class="line"></span><div><div class="big">${r.outcome.name}</div><div class="why">${esc(r.outcome.line)} ${esc(r.outcome.why)}</div></div></div>
       ${missing(c).length ? `<div class="notice">Still waiting on ${esc(missing(c).join(" and "))}. The recommendation may change when they finish.</div>` : ""}
       ${L.LIVE && !window.PLUMBLINE_CONFIG?.app ? `<div class="no-print"><button class="btn sm ghost" data-act="print">Print or save as PDF</button></div>` : ""}
-      <div class="disclaim">This report is one input, not a decision. No one should be approved, declined or funded on this report alone. Use it with interviews, references, background checks, a ministry track record and prayerful discernment.</div>
+      <div class="disclaim">This report is one input, not a decision. No one should be approved, declined or funded on this report alone. Use it with interviews, references, background checks, ${PLANTING() || B.AUD.id === "staff" ? "a ministry track record and prayerful discernment" : "a work history and careful judgment"}.</div>
     </header>
 
     <section class="stack"><div class="section-head"><h2>At a glance</h2></div>
@@ -652,7 +665,7 @@ function leaderReport(c, r) {
       </div>
     </section>
 
-    <section class="stack"><div class="section-head"><h2>Concerns and watch items</h2><p class="muted">${r.outcome.concerns} concern${r.outcome.concerns === 1 ? "" : "s"}, ${r.outcome.watches} to watch. Red is a concern to resolve before planting. Amber is worth watching or coaching.</p></div>
+    <section class="stack"><div class="section-head"><h2>Concerns and watch items</h2><p class="muted">${r.outcome.concerns} concern${r.outcome.concerns === 1 ? "" : "s"}, ${r.outcome.watches} to watch. Red is a concern to resolve ${PLANTING() ? "before planting" : "before a decision"}. Amber is worth watching or coaching.</p></div>
       ${flags.length ? `<div class="flags">${flags.map((f) => `<div class="flag ${f.level}"><span class="stripe"></span><div><div><span class="a">${esc(f.area)}</span><span class="t">${esc(f.title)}</span></div><div class="d">${esc(f.detail)}</div></div></div>`).join("")}</div>` : `<div class="notice">Nothing flagged. Confirm the strengths in the interview.</div>`}
     </section>
 
@@ -674,7 +687,7 @@ function leaderReport(c, r) {
     ${responseQuality(c, r)}
     ${interviewSection(c, r, notes)}
     <section class="stack"><div class="section-head"><h2>How this was scored</h2><p class="muted">Question set ${esc(c.settings?.bankVersion || P.meta?.bankVersion || B.BANK_VERSION)}</p></div>${scoringExplainer()}
-      <ul class="list-clean small">${Object.values(B.SOURCES).map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.t)}</a></li>`).join("")}</ul></section>
+      <ul class="list-clean small">${(PLANTING() ? Object.values(B.SOURCES) : [...new Set(B.PILLARS.flatMap((p) => p.src || []).concat("ipip", "angoff"))].map((k) => B.SOURCES[k]).filter(Boolean)).map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.t)}</a></li>`).join("")}</ul></section>
   </article>`;
 }
 
@@ -783,18 +796,18 @@ function wiredSection(c, r, leader) {
   const ffVal = (ff) => B.FIVEFOLD.map((f) => (ff?.list.find((x) => x.id === f.id)?.pct ?? 0) / 100);
   const series = [{ values: ffVal(r.fivefold), color: "var(--brass)", label: pn }];
   if (r.spouseFivefold) series.push({ values: ffVal(r.spouseFivefold), color: "var(--chalk)", label: sn });
-  return `<section class="stack"><div class="section-head"><h2>How they're wired</h2><p class="muted">Described, not graded. Every combination can plant a healthy church.</p></div>
+  return `<section class="stack"><div class="section-head"><h2>How they're wired</h2><p class="muted">Described, not graded. ${PLANTING() ? "Every combination can plant a healthy church." : "Every combination can lead well."}</p></div>
     <div class="panel flat"><h3 style="margin-bottom:8px">Wiring</h3>${wiringRows(r.wiring, r.spouseWiring, pn, sn)}
       ${ins.length ? `<ul class="list-clean" style="margin-top:14px">${ins.map((t) => `<li><span>${esc(t)}</span></li>`).join("")}</ul>` : ""}</div>
     ${r.other || r.spouseOther ? `<div class="two">${otherBlock(r.other, pn)}${otherBlock(r.spouseOther, sn)}</div>` : ""}
     ${(r.wgGaps || []).length ? `<div class="panel flat stack"><h3>Working Genius gaps to talk through</h3><p class="small" style="margin:0">From the results they typed in. Not scored, and never part of the recommendation.</p>
       <ul class="list-clean">${r.wgGaps.map((g) => `<li><span>${esc(g.text.replace(/\{p\}/g, pn).replace(/\{s\}/g, sn))}<br><b>Ask:</b> ${esc(g.ask)}</span></li>`).join("")}</ul></div>` : ""}
-    <div class="two">
+    ${r.fivefold && r.gifts ? `<div class="two">
       <div class="panel flat stack"><h3>Fivefold</h3><p class="small" style="margin:0">From Ephesians 4:11, drawing on Alan Hirsch's APEST work. Our own questions.</p>${radar(ffAxes, series, { size: 380 })}
         <p class="small" style="margin:0">${esc(pn)}: ${r.fivefold?.primary.name}, then ${r.fivefold?.secondary.name}.${r.spouseFivefold ? ` ${esc(sn)}: ${r.spouseFivefold.primary.name}, then ${r.spouseFivefold.secondary.name}.` : ""}</p>
         <p class="read" style="margin:0;font-size:1rem">${esc(FIVEFOLD_TEAM[r.fivefold?.primary.id] || "")}</p></div>
       <div class="panel flat stack"><h3>${esc(pn)}'s spiritual gifts</h3>${giftFan(r.gifts.list)}</div>
-    </div>
+    </div>` : r.gifts ? `<div class="panel flat stack"><h3>${esc(pn)}'s spiritual gifts</h3>${giftFan(r.gifts.list)}</div>` : ""}
     ${r.spouseGifts ? `<div class="two"><div class="panel flat stack"><h3>${esc(sn)}'s spiritual gifts</h3>${giftFan(r.spouseGifts.list)}</div>
       <div class="panel flat stack"><h3>Top gifts together</h3><div class="two" style="gap:16px"><div><b class="small" style="color:var(--brass-text)">${esc(pn)}</b><ul class="list-clean" style="margin-top:6px">${r.gifts.top.map((g) => `<li><span>${esc(g.name)} <span class="muted small">${esc(g.ref)}</span></span></li>`).join("")}</ul></div>
       <div><b class="small" style="color:var(--chalk-text)">${esc(sn)}</b><ul class="list-clean" style="margin-top:6px">${r.spouseGifts.top.map((g) => `<li><span>${esc(g.name)} <span class="muted small">${esc(g.ref)}</span></span></li>`).join("")}</ul></div></div>
@@ -804,7 +817,7 @@ function wiredSection(c, r, leader) {
 
 function refsSection(c, r) {
   const R = r.refs;
-  if (!R.n) return `<section class="stack"><div class="section-head"><h2>References</h2></div><div class="notice">No references yet. Aim for three to five: a sending or supervising pastor, a ministry peer, someone they've led, and someone outside the church.</div></section>`;
+  if (!R.n) return `<section class="stack"><div class="section-head"><h2>References</h2></div><div class="notice">No references yet. Aim for three to five: ${PLANTING() ? "a sending or supervising pastor, a ministry peer, someone they've led, and someone outside the church" : B.REF_RELATIONSHIPS.slice(0, 4).map((x) => x.toLowerCase()).join(", ")}.</div></section>`;
   const readyNames = B.REF_READY;
   return `<section class="stack"><div class="section-head"><h2>References</h2><p class="muted">${R.n} reference${R.n === 1 ? "" : "s"}. The Follow Test asks: "${esc(B.FOLLOW_TEST)}"</p></div>
     <div class="scroll-x"><table class="tbl"><thead><tr><th>Name</th><th>Relationship</th><th>Known</th><th>Follow Test</th><th>Readiness</th></tr></thead><tbody>
@@ -830,7 +843,7 @@ function networkSection(c, r) {
   const val = (q, v) => (v == null || v === "" ? "—" : q.kind === "likert" ? (n15(v) ? B.LIKERT[v - 1] : "—") : esc(String(v)));
   return `<section class="stack"><div class="section-head"><h2>From ${esc(c.network?.name || "your network")}</h2><p class="muted">Your network's own beliefs and questions. Answers are shown as given and aren't scored.</p></div>
     ${nb.length ? `<div class="scroll-x"><table class="tbl"><tbody>${nb.map((b) => `<tr><td>${esc(b.t)}</td><td>${b.answer ? `<span class="chip tone-${b.answer === "yes" ? "a" : b.answer === "no" ? "d" : "c"}">${ansWord[b.answer]}</span>` : "—"}</td></tr>`).join("")}</tbody></table></div>` : ""}
-    ${r.netq.map((q) => `<div class="icard"><span class="kind">${q.who === "both" ? "Planter and spouse" : q.who === "spouse" ? "Spouse" : "Planter"}</span><div class="q">${esc(q.t)}</div>
+    ${r.netq.map((q) => `<div class="icard"><span class="kind">${q.who === "both" ? (c.married ? "Planter and spouse" : PLANTING() ? "Planter" : "Candidate") : q.who === "spouse" ? "Spouse" : PLANTING() ? "Planter" : "Candidate"}</span><div class="q">${esc(q.t)}</div>
       ${q.who !== "spouse" ? `<p class="read" style="margin:0"><b>${esc(first(c.planterName))}:</b> ${val(q, q.kind === "likert" ? c.planter?.netq?.[q.id] : c.planter?.netqText?.[q.id])}</p>` : ""}
       ${q.who !== "planter" && c.married ? `<p class="read" style="margin:0"><b>${esc(first(c.spouseName))}:</b> ${val(q, q.kind === "likert" ? c.spouse?.netq?.[q.id] : c.spouse?.netqText?.[q.id])}</p>` : ""}</div>`).join("")}
   </section>`;
@@ -879,7 +892,7 @@ function personReport(c, r, who) {
   const unityAxes = C ? C.areas.map((a) => ({ label: a.name })) : [];
   const areaMean = (a, k) => { const v = a.items.filter((i) => i[k] != null); return v.length ? (v.reduce((x, i) => x + i[k], 0) / v.length - 1) / 4 : 0; };
   return `<article class="report">
-    <section class="hero-report"><div><span class="kicker">${esc(nm)}'s Plumbline</span><h1 style="margin-top:8px">${esc(nm)}, here's how God has wired you.</h1>
+    <section class="hero-report"><div><span class="kicker">${esc(nm)}'s Plumbline</span><h1 style="margin-top:8px">${esc(nm)}, ${B.AUD.sections.gifts ? "here's how God has wired you." : "here's how you're wired."}</h1>
       <p>You lean ${esc(leans.slice(0, 3).join(", ") || "balanced across the board")}. Your strongest gifts look like ${esc(G.top.slice(0, 3).map((g) => g.name.toLowerCase()).join(", "))}, and you serve most naturally as ${F ? (/^[AEIOU]/.test(F.primary.short) ? "an " : "a ") + esc(F.primary.short.toLowerCase()) : "part of the body"}.</p></div></section>
 
     <section class="stack"><div class="section-head"><h2>Your wiring</h2><p class="muted">Five dimensions of your natural style.${C ? ` ${esc(other)} is shown too, so you can see how you fit together.` : ""}</p></div>
@@ -887,11 +900,11 @@ function personReport(c, r, who) {
       <ul class="list-clean" style="margin-top:14px">${W.map((d) => `<li><b>${esc(d.label)}</b><span>${esc(d.pos == null ? "" : d.pos >= 65 ? d.rightDesc : d.pos <= 35 ? d.leftDesc : `You can move between ${d.left.toLowerCase()} and ${d.right.toLowerCase()} as the moment needs.`)}</span></li>`).join("")}</ul></div></section>
     ${(isP ? r.other : r.spouseOther) ? `<section>${otherBlock(isP ? r.other : r.spouseOther, nm, true)}</section>` : ""}
 
-    <section class="two">
+    ${G ? `<section class="${F ? "two" : "stack"}">
       <div class="panel flat stack"><h3>Your spiritual gifts</h3>${giftFan(G.list)}<p class="small" style="margin:0">Top five: ${G.top.map((g) => `${esc(g.name)} (${esc(g.ref)})`).join(", ")}. Gifts are confirmed by fruit and by the church over time. Treat this as a starting point.</p></div>
-      <div class="panel flat stack"><h3>How you serve the body</h3>${F ? radar(B.FIVEFOLD.map((f) => ({ label: f.name })), [{ values: B.FIVEFOLD.map((f) => (F.list.find((x) => x.id === f.id).pct) / 100), color: isP ? "var(--brass)" : "var(--chalk)", label: nm }], { size: 380 }) : ""}
-        ${F ? `<p class="read" style="margin:0;font-size:1rem"><b>${esc(F.primary.name)}.</b> ${esc(F.primary.desc)} Your second bent is ${esc(F.secondary.name.toLowerCase())}. ${esc(FIVEFOLD_TEAM[F.primary.id])}</p>` : ""}</div>
-    </section>
+      ${F ? `<div class="panel flat stack"><h3>How you serve the body</h3>${F ? radar(B.FIVEFOLD.map((f) => ({ label: f.name })), [{ values: B.FIVEFOLD.map((f) => (F.list.find((x) => x.id === f.id).pct) / 100), color: isP ? "var(--brass)" : "var(--chalk)", label: nm }], { size: 380 }) : ""}
+        ${F ? `<p class="read" style="margin:0;font-size:1rem"><b>${esc(F.primary.name)}.</b> ${esc(F.primary.desc)} Your second bent is ${esc(F.secondary.name.toLowerCase())}. ${esc(FIVEFOLD_TEAM[F.primary.id])}</p>` : ""}</div>` : ""}
+    </section>` : ""}
 
     ${C ? `<section class="stack"><div class="section-head"><h2>Your Unity Map</h2><p class="muted">You and ${esc(other)} answered the same statements separately. The closer the two shapes, the more you see your life the same way. The bigger, the healthier.</p></div>
       <div class="two"><div class="panel flat">${radar(unityAxes, [{ values: C.areas.map((a) => areaMean(a, "a")), color: "var(--brass)", label: first(c.planterName) }, { values: C.areas.map((a) => areaMean(a, "b")), color: "var(--chalk)", label: first(c.spouseName) }], { size: 420 })}
@@ -900,13 +913,13 @@ function personReport(c, r, who) {
         <p class="read" style="margin:0;font-size:1rem">Every couple has areas to talk through. Pick one this week and ask each other: "What did you mean when you answered that?"</p></div></div></section>` : ""}
 
     <section class="stack"><div class="section-head"><h2>Where you're strong</h2></div>
-      ${strengths.length ? `<div class="two">${strengths.map((x) => `<div class="strength-card"><div class="spread"><b>${esc(x.name)}</b>${bandChip(x.v.band)}</div><p>${esc(x.s.strength)}</p></div>`).join("")}</div>` : `<p class="muted">Your strengths are spread evenly. Your network leader will help you name them.</p>`}</section>
+      ${strengths.length ? `<div class="two">${strengths.map((x) => `<div class="strength-card"><div class="spread"><b>${esc(x.name)}</b>${bandChip(x.v.band)}</div><p>${esc(x.s.strength)}</p></div>`).join("")}</div>` : `<p class="muted">Your strengths are spread evenly. Your ${LDR()} will help you name them.</p>`}</section>
 
     <section class="stack"><div class="section-head"><h2>Your next 90 days</h2><p class="muted">Growth areas aren't failures. They're the next faithful steps.</p></div>
       ${plan.length ? plan.map((p, i) => `<div class="plan-step"><span class="n">${i + 1}</span><div><b>${esc(p.scale)}</b><p>${esc(p.step)}</p></div></div>`).join("") : `<p class="muted">No growth areas stood out. Keep doing what you're doing, and ask your coach where to stretch.</p>`}</section>
 
     ${L.LIVE && !window.PLUMBLINE_CONFIG?.app ? `<div class="no-print"><button class="btn sm ghost" data-act="print">Print or save as PDF</button></div>` : ""}
-    <div class="disclaim">This report reflects how you described yourself on the day you took it. Your network leader will walk through it with you. It isn't a diagnosis or a final word, and you can grow in every area here.</div>
+    <div class="disclaim">This report reflects how you described yourself on the day you took it. Your ${LDR()} will walk through it with you. It isn't a diagnosis or a final word, and you can grow in every area here.</div>
   </article>`;
 }
 
@@ -1128,7 +1141,7 @@ let doneCode = null;
 function doneScreen() {
   if (take.token) {
     const nm = take.role === "reference" ? first(take.resp.meta?.name) : first(take.role === "planter" ? take.ctx.planterName : take.ctx.spouseName);
-    return `<div class="stack-lg"><div class="intro-card"><span class="kicker">${take.finishError ? "Almost there" : "Finished and sealed"}</span><h2>Thank you, ${esc(nm)}.</h2><p>${take.finishError ? `We couldn't reach the server to seal your answers. Your answers are saved on this device. Check your connection and try again.` : take.role === "reference" ? `Your answers went straight to the network leader. You can close this page.` : `Your answers are sealed, and your network leader can see that you finished. After you meet, your personal report will appear at this same link. Bookmark it.`}</p>${take.finishError ? `<button class="btn" data-act="retry-finish">Try again</button>` : feedbackLink()}</div></div>`;
+    return `<div class="stack-lg"><div class="intro-card"><span class="kicker">${take.finishError ? "Almost there" : "Finished and sealed"}</span><h2>Thank you, ${esc(nm)}.</h2><p>${take.finishError ? `We couldn't reach the server to seal your answers. Your answers are saved on this device. Check your connection and try again.` : take.role === "reference" ? `Your answers went straight to the ${LDR()}. You can close this page.` : `Your answers are sealed, and your ${LDR()} can see that you finished. After you meet, your personal report will appear at this same link. Bookmark it.`}</p>${take.finishError ? `<button class="btn" data-act="retry-finish">Try again</button>` : feedbackLink()}</div></div>`;
   }
   const c = getCase(take.caseId);
   const nm = take.role === "reference" ? first(take.resp.meta.name) : first(take.role === "planter" ? take.ctx.planterName : take.ctx.spouseName);

@@ -152,6 +152,7 @@ async function answer(p, maxSteps, stopAtPct = 101) {
     const t = await p.evaluate(() => {
       const q = (s) => document.querySelectorAll(s);
       const app = document.querySelector("#app").innerText;
+      if (window.__collect) window.__seen = (window.__seen || "") + "\n" + app;
       if (/Finished and sealed|Thank you/.test(app) && !document.querySelector(".qcard")) return "done";
       const intro = document.querySelector('.intro-card [data-act="next"]'); if (intro) { intro.click(); return "intro"; }
       const wf = document.querySelector("#welcome"); if (wf) { const n = document.querySelector("#w-name"); if (!n.value) n.value = "Test Person"; const r = document.querySelector("#w-rel"); if (r) r.selectedIndex = 2; document.querySelector("#w-consent").checked = true; wf.requestSubmit(); return "welcome"; }
@@ -192,7 +193,7 @@ await click(owner, '[data-to="leader"]'); await wait(400);
 ok((await text(owner)).includes("Set up your network"), "new leader sees onboarding");
 await owner.fill("#o-net", "Front Range Planting"); await owner.fill("#o-me", "Dana Ellis");
 await submit(owner, "#onboard"); await wait(900);
-ok((await text(owner)).includes("0 assessments left"), "a new network starts with no assessments and sees how to buy them");
+ok((await text(owner)).includes("1 assessment left"), "a new network starts with its first couple free");
 await db.query(`update public.networks set credits = 3`); await owner.reload(); await wait(1200);
 ok((await text(owner)).includes("3 assessments left"), "bought assessments show on the dashboard");
 ok((await text(owner)).includes("Front Range Planting"), "network created; dashboard shows it");
@@ -304,6 +305,40 @@ ok(calls.some((c) => c.removed === 1) && (await db.query(`select count(*)::int n
 await owner.goto(SITE + "/#/privacy"); await wait(800);
 ok((await text(owner)).includes("Who sees your answers"), "privacy page");
 
+// 9. A church staff hire: one candidate, no spouse, staff wording, and references
+await owner.goto(SITE + "/#/newcase"); await wait(1200);
+await owner.selectOption("#f-aud", "staff"); await wait(300);
+ok(await owner.evaluate(() => document.querySelector("#f-sn-wrap").hidden && !document.querySelector("#f-role").closest("label").hidden), "choosing church staff hides the spouse and asks for the role");
+await owner.fill("#f-pn", "Ava Stone"); await owner.fill("#f-pe", "ava@stone.org"); await owner.fill("#f-role", "Student pastor");
+await submit(owner, "#newcase-live"); await wait(1500);
+const avaMail = emails.filter((e) => e.kind === "invite").find((e) => e.to === "ava@stone.org");
+ok(!!avaMail && (await db.query(`select count(*)::int n from public.participants p join public.cases c on c.id = p.case_id where c.planter_name = 'Ava Stone'`)).rows[0].n === 1, "staff assessment has one person and emails her");
+const ava = await device(null); await ava.goto(linkIn(avaMail)); await wait(1200);
+const avaWelcome = await text(ava);
+ok(avaWelcome.includes("Welcome, Ava") && !/spouse/i.test(avaWelcome), "candidate's welcome never mentions a spouse");
+await ava.evaluate(() => { window.__collect = true; });
+ok((await answer(ava, 900)) === "done", "church staff candidate finishes");
+const avaSaw = (await ava.evaluate(() => window.__seen || "")).replace(/Plumbline|Front Range Planting/g, "");
+ok(!/\bplant|spouse|couple|launch team/i.test(avaSaw), "the candidate never sees planting, spouse or couple wording");
+if (/\bplant|spouse|couple|launch team/i.test(avaSaw)) console.log("AVA SAW:", [...new Set(avaSaw.match(/.{0,80}(\bplant|spouse|couple|launch team).{0,60}/gi))].slice(0, 8).join(" || "));
+const staffId = (await db.query(`select id from public.cases where planter_name = 'Ava Stone'`)).rows[0].id;
+console.log("AVA:", JSON.stringify((await db.query(`select p.status, p.progress, p.step from public.participants p join public.cases c on c.id=p.case_id where c.planter_name = $1`, ["Ava Stone"])).rows), (await text(ava)).slice(0, 200).replace(/\n/g, " | "));
+const sref = await device(null); await sref.goto(linkIn(avaMail).replace(/#\/t\/.*/, "") + "#/r/" + (await db.query(`select ref_token from public.cases where id=$1`, [staffId])).rows[0].ref_token); await wait(1200);
+ok(/readiness for the Student pastor role/.test(await text(sref)), "staff reference link names the role");
+await owner.goto(`${SITE}/#/case/${staffId}`); await owner.reload(); await wait(2500);
+await owner.evaluate(() => document.querySelector('[data-tab="status"]')?.click()); await wait(800);
+const stat = await text(owner);
+ok(stat.includes("Candidate") && !/spouse|couple|planter/i.test(stat), "staff status page says candidate, never spouse or planter");
+await owner.evaluate(() => document.querySelector('[data-tab="leader"]')?.click()); await wait(1200);
+const srep = await text(owner);
+console.log("STAFF HEAD:", srep.slice(0, 300).replace(/\n/g, " | "));
+console.log("STAFF PLANT:", (srep.replace(/Plumbline|Front Range Planting/g, "").match(/.{0,80}\bplant.{0,60}/gi) || []).slice(0, 6).join(" || "), srep.includes("Church staff: Student pastor"));
+ok(srep.includes("Church staff: Student pastor") && /Interview guide/.test(srep) && !/plant/i.test(srep.replace(/Plumbline|Front Range Planting/g, "")), "staff leader report uses staff wording, never planting");
+
+await owner.evaluate(() => document.querySelector('[data-tab="planter"]')?.click()); await wait(1000);
+const avaRep = (await text(owner)).replace(/Plumbline|Front Range Planting/g, "");
+ok(avaRep.includes("Ava") && !/\bplant|spouse|couple/i.test(avaRep), "candidate's own report has no planting, spouse or couple wording");
+if (/\bplant|spouse|couple/i.test(avaRep)) console.log("AVA REP:", avaRep.match(/.{0,80}(\bplant|spouse|couple).{0,60}/gi).slice(0, 5).join(" || "));
 console.log("emails:", emails.map((e) => e.kind).reduce((a, k) => ((a[k] = (a[k] || 0) + 1), a), {}));
 console.log("page errors:", errs.join("\n") || "none");
 await b.close();

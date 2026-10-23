@@ -74,7 +74,7 @@ export function dashboard() {
     <div class="cases">${shown.map((c) => {
       const refs = c.people.filter((p) => p.role === "reference");
       const st = stage(c);
-      return `<button class="case-row live" data-act="open-case" data-id="${c.id}"><div><div class="case-name">${esc(c.label)}</div><div class="small">${esc([c.city, "Started " + fmt(c.created)].filter(Boolean).join(" · "))}</div></div>
+      return `<button class="case-row live" data-act="open-case" data-id="${c.id}"><div><div class="case-name">${esc(c.label)}</div><div class="small">${esc([c.audience && c.audience !== "planting" ? B.AUDIENCES[c.audience]?.short + (c.role ? ": " + c.role : "") : "", c.city, "Started " + fmt(c.created)].filter(Boolean).join(" · "))}</div></div>
         <div class="pbars">${c.people.filter((p) => p.role !== "reference").map((p) => H.progressBar(p)).join("")}<div class="small">${refs.length ? `${refs.filter((x) => x.status === "finished").length} of ${refs.length} references finished` : "No references yet"}</div></div>
         <div>${st === "review" ? `<span class="outcome tone-a">Ready to review</span>` : st === "progress" ? `<span class="sdot">In progress</span>` : `<span class="sdot">Not started</span>`}</div></button>`;
     }).join("")}${all.length && !shown.length ? `<p class="muted">Nothing matches that search.</p>` : ""}</div>
@@ -91,13 +91,14 @@ export function newCase() {
     <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">You're out of assessments</h1><p class="lede" style="margin:0">Each assessment covers one planter, their spouse and all their references.</p></div>${balanceCard()}</div>`;
   const sg = n.settings?.signGifts !== false;
   return `<div class="wrap" style="max-width:40rem"><form class="stack-lg" id="newcase-live">
-    <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">New assessment</h1><p class="lede" style="margin:0">Set up one planter (and spouse). Each person gets a personal link by email, and you'll see their progress live.</p></div>
+    <div class="stack"><h1 style="font-size:clamp(2rem,4vw,2.6rem)">New assessment</h1><p class="lede" style="margin:0">Set up one person (and their spouse, for church planting). Each person gets a personal link by email, and you'll see their progress live.</p></div>
     <div class="panel stack">
-      <div class="two" style="gap:12px"><label class="field">Planter's full name<input id="f-pn" required maxlength="120" autocomplete="off"></label><label class="field">Planter's email<input id="f-pe" type="email" autocomplete="off"></label></div>
-      <div class="field"><span>Married?</span><div class="seg" role="group"><button type="button" data-act="seg" data-for="f-m" data-v="1" aria-pressed="true">Married</button><button type="button" data-act="seg" data-for="f-m" data-v="0" aria-pressed="false">Single</button></div><input type="hidden" id="f-m" value="1"></div>
-      <div class="two" style="gap:12px" id="f-sn-wrap"><label class="field">Spouse's full name<input id="f-sn" maxlength="120" autocomplete="off"></label><label class="field">Spouse's email<input id="f-se" type="email" autocomplete="off"></label></div>
-      <label class="field">City they're planting in<input id="f-city" maxlength="120" autocomplete="off"></label>
-      <label class="check"><input type="checkbox" id="f-sg" ${sg ? "checked" : ""}> <span>Include the sign gifts (healing, miracles, tongues, interpretation)</span></label>
+      ${audienceFields()}
+      <div class="two" style="gap:12px"><label class="field"><span data-aud-text="Planter's full name|Candidate's full name">Planter's full name</span><input id="f-pn" required maxlength="120" autocomplete="off"></label><label class="field"><span data-aud-text="Planter's email|Candidate's email">Planter's email</span><input id="f-pe" type="email" autocomplete="off"></label></div>
+      <div class="field" data-aud-only="planting"><span>Married?</span><div class="seg" role="group"><button type="button" data-act="seg" data-for="f-m" data-v="1" aria-pressed="true">Married</button><button type="button" data-act="seg" data-for="f-m" data-v="0" aria-pressed="false">Single</button></div><input type="hidden" id="f-m" value="1"></div>
+      <div class="two" style="gap:12px" id="f-sn-wrap" data-aud-only="planting"><label class="field">Spouse's full name<input id="f-sn" maxlength="120" autocomplete="off"></label><label class="field">Spouse's email<input id="f-se" type="email" autocomplete="off"></label></div>
+      <label class="field" data-aud-only="planting">City they're planting in<input id="f-city" maxlength="120" autocomplete="off"></label>
+      <label class="check" data-aud-only="planting staff faith"><input type="checkbox" id="f-sg" ${sg ? "checked" : ""}> <span>Include the sign gifts (healing, miracles, tongues, interpretation)</span></label>
       <label class="check"><input type="checkbox" id="f-send" checked> <span>Email their links now</span></label>
     </div>
     <div class="row"><button class="btn" type="submit">Create assessment</button><button class="btn ghost" type="button" data-act="nav" data-to="leader">Cancel</button></div>
@@ -107,27 +108,30 @@ export function newCase() {
 // ---------- invites & status ----------
 export function statusTab(c) {
   if (!c.loadedFull) return `<p class="muted">Loading…</p>`;
+  const pl = (c.audience || "planting") === "planting";
+  if (!pl) B.setAudience(c.audience, c.faith);
   const admin = L.canAdmin();
+  const rn = (role) => (role === "planter" && !pl ? "Candidate" : H.roleName[role]);
   const row = (p) => {
     const done = p.status === "finished";
     const stamps = [p.invited_at && `invited ${fmt(p.invited_at)}`, p.reminded_at && `reminded ${fmt(p.reminded_at)}`, p.updated_at && p.status === "started" && `active ${H.ago(p.updated_at)}`, done && p.finished_at && `finished ${fmt(p.finished_at)}`].filter(Boolean).join(" · ");
     return `<div class="invite person" data-pid="${p.id}"><span class="who pill-${p.role === "reference" ? "ref" : p.role}">${p.role === "planter" ? "P" : p.role === "spouse" ? "S" : "R"}</span>
-      <div class="stack" style="gap:6px;min-width:0"><div><b>${esc(p.name || H.roleName[p.role])}</b> <span class="small">${esc(H.roleName[p.role])}${p.relationship ? " · " + esc(p.relationship) : ""}${stamps ? " · " + esc(stamps) : ""}</span></div>
+      <div class="stack" style="gap:6px;min-width:0"><div><b>${esc(p.name || rn(p.role))}</b> <span class="small">${esc(rn(p.role))}${p.relationship ? " · " + esc(p.relationship) : ""}${stamps ? " · " + esc(stamps) : ""}</span></div>
         ${H.progressBar(p, false)}${p.chapter && p.status === "started" ? `<span class="small">Working on: ${esc(p.chapter)}</span>` : ""}
-        ${done ? "" : `<div class="row" style="gap:8px"><input class="input email-in" type="email" value="${esc(p.email || "")}" placeholder="Email address" aria-label="Email for ${esc(p.name || H.roleName[p.role])}" style="max-width:280px;padding:8px 10px"><button class="btn sm ghost" data-act="save-email" data-pid="${p.id}">Save</button></div>`}</div>
+        ${done ? "" : `<div class="row" style="gap:8px"><input class="input email-in" type="email" value="${esc(p.email || "")}" placeholder="Email address" aria-label="Email for ${esc(p.name || rn(p.role))}" style="max-width:280px;padding:8px 10px"><button class="btn sm ghost" data-act="save-email" data-pid="${p.id}">Save</button></div>`}</div>
       <div class="row">${done ? (admin ? `<button class="btn sm ghost" data-act="reopen" data-pid="${p.id}">Reopen</button>` : "")
         : `${p.email ? `<button class="btn sm" data-act="send-email" data-kind="${p.invited_at ? "remind" : "invite"}" data-pid="${p.id}">${p.invited_at ? "Send reminder" : "Email invite"}</button>` : ""}<button class="btn sm ghost" data-act="copy-link" data-token="${p.token}">Copy link</button>`}</div></div>`;
   };
   const core = c.people.filter((p) => p.role !== "reference"), refs = c.people.filter((p) => p.role === "reference");
   return `<div class="stack-lg" style="max-width:56rem">
-    <div class="stack"><h2>${esc(c.label)}</h2><p class="read" style="margin:0">Each person has a personal link. Everything saves after every answer, so they can stop and finish later on any device. Ask the couple not to talk about their answers until both have finished.</p></div>
+    <div class="stack"><h2>${esc(c.label)}</h2><p class="read" style="margin:0">Each person has a personal link. Everything saves after every answer, so they can stop and finish later on any device.${c.married ? " Ask the couple not to talk about their answers until both have finished." : ""}</p></div>
     <div class="panel">${core.map(row).join("")}</div>
-    <div class="panel stack" data-copywrap><h3>References</h3><p class="small" style="margin:0">Aim for 3 to 5: a sending or supervising pastor, a ministry peer, someone ${esc(H.first(c.planterName))} has led, and someone outside the church.</p>
+    <div class="panel stack" data-copywrap><h3>References</h3><p class="small" style="margin:0">${pl ? `Aim for 3 to 5: a sending or supervising pastor, a ministry peer, someone ${esc(H.first(c.planterName))} has led, and someone outside the church.` : `Aim for 3 to 5: ${esc(B.REF_RELATIONSHIPS.slice(0, 4).map((x) => x.toLowerCase()).join(", "))}.`}</p>
       <form id="addref" class="row" style="gap:8px"><input id="ar-name" class="input" required maxlength="120" placeholder="Reference's name" style="max-width:220px"><input id="ar-email" class="input" type="email" placeholder="Email (we'll send the invite)" style="max-width:260px"><button class="btn sm" type="submit">Add reference</button></form>
-      <p class="small" style="margin:0">Or share one link the planter can forward. Each person who opens it gets their own saved copy.</p>
+      <p class="small" style="margin:0">Or share one link ${pl ? "the planter" : "the candidate"} can forward. Each person who opens it gets their own saved copy.</p>
       <div class="row" style="gap:8px"><div class="code-box" style="flex:1;min-width:0">${esc(L.refLink(c.refToken))}</div><button class="btn sm ghost" data-act="copy-text" data-text="${esc(L.refLink(c.refToken))}">Copy</button><button class="btn sm ghost" data-act="rotate-ref" title="The old link stops working. People who already started keep their own link.">New link</button></div>
       ${refs.length ? refs.map(row).join("") : ""}</div>
-    <div class="panel stack"><h3>Reports for the couple</h3><p class="small" style="margin:0">Each spouse sees their own report at their same link once you release it. They never see each other's answers, the private note or the safety answers. Release after you walk through the results together.</p>
+    <div class="panel stack"><h3>${c.married ? "Reports for the couple" : `${esc(H.first(c.planterName))}'s report`}</h3><p class="small" style="margin:0">${c.married ? "Each spouse sees their own report at their same link once you release it. They never see each other's answers, the private note or the safety answers. Release after you walk through the results together." : "They see their own report at their same link once you release it. Release after you walk through the results together."}</p>
       <div><button class="btn sm ${c.released ? "ghost" : ""}" data-act="release" data-on="${c.released ? "0" : "1"}">${c.released ? "Hide their reports" : "Release their reports"}</button> ${c.released ? `<span class="chip tone-a">Released</span>` : ""}</div></div>
     ${admin ? `<div><button class="btn sm ghost" data-act="delete-case">Delete this assessment</button><div id="del-confirm"></div></div>` : ""}
   </div>`;
@@ -292,6 +296,7 @@ export async function onClick(act, el) {
 
 export async function onChange(el) {
   try {
+    if (el.id === "f-aud" || el.id === "f-faith") { audienceToggle(); return true; }
     if (el.id === "net-switch") { await L.switchNetwork(el.value); H.render(); return true; }
     if (el.classList?.contains("role-sel")) { await L.setMember(el.dataset.uid, el.value); H.toast("Role updated"); H.render(); return true; }
   } catch (err) { H.toast(err.message || "That didn't work."); H.render(); return true; }
@@ -332,10 +337,12 @@ export async function onSubmit(form) {
     }
     if (form.id === "onboard") { busy(true); await L.createNetwork($("#o-net").value.trim(), $("#o-me").value.trim()); H.go({ name: "leader" }); return true; }
     if (form.id === "newcase-live") {
-      const m = $("#f-m").value === "1";
+      const audience = $("#f-aud")?.value || "planting", planting = audience === "planting";
+      const m = planting && $("#f-m").value === "1";
       busy(true);
       const id = await L.createCase({ planterName: $("#f-pn").value.trim(), planterEmail: $("#f-pe").value.trim(), married: m, spouseName: $("#f-sn").value.trim() || "Spouse", spouseEmail: $("#f-se").value.trim(),
-        city: $("#f-city").value.trim(), signGifts: $("#f-sg").checked, sendNow: $("#f-send").checked, bankVersion: B.BANK_VERSION });
+        city: planting ? $("#f-city").value.trim() : "", signGifts: $("#f-sg").checked, sendNow: $("#f-send").checked, bankVersion: B.BANK_VERSION,
+        audience, faith: B.AUDIENCES[audience]?.faithOptional ? $("#f-faith").checked : true, role: planting ? "" : $("#f-role").value.trim() });
       await L.openCase(id);
       H.go({ name: "case", id, tab: "status" });
       return true;
@@ -373,4 +380,27 @@ export async function onSubmit(form) {
     return true;
   }
   return false;
+}
+
+// ---------- who the assessment is for ----------
+// Church planting (planter and spouse) is the default. Church staff, nonprofit and business assess one candidate.
+export function audienceFields() {
+  return `<label class="field">Who is this assessment for?<select id="f-aud">${B.AUDIENCE_IDS.map((id) => `<option value="${id}">${esc(B.AUDIENCES[id].label)}</option>`).join("")}</select>
+      <span class="hint" id="f-aud-hint">A planter and spouse, with references.</span></label>
+    <label class="field" data-aud-only="staff nonprofit business">Role they're being considered for<input id="f-role" maxlength="80" autocomplete="off" placeholder="Student pastor"></label>
+    <label class="check" data-aud-only="nonprofit business"><input type="checkbox" id="f-faith"> <span>We're a faith-based organization (adds questions about faith and spiritual gifts)</span></label>`;
+}
+const AUD_HINT = { planting: "A planter and spouse, with references.", staff: "One candidate for a church staff role, with references. No spouse questions.",
+  nonprofit: "One candidate for a nonprofit leadership role, with references.", business: "One candidate for a business leadership role, with references." };
+const AUD_PH = { staff: "Student pastor", nonprofit: "Executive director", business: "General manager" };
+export function audienceToggle() {
+  const a = document.querySelector("#f-aud")?.value || "planting", faith = !!document.querySelector("#f-faith")?.checked;
+  document.querySelectorAll("[data-aud-only]").forEach((x) => {
+    const tags = x.dataset.audOnly.split(" ");
+    x.hidden = !(tags.includes(a) || (tags.includes("faith") && faith && B.AUDIENCES[a]?.faithOptional));
+  });
+  document.querySelectorAll("[data-aud-text]").forEach((x) => { const [p, o] = x.dataset.audText.split("|"); x.textContent = a === "planting" ? p : o; });
+  const sn = document.querySelector("#f-sn-wrap"); if (sn && a === "planting" && document.querySelector("#f-m")?.value === "0") sn.hidden = true;
+  const h = document.querySelector("#f-aud-hint"); if (h) h.textContent = AUD_HINT[a];
+  const r = document.querySelector("#f-role"); if (r && AUD_PH[a]) r.placeholder = AUD_PH[a];
 }
