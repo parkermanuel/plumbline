@@ -705,3 +705,61 @@ do $$ begin
 exception when others then
   raise warning 'Plumbline: the nightly clean-up could not be scheduled (%). Turn on pg_cron under Database > Extensions, then run this file again.', sqlerrm;
 end $$;
+
+-- ============ Billing: first couple free, then paid (owner, 23 Oct 2026) ============
+-- Every network gets one couple free. Each couple after that needs a purchased credit ($99 each through Stripe).
+-- Credits arrive only from the Stripe webhook (plumbline-stripe, service role); teams can read their balance but never change it.
+-- couples_used counts every case ever started, so deleting a case doesn't give the credit back.
+create table if not exists public.network_billing (
+  network_id uuid primary key references public.networks(id) on delete cascade,
+  couples_used int not null default 0 check (couples_used >= 0),
+  couples_bought int not null default 0 check (couples_bought >= 0),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.billing_events (
+  stripe_session text primary key,
+  network_id uuid references public.networks(id) on delete set null,
+  couples int not null check (couples > 0),
+  amount_paid int not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table public.network_billing enable row level security;
+alter table public.billing_events enable row level security;
+revoke all on public.network_billing from anon, authenticated;
+revoke all on public.billing_events from anon, authenticated;
+grant select on public.network_billing to authenticated;
+drop policy if exists "members read billing" on public.network_billing;
+create policy "members read billing" on public.network_billing for select to authenticated using (public.pl_is_member(network_id));
+
+create or replace function public.pl_free_couples() returns int language sql immutable as $$ select 1 $$;
+
+-- Runs before a team member adds a case: use the free couple first, then a purchased credit, else stop.
+create or replace function public.pl_count_case() returns trigger language plpgsql security definer set search_path = public as $$
+declare b public.network_billing;
+begin
+  insert into public.network_billing(network_id) values (new.network_id) on conflict (network_id) do nothing;
+  select * into b from public.network_billing where network_id = new.network_id for update;
+  if b.couples_used >= public.pl_free_couples() + b.couples_bought then
+    raise exception 'PL_NEEDS_PURCHASE' using hint = 'Your free couple is used. Buy more assessments to add another couple.';
+  end if;
+  update public.network_billing set couples_used = couples_used + 1, updated_at = now() where network_id = new.network_id;
+  return new;
+end $$;
+drop trigger if exists pl_count_case on public.cases;
+create trigger pl_count_case before insert on public.cases for each row when (current_user = 'authenticated') execute function public.pl_count_case();
+
+-- Called only by the Stripe webhook. One checkout session adds credits once, however many times Stripe retries.
+create or replace function public.pl_add_couples(p_session text, p_network uuid, p_couples int, p_amount int) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_couples is null or p_couples < 1 or not exists (select 1 from public.networks where id = p_network) then return false; end if;
+  insert into public.billing_events(stripe_session, network_id, couples, amount_paid) values (p_session, p_network, p_couples, coalesce(p_amount, 0))
+    on conflict (stripe_session) do nothing;
+  if not found then return false; end if;
+  insert into public.network_billing(network_id, couples_bought) values (p_network, p_couples)
+    on conflict (network_id) do update set couples_bought = public.network_billing.couples_bought + excluded.couples_bought, updated_at = now();
+  return true;
+end $$;
+revoke all on function public.pl_add_couples(text, uuid, int, int) from public, anon, authenticated;
+grant execute on function public.pl_add_couples(text, uuid, int, int) to service_role;
+revoke all on function public.pl_count_case() from public, anon, authenticated;
