@@ -59,7 +59,7 @@ export function personEmail(kind, r, site) {
     heading = reminder ? `Pick up where you left off, ${nm}` : isTeam(r) ? `${nm}, see how you're wired` : `${nm}, your assessment is ready`;
     paragraphs = reminder ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`] : isTeam(r) ? [
       `${sender} invited ${tm} to take Plumbline together, so you can each see your strengths and grow as a team. It takes about ${mins} minutes.`,
-      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away.`,
+      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away. It's private to you unless you choose to share it.`,
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
     ] : [
       planting(r) ? `${sender} at ${esc(net)} invited you to take Plumbline, a church planter assessment. It takes about ${mins} minutes.` : `${sender} at ${esc(net)} invited you to take Plumbline, a leadership assessment, as part of considering you for ${what(r)}. It takes about ${mins} minutes.`,

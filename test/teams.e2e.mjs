@@ -34,7 +34,10 @@ async function rest(route) {
   try {
     if (url.pathname.startsWith("/rest/v1/rpc/")) {
       const fn = url.pathname.split("/").pop(); const args = JSON.parse(req.postData() || "{}"); calls.push(fn);
-      const r = await asUser(uid, () => db.query(`select to_jsonb(public.${fn}(${Object.entries(args).map(([k, v]) => `${k} => ${lit(v)}`).join(", ")})) as r`));
+      const call = `public.${fn}(${Object.entries(args).map(([k, v]) => `${k} => ${lit(v)}`).join(", ")})`;
+      // functions that return rows come back as a list, like Supabase does
+      const setof = (await db.query(`select bool_or(proretset) s from pg_proc where proname = $1`, [fn])).rows[0].s;
+      const r = await asUser(uid, () => db.query(setof ? `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as r from ${call} t` : `select to_jsonb(${call}) as r`));
       return json(200, r.rows[0].r);
     }
     const table = url.pathname.split("/").pop();
@@ -231,7 +234,7 @@ for (const [i, who] of people.entries()) {
   await p.goto(link); await p.waitForSelector("#welcome", { timeout: 20000 }).catch(() => {});
   const w = await text(p);
   if (i === 0) {
-    ok(/growth report/.test(w) && !/full report/.test(w), "welcome: says growth report, not a full report for a hiring leader");
+    ok(/growth report is private to me/.test(w) && !/full report/.test(w), "welcome: says the growth report is private");
     ok(/isn't part of any hiring decision/.test(w), "welcome: says it isn't part of a hiring decision");
     await shot(p, "teams-welcome-phone");
   }
@@ -239,35 +242,44 @@ for (const [i, who] of people.entries()) {
   ok(res === "done", `${who} finishes (${res})`);
   const d = await text(p);
   if (i === 0) {
-    ok(/growth report is ready/.test(d), "finish screen: the growth report is ready");
+    ok(/growth report is ready/.test(d) && /private to you/.test(d), "finish screen: the growth report is ready and private");
     await click(p, '[data-act="see-report"]'); await p.waitForSelector(".report", { timeout: 20000 }).catch(() => {});
     const rep = await text(p);
     ok(/how God has wired you/.test(rep) && /Your next 90 days/.test(rep), "they see their own growth report right away");
     ok(!/Ready with Conditions|Pause & Talk|Development Needed|Recommendation/.test(rep), "no grade or recommendation in their report");
+    ok(/Your report is private/.test(rep) && !!(await p.$('[data-act="share-toggle"]')), "their report says it's private, with a Share button");
+    ok(!/Your story|debt|When could you start/i.test(JSON.stringify(await db.query(`select answers->'facts' f from public.participants where email = 'ava@fr.church'`).then((r) => r.rows[0].f || {}))), "team members skip the hiring-only questions");
+    await click(p, '[data-act="share-toggle"]'); await wait(1200);
+    ok((await db.query(`select shared from public.participants where email = 'ava@fr.church'`)).rows[0].shared === true && /Shared with/.test(await text(p)), "Ava shares her report with one tap");
     await shot(p, "teams-report-phone");
   }
   await p.context().close();
 }
 
-// 3. The leader's team map
+// 3. The leader's team map: private until 3 finish, then combined; Ava shows by name because she shared
 await owner.goto(teamUrl); await owner.waitForSelector("text=3 of 4 finished", { timeout: 20000 }).catch(() => {});
 t = await text(owner);
-ok(t.includes("3 of 4 finished"), "team page: 3 of 4 finished");
-ok(t.includes("Your team at a glance") && /strongest area/.test(t), "team map: plain-language read of the team");
+ok(t.includes("3 of 4 finished") && t.includes("1 shared their report"), "team page: 3 of 4 finished, 1 shared");
+ok(t.includes("Your team at a glance") && /strongest area/.test(t) && /Combined results from the 3 people/.test(t), "team map: combined results from 3 people");
 ok((await owner.$$(".team-pillar")).length >= 5, "team map: each area with the team average");
-ok((await owner.$$(".wiring-row")).length === 5, "team map: five wiring rows");
+ok((await owner.$$(".team-wiring")).length === 5 && (await owner.$$(".team-split")).length === 5, "team map: five wiring rows as counts");
 ok(t.includes("Gifts on the team"), "team map: gifts for a church staff team");
-ok((await owner.$$('a:has-text("Growth report")')).length === 3, "three growth reports to open, one person still has a link");
+ok((await owner.$$('a:has-text("Shared report")')).length === 1 && (await owner.$$(".team-private")).length === 2, "people: Ava's shared report opens; the other two show Private");
+ok(!/Ben|Cara/.test(await owner.evaluate(() => [...document.querySelectorAll(".team-pillar, .team-wiring, .legend")].map((e) => e.innerText).join(" "))) && /Ava/.test(await owner.evaluate(() => document.querySelector(".legend")?.innerText || "")), "team map: only the person who shared shows by name");
 await shot(owner, "teams-map-desktop");
 const ph = await device("owner", 390); await ph.goto(teamUrl); await ph.waitForSelector(".team-pillar", { timeout: 20000 }).catch(() => {});
 ok(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "team map fits a phone screen");
 await shot(ph, "teams-map-phone");
 
-// 4. A member's page shows their growth report, not a leader report
-await owner.click('a:has-text("Growth report")'); await owner.waitForURL(/\/case\//, { timeout: 20000 }).catch(() => {}); await owner.waitForSelector(".tabs", { timeout: 20000 }).catch(() => {}); await wait(800);
+// 4. Ava's shared report opens for the leader; a private person's page says so
+await owner.click('a:has-text("Shared report")'); await owner.waitForURL(/\/case\//, { timeout: 20000 }).catch(() => {}); await owner.waitForSelector(".tabs", { timeout: 20000 }).catch(() => {}); await wait(800);
 
 t = await text(owner);
-ok(!t.includes("Leader report") && /growth report/i.test(await owner.evaluate(() => document.querySelector(".tabs")?.innerText || "")), "member page: growth report tab, no leader report");
+ok(!t.includes("Leader report") && /shared report/i.test(await owner.evaluate(() => document.querySelector(".tabs")?.innerText || "")) && /how God has wired you/.test(t), "Ava's shared report opens, no leader report");
+const benCase = (await db.query(`select c.id from public.cases c where c.planter_name = 'Ben Cole'`)).rows[0].id;
+await owner.goto(SITE + "/case/" + benCase); await owner.waitForSelector(".notice", { timeout: 20000 }).catch(() => {}); await wait(800);
+t = await owner.evaluate(() => document.body.innerText);
+ok(/private to them unless they choose to share/.test(t) && !/how God has wired you/.test(t), "Ben's page: finished, report private");
 
 // 5. The dashboard groups them under the team
 await owner.goto(SITE + "/leader"); await owner.waitForSelector("text=Front Range staff", { timeout: 20000 }).catch(() => {});

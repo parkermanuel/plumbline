@@ -245,6 +245,40 @@ async function main() {
   ok(bs.purpose === undefined && bs.team === undefined, "unknown purpose or a malformed team is dropped");
   ok((await q(`select public.pl_open($1) as j`, [(await q(`select token from public.participants where case_id=$1`, [bad]))[0].token]))[0].j.case.purpose === "decide", "assessments default to a decision");
 
+  // Plumbline Teams privacy: answers stay with the person; leaders see combined results (3+ people) and what's shared
+  const teamCase = async (name) => (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, $3, 'x@t.org', false, '{"audience":"staff","purpose":"team","team":{"id":"t_priv","name":"Staff"}}') returning id`, [nid, OWNER, name])))[0].id;
+  const tok = async (cid) => (await q(`select token from public.participants where case_id=$1`, [cid]))[0].token;
+  const sum = (h) => JSON.stringify({ pillars: { character: h, health: h - 10, bogus: "x" }, wiring: { pace: h, people: 100 - h }, giftsTop: ["lead", "teach", "help", "extra"], giftsStrong: ["lead"], strengths: ["integrity"], growth: ["load"] });
+  const t1 = await teamCase("Tia One"), t2 = await teamCase("Tom Two"), t3 = await teamCase("Tess Three");
+  await q(`select public.pl_finish($1, '{"meta":{"name":"Tia One"},"likert":{"x":5},"privateNote":"secret"}')`, [await tok(t1)]);
+  ok((await as(OWNER, () => q(`select * from public.participants where case_id=$1`, [t1]))).length === 0, "team: the leader can't read a team member's row (answers) directly");
+  const tp = (await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0];
+  ok(tp && tp.token && tp.status === "finished" && JSON.stringify(tp.answers) === "{}", "team: the leader sees progress and the link, not the answers");
+  await tryAs(OWNER, `update public.participants set shared = true where case_id = $1`, [t1]);
+  ok((await q(`select shared from public.participants where case_id=$1`, [t1]))[0].shared === false, "team: the leader can't turn sharing on for someone");
+  ok(!(await q(`select public.pl_team_save_summary($1, $2::jsonb) as ok`, [await tok(t2), sum(70)]))[0].ok, "team: a summary only saves once the person has finished");
+  await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [await tok(t1), sum(80)]);
+  const s1 = (await q(`select team_summary from public.participants where case_id=$1`, [t1]))[0].team_summary;
+  ok(s1.pillars.character === 80 && s1.pillars.bogus === undefined && s1.giftsTop.length === 3 && !JSON.stringify(s1).includes("secret"), "team: the saved summary keeps only clean scores");
+  let m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
+  ok(m.total === 3 && m.finished === 1 && m.combined === null && m.shared.length === 0, "team map: nothing combined until 3 people finish");
+  for (const [c, h] of [[t2, 60], [t3, 70]]) { await q(`select public.pl_finish($1, '{"meta":{}}')`, [await tok(c)]); await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [await tok(c), sum(h)]); }
+  m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
+  ok(m.combined && m.combined.n === 3 && Number(m.combined.pillars.character) === 70 && m.combined.wiring.pace.right === 2 && m.combined.wiring.pace.mid === 1 && Number(m.combined.healthLow) === 2, "team map: combined averages and counts once 3 finish");
+  ok(!JSON.stringify(m).includes("Tia") && m.shared.length === 0, "team map: no names unless someone shares");
+  ok(await q(`select public.pl_team_share($1, true) as ok`, [await tok(t1)]).then((r) => r[0].ok), "team: the person can share through their own link");
+  m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
+  const tp2 = (await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0];
+  ok(m.shared.length === 1 && m.shared[0].name === "Tia One" && tp2.answers.likert && tp2.answers.privateNote === undefined, "team: once shared, the leader sees their report, never their private note");
+  await q(`select public.pl_team_share($1, false)`, [await tok(t1)]);
+  ok(JSON.stringify((await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0].answers) === "{}", "team: they can stop sharing");
+  ok((await as(OUTSIDER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j === null && (await as(OUTSIDER, () => q(`select * from public.pl_team_people($1)`, [t1]))).length === 0, "team: other networks see nothing");
+  const other = (await q(`select p.token, p.case_id from public.participants p join public.cases c on c.id = p.case_id where c.network_id = $1 and coalesce(c.settings->>'purpose', 'decide') <> 'team' limit 1`, [nid]))[0];
+  ok(!(await q(`select public.pl_team_share($1, true) as ok`, [other.token]))[0].ok, "sharing only applies to team members");
+  const tk1 = await tok(t1);
+  ok((await as(OWNER, () => q(`select public.pl_result_team($1 || '/f.pdf', false) as ok`, [tk1])))[0].ok === false, "team: files they uploaded stay private unless shared");
+  ok((await as(OWNER, () => q(`select count(*)::int n from public.participants where case_id=$1`, [other.case_id])))[0].n >= 1, "hiring and planting assessments still show their people to the leader");
+
   // Delete my account
   ok(!!(await tryAs(null, `select public.pl_delete_account()`)), "you must be signed in to delete an account");
   await as(OUTSIDER, () => q(`select public.pl_delete_account()`));
