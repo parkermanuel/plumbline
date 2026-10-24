@@ -12,7 +12,7 @@ const SITE = process.env.PL_SITE || "http://127.0.0.1:5175";
 const SHOTS = process.env.SHOTS || "";
 
 const db = await makeDb();
-const USERS = { rick: ["44444444-4444-4444-4444-444444444444", "rick@sln.test"], thief: ["55555555-5555-5555-5555-555555555555", "x@thief.test"], owner: ["11111111-1111-1111-1111-111111111111", "dana@frontrange.org"], assessor: ["22222222-2222-2222-2222-222222222222", "sam@frontrange.org"], outsider: ["33333333-3333-3333-3333-333333333333", "x@elsewhere.org"] };
+const USERS = { leader: ["44444444-4444-4444-4444-444444444444", "leader@sln.test"], thief: ["55555555-5555-5555-5555-555555555555", "x@thief.test"], owner: ["11111111-1111-1111-1111-111111111111", "dana@frontrange.org"], assessor: ["22222222-2222-2222-2222-222222222222", "sam@frontrange.org"], outsider: ["33333333-3333-3333-3333-333333333333", "x@elsewhere.org"] };
 for (const [id, em] of Object.values(USERS)) await db.exec(`insert into auth.users values ('${id}', '${em}')`);
 
 let lock = Promise.resolve();
@@ -198,38 +198,38 @@ const TOKEN = process.env.PL_INVITE;
 if (!TOKEN) { console.log("Set PL_INVITE to a real invite token"); process.exit(2); }
 const lastStripe = () => calls.filter((c) => c.stripe).slice(-1)[0];
 
-// 1. Rick opens the link from the text, on his phone
-const rick = await device("rick", 390);
-await rick.goto(`${SITE}/beta?invite=${encodeURIComponent(TOKEN)}`); await wait(1200);
-let t = await text(rick);
+// 1. The network leader opens the link from the text, on their phone
+const leader = await device("leader", 390);
+await leader.goto(`${SITE}/beta?invite=${encodeURIComponent(TOKEN)}`); await wait(1200);
+let t = await text(leader);
 ok(t.includes("added automatically"), "invite link: page says the 5 free assessments are added automatically");
 ok(t.includes("through 2026") && !t.includes("November"), "page says free through 2026, no November");
 ok(t.includes("Everything stays"), "page says data stays after the 5 are used");
-await shot(rick, "beta");
+await shot(leader, "beta");
 
 // 2. He taps Set up your network and fills it in
-await click(rick, 'main a[href^="/leader"]'); await rick.waitForSelector("#o-net", { timeout: 20000 }).catch(() => {});
-await rick.fill("#o-net", "SLN Test Network"); await rick.fill("#o-me", "Rick Burge");
-await submit(rick, "#onboard");
-await rick.waitForSelector("text=5 assessments left", { timeout: 20000 }).catch(() => {});
-t = await text(rick);
+await click(leader, 'main a[href^="/leader"]'); await leader.waitForSelector("#o-net", { timeout: 20000 }).catch(() => {});
+await leader.fill("#o-net", "SLN Test Network"); await leader.fill("#o-me", "Sam Leader");
+await submit(leader, "#onboard");
+await leader.waitForSelector("text=5 assessments left", { timeout: 20000 }).catch(() => {});
+t = await text(leader);
 ok(t.includes("5 assessments left"), "right after setup: 5 assessments left (not 1, not 6)");
 ok(t.includes("Founding network") && t.includes("$79"), "founding price shows on his dashboard");
 ok(!t.includes("Buy assessments"), "no Buy button while he still has free ones");
 const net = (await db.query(`select * from public.networks where name = 'SLN Test Network'`)).rows[0];
 ok(net?.credits === 5 && net?.founding === true, "database: 5 credits and founding on");
 ok((await db.query(`select count(*)::int n from public.payments where network_id = '${net.id}' and kind = 'grant'`)).rows[0].n === 1, "the invite is recorded once");
-ok(!(await rick.evaluate(() => localStorage.getItem("plumbline_invite"))), "the saved invite is cleared after use");
-await shot(rick, "dashboard");
+ok(!(await leader.evaluate(() => localStorage.getItem("plumbline_invite"))), "the saved invite is cleared after use");
+await shot(leader, "dashboard");
 
 // 3. Reloading or coming back doesn't add more
-await rick.goto(`${SITE}/beta?invite=${encodeURIComponent(TOKEN)}`); await wait(600);
-await rick.goto(`${SITE}/leader`); await wait(2500);
+await leader.goto(`${SITE}/beta?invite=${encodeURIComponent(TOKEN)}`); await wait(600);
+await leader.goto(`${SITE}/leader`); await wait(2500);
 ok((await db.query(`select credits from public.networks where id = '${net.id}'`)).rows[0].credits === 5, "opening the link again doesn't add more");
 
 // 3b. A fast tapper: the button itself carries the invite
-await rick.goto(`${SITE}/beta?invite=${encodeURIComponent(TOKEN)}`); await wait(800);
-const btn = await rick.evaluate(() => document.querySelector('main a[href^="/leader"]')?.getAttribute("href"));
+await leader.goto(`${SITE}/beta?invite=${encodeURIComponent(TOKEN)}`); await wait(800);
+const btn = await leader.evaluate(() => document.querySelector('main a[href^="/leader"]')?.getAttribute("href"));
 ok(btn && btn.includes("invite="), "the Set up your network button carries the invite (" + btn + ")");
 
 // 4. Someone else can't reuse the link
@@ -248,24 +248,24 @@ ok((await db.query(`select credits from public.networks where id = '${other.id}'
 
 // 6. He uses all 5; his data stays and he's asked to pay $79 for the next
 for (let i = 1; i <= 5; i++) {
-  await rick.goto(`${SITE}/new`); await rick.waitForSelector("#f-pn", { timeout: 15000 });
-  await rick.fill("#f-pn", `Planter ${i}`); await rick.fill("#f-pe", `p${i}@x.test`); await rick.fill("#f-sn", `Spouse ${i}`); await rick.fill("#f-se", `s${i}@x.test`); await rick.fill("#f-city", "Denver, CO");
-  await submit(rick, "#newcase-live"); await wait(1600);
+  await leader.goto(`${SITE}/new`); await leader.waitForSelector("#f-pn", { timeout: 15000 });
+  await leader.fill("#f-pn", `Planter ${i}`); await leader.fill("#f-pe", `p${i}@x.test`); await leader.fill("#f-sn", `Spouse ${i}`); await leader.fill("#f-se", `s${i}@x.test`); await leader.fill("#f-city", "Denver, CO");
+  await submit(leader, "#newcase-live"); await wait(1600);
 }
 ok((await db.query(`select count(*)::int n from public.cases where network_id = '${net.id}'`)).rows[0].n === 5, "he starts 5 assessments");
-await rick.goto(`${SITE}/leader`); await rick.waitForSelector("text=assessments left", { timeout: 15000 }).catch(() => {});
-t = await text(rick);
+await leader.goto(`${SITE}/leader`); await leader.waitForSelector("text=assessments left", { timeout: 15000 }).catch(() => {});
+t = await text(leader);
 ok(t.includes("0 assessments left"), "dashboard: 0 left");
 ok(["Spouse 1", "Spouse 5"].every((n) => t.includes(n)) && (t.match(/Planter & Spouse \d/g) || []).length === 5, "all 5 assessments still on his dashboard");
 ok(t.includes("$79 each"), "buy button offers his $79 founding price");
-await shot(rick, "zero-left");
-await rick.goto(`${SITE}/new`); await wait(1200);
-await rick.fill("#f-pn", "Planter 6").catch(() => {}); await rick.fill("#f-pe", "p6@x.test").catch(() => {}); await rick.fill("#f-sn", "Spouse 6").catch(() => {}); await rick.fill("#f-se", "s6@x.test").catch(() => {});
-await rick.evaluate(() => document.querySelector("#newcase-live")?.requestSubmit()).catch(() => {}); await wait(1500);
-t = await rick.evaluate(() => document.body.innerText);
+await shot(leader, "zero-left");
+await leader.goto(`${SITE}/new`); await wait(1200);
+await leader.fill("#f-pn", "Planter 6").catch(() => {}); await leader.fill("#f-pe", "p6@x.test").catch(() => {}); await leader.fill("#f-sn", "Spouse 6").catch(() => {}); await leader.fill("#f-se", "s6@x.test").catch(() => {});
+await leader.evaluate(() => document.querySelector("#newcase-live")?.requestSubmit()).catch(() => {}); await wait(1500);
+t = await leader.evaluate(() => document.body.innerText);
 ok((await db.query(`select count(*)::int n from public.cases where network_id = '${net.id}'`)).rows[0].n === 5, "a 6th can't start without paying");
 console.log("SIXTH ATTEMPT SAYS:", (t.match(/[^\n]*(No assessments left|Buy|buy)[^\n]*/) || [""])[0].slice(0, 200));
-await shot(rick, "sixth");
+await shot(leader, "sixth");
 
 console.log("page errors:", errs.length ? errs : "none");
 await b.close();

@@ -1,4 +1,4 @@
-import { personEmail, teamInviteEmail, finishedEmail } from "../supabase/functions/plumbline-email/templates.js";
+import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail } from "../supabase/functions/plumbline-email/templates.js";
 let fail = 0; const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) fail++; };
 const base = { token: "a".repeat(64), network_name: "Front Range", sender_name: "Dana", planter_name: "Josh Kim", spouse_name: "Hannah Kim" };
 const p = personEmail("invite", { ...base, role: "planter", name: "Josh Kim" }, "https://plumblineassessment.com");
@@ -18,4 +18,6 @@ ok(!/evil/i.test(spam.html + spam.text + spam.subject) && spam.html.includes("/#
 const st = personEmail("invite", { ...base, spouse_name: null, role: "planter", name: "Josh Kim", audience: "staff", job_role: "Student pastor" }, "https://x");
 const sr = personEmail("invite", { ...base, spouse_name: null, role: "reference", name: "Mike Lee", audience: "business" }, "https://x");
 ok(st.text.includes("Student pastor") && !/plant/i.test(st.text + st.subject) && !/plant/i.test(sr.text + sr.subject), "church staff and business emails never mention planting");
+const rk = reportKeyEmail({ email: "ava@t.org", name: "Ava Stone", report_key: "k".repeat(64), team_name: "Pinewood staff" }, "https://x");
+ok(rk.html.includes("https://x/my/" + "k".repeat(64)) && /private/.test(rk.text) && /Ava/.test(rk.text) && !rk.text.includes("/t/"), "team report key email: private link to their report, not the assessment link");
 process.exit(fail ? 1 : 0);
