@@ -29,6 +29,8 @@ export async function makeDb() {
   await db.exec(upd); await db.exec(upd); // the pasted update must also be safe to run on top, twice
   const upd3 = readFileSync(new URL("../supabase/update-2026-10-24-teams.sql", import.meta.url), "utf8");
   await db.exec(upd3); await db.exec(upd3);
+  const upd4 = readFileSync(new URL("../supabase/update-2026-10-24-team-plans.sql", import.meta.url), "utf8");
+  await db.exec(upd4); await db.exec(upd4);
   return db;
 }
 
@@ -278,6 +280,29 @@ async function main() {
   const tk1 = await tok(t1);
   ok((await as(OWNER, () => q(`select public.pl_result_team($1 || '/f.pdf', false) as ok`, [tk1])))[0].ok === false, "team: files they uploaded stay private unless shared");
   ok((await as(OWNER, () => q(`select count(*)::int n from public.participants where case_id=$1`, [other.case_id])))[0].n >= 1, "hiring and planting assessments still show their people to the leader");
+
+  // Plumbline Teams yearly plans
+  const pnet = (await as(ASSESSOR, () => q(`select public.pl_create_network('Plan Test Church', 'Pat') as id`)))[0].id;
+  await q(`update public.networks set credits = 0 where id=$1`, [pnet]);
+  const teamIns = (name) => tryAs(ASSESSOR, `insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1, $2, '${name}', false, '{"audience":"staff","purpose":"team","team":{"id":"t_plan","name":"Staff"}}')`, [pnet, ASSESSOR]);
+  ok(/No assessments left/.test((await teamIns("A")) || ""), "teams plan: without a plan or credits, no one can be added");
+  ok(!!(await tryAs(ASSESSOR, `update public.networks set team_seats = 99, team_until = now() + interval '1 year' where id = $1`, [pnet])) || (await q(`select team_seats from public.networks where id=$1`, [pnet]))[0].team_seats === 0, "teams plan: a leader can't give themselves a plan");
+  await q(`set role service_role`);
+  const planPay1 = (await q(`select public.pl_record_payment('cs_team1', $1, 'teams', 2, 24900, 'usd', null, null, 'cus_team') as ok`, [pnet]))[0].ok;
+  const planPay2 = (await q(`select public.pl_record_payment('cs_team1', $1, 'teams', 2, 24900, 'usd', null, null, 'cus_team') as ok`, [pnet]))[0].ok;
+  await q(`reset role`);
+  const pn = (await q(`select team_seats, team_until > now() + interval '360 days' as year from public.networks where id=$1`, [pnet]))[0];
+  ok(planPay1 === true && planPay2 === false && pn.team_seats === 2 && pn.year, "teams plan: Stripe's payment sets the plan size for a year, once");
+  ok(!(await teamIns("A")) && !(await teamIns("B")), "teams plan: covers people up to its size without credits");
+  ok(/No assessments left/.test((await teamIns("C")) || ""), "teams plan: past its size, it asks for more");
+  ok(/No assessments left/.test((await tryAs(ASSESSOR, `insert into public.cases(network_id, created_by, planter_name, married) values ($1, $2, 'Hire', false)`, [pnet, ASSESSOR])) || ""), "teams plan: doesn't cover hiring or planting assessments");
+  await q(`update public.cases set archived = true where network_id=$1 and planter_name='A'`, [pnet]);
+  ok(!(await teamIns("C")), "teams plan: removing someone frees their place");
+  await q(`set role service_role`);
+  await q(`select public.pl_record_payment('in_team2', null, 'teams_renewal', 15, 49900, 'usd', null, null, 'cus_team')`);
+  await q(`reset role`);
+  const pr = (await q(`select team_seats, team_until > now() + interval '700 days' as two from public.networks where id=$1`, [pnet]))[0];
+  ok(pr.team_seats === 15 && pr.two, "teams plan: a renewal (found by Stripe customer) adds a year and can change the size");
 
   // Delete my account
   ok(!!(await tryAs(null, `select public.pl_delete_account()`)), "you must be signed in to delete an account");

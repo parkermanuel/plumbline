@@ -1,16 +1,28 @@
 // Plumbline payments (Supabase Edge Function), deployed with --no-verify-jwt because it checks every caller itself.
 //   action "checkout"  a network owner/admin buys assessments ($99 per couple, $79 for founding networks) or the yearly plan ($2,500). Returns a Stripe Checkout URL.
 //                      Stripe emails a paid invoice and receipt with the network's name on it.
+//   action "teams"     a network owner/admin buys a Plumbline Teams yearly plan: Starter (8 people) $249, Team (15) $499,
+//                      Staff (50) $1,299, plus $25 a person a year past 50. Returns a Stripe Checkout URL.
+//   action "portal"    a network owner/admin opens Stripe's billing page to see invoices, change the card or cancel.
 //   action "codes"     the platform admin lists, creates or switches off discount codes (Stripe promotion codes).
 //   Stripe webhook     checkout.session.completed and invoice.paid add credits or extend the plan, once per payment.
 //   action "invite"    a beta invite link (/beta?invite=…) applied to the network its owner just set up: 5 free assessments and the
 //                      founding price, once per invite. Only a SHA-256 of each invite is kept here, so this public code can't be used to redeem one.
-// Secrets: STRIPE_SECRET_KEY (a restricted key is enough: Checkout Sessions, Coupons, Promotion Codes write; Customers read),
+// Secrets: STRIPE_SECRET_KEY (a restricted key is enough: Checkout Sessions, Coupons, Promotion Codes, Customer portal write; Customers read),
 //          STRIPE_WEBHOOK_SECRET (from the webhook endpoint in Stripe).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const COUPLE_CENTS = 9900, FOUNDING_CENTS = 7900, PLAN_CENTS = 250000;  // founding = beta networks, $79 per couple through 2027
 const FOUNDING_UNTIL = "2027-12-31";
+// Plumbline Teams yearly plans (owner, 24 Oct 2026). Past 50 people: $25 a person a year on top of Staff.
+const TEAM_PLANS: Record<string, { name: string; seats: number; cents: number }> = {
+  starter: { name: "Starter", seats: 8, cents: 24900 },
+  team: { name: "Team", seats: 15, cents: 49900 },
+  staff: { name: "Staff", seats: 50, cents: 129900 },
+};
+const EXTRA_SEAT_CENTS = 2500, MAX_EXTRA_SEATS = 950;
+// Where to send people back after checkout: only our own sites
+const RETURN_SITES = ["https://plumblineassessment.com", "https://plumblineteams.com"];
 // Beta invites: sha256(invite token) -> who it's for and how many free assessments. Each works once (payments row "invite_<hash>").
 const INVITES: Record<string, { label: string; credits: number }> = {
   "88e5a5db739f8cf4df8877485a79ce8ae3bed07f765b12fe7a95722f76b8a983": { label: "SLN (Rick Burge)", credits: 5 },
@@ -77,6 +89,13 @@ Deno.serve(async (req) => {
     try {
       if (ev.type === "checkout.session.completed" && (o.payment_status === "paid" || o.payment_status === "no_payment_required")) {
         const plan = o.mode === "subscription";
+        if (plan && o.metadata?.kind === "teams") {
+          const seats = Math.max(0, Number(o.metadata.seats) || 0);
+          const { error } = await admin.rpc("pl_record_payment", { p_id: o.id, p_network: o.client_reference_id || null, p_kind: "teams", p_qty: seats,
+            p_amount: o.amount_total ?? 0, p_currency: o.currency ?? "usd", p_email: o.customer_details?.email ?? null, p_promo: null, p_customer: o.customer ?? null });
+          if (error) throw error;
+          return json({ received: true });
+        }
         // How many couples were bought, read from Stripe itself (the quantity can be changed at checkout).
         let qty = 1;
         if (!plan) {
@@ -87,7 +106,10 @@ Deno.serve(async (req) => {
           p_amount: o.amount_total ?? 0, p_currency: o.currency ?? "usd", p_email: o.customer_details?.email ?? null, p_promo: o.metadata?.promo ?? null, p_customer: o.customer ?? null });
         if (error) throw error;
       } else if (ev.type === "invoice.paid" && o.billing_reason === "subscription_cycle") {
-        const { error } = await admin.rpc("pl_record_payment", { p_id: o.id, p_network: null, p_kind: "renewal", p_qty: 1, p_amount: o.amount_paid ?? 0,
+        // Teams plans carry their kind and size on the subscription; the network plan doesn't
+        const meta = o.parent?.subscription_details?.metadata ?? o.subscription_details?.metadata ?? {};
+        const teams = meta.kind === "teams";
+        const { error } = await admin.rpc("pl_record_payment", { p_id: o.id, p_network: meta.network || null, p_kind: teams ? "teams_renewal" : "renewal", p_qty: teams ? Math.max(0, Number(meta.seats) || 0) : 1, p_amount: o.amount_paid ?? 0,
           p_currency: o.currency ?? "usd", p_email: o.customer_email ?? null, p_promo: null, p_customer: o.customer ?? null });
         if (error) throw error;
       }
@@ -132,6 +154,45 @@ Deno.serve(async (req) => {
         cancel_url: `${site}/#/leader`,
       });
       return json({ url: session.url });
+    }
+
+    if (body.action === "teams") {
+      const { data: isAdmin } = await user.rpc("pl_is_admin", { p_network: body.networkId });
+      if (!isAdmin) return json({ error: "Only the owners and admins can buy a plan" }, 403);
+      const tier = TEAM_PLANS[String(body.tier)];
+      if (!tier) return json({ error: "Choose Starter, Team or Staff" }, 400);
+      const extra = body.tier === "staff" ? Math.min(MAX_EXTRA_SEATS, Math.max(0, Math.floor(Number(body.extra) || 0))) : 0;
+      const seats = tier.seats + extra;
+      const { data: net } = await admin.from("networks").select("id,name,stripe_customer").eq("id", body.networkId).single();
+      if (!net) return json({ error: "Organization not found" }, 404);
+      const back = RETURN_SITES.includes(String(body.returnTo)) ? String(body.returnTo) : "https://plumblineteams.com";
+      const meta = { kind: "teams", tier: String(body.tier), seats: String(seats), network: net.id };
+      const items: Record<string, unknown> = { 0: { quantity: 1, price_data: { currency: "usd", unit_amount: tier.cents, recurring: { interval: "year" },
+        product_data: { name: `Plumbline Teams ${tier.name} plan (up to ${tier.seats} people, one year)` } } } };
+      if (extra) items[1] = { quantity: extra, price_data: { currency: "usd", unit_amount: EXTRA_SEAT_CENTS, recurring: { interval: "year" },
+        product_data: { name: "Plumbline Teams: each person past 50 (one year)" } } };
+      const session = await stripe("checkout/sessions", {
+        mode: "subscription",
+        client_reference_id: net.id,
+        ...(net.stripe_customer ? { customer: net.stripe_customer } : { customer_email: me.user.email }),
+        line_items: items,
+        allow_promotion_codes: true,
+        metadata: meta,
+        subscription_data: { description: `Plumbline Teams ${tier.name} plan for ${net.name} (up to ${seats} people)`, metadata: meta },
+        success_url: `${back}/teams/new?paid=1`,
+        cancel_url: `${back}/teams/new`,
+      });
+      return json({ url: session.url });
+    }
+
+    if (body.action === "portal") {
+      const { data: isAdmin } = await user.rpc("pl_is_admin", { p_network: body.networkId });
+      if (!isAdmin) return json({ error: "Only the owners and admins can manage billing" }, 403);
+      const { data: net } = await admin.from("networks").select("stripe_customer").eq("id", body.networkId).single();
+      if (!net?.stripe_customer) return json({ error: "There's nothing to manage yet. Billing appears after your first purchase." }, 400);
+      const back = RETURN_SITES.includes(String(body.returnTo)) ? String(body.returnTo) : site;
+      const ps = await stripe("billing_portal/sessions", { customer: net.stripe_customer, return_url: `${back}/leader` });
+      return json({ url: ps.url });
     }
 
     if (body.action === "invite") {

@@ -209,9 +209,13 @@ await owner.fill("#t-people", "Ava Stone, ava@fr.church\nBen Cole <ben@fr.church
 await wait(300);
 let t = await text(owner);
 ok(/4 people/.test(t) && /1 line need/.test(t), "it reads 4 people and flags the line without an email");
-ok(t.includes("each person on the team uses one") && await owner.$eval("#t-go", (b) => b.disabled), "with 1 assessment left it asks for more before starting");
-await db.query(`update public.networks set credits = 10`);
+ok(/You have 1 free assessment, and this adds 4/.test(t) && await owner.$eval("#t-go", (b) => b.disabled), "with 1 free assessment it asks for a plan before starting");
+ok((await owner.$$('[data-act="choose-plan"]')).length === 3 && /Choose Starter/.test(await owner.$eval(".teams-plan.pick", (e) => e.innerText)), "it shows the three plans and points to Starter for 4 people");
+await shot(owner, "teams-plans-desktop");
+// Stripe confirms a Starter plan (what the payment function records after checkout)
+await db.query(`select public.pl_record_payment('cs_e2e_team', (select id from public.networks limit 1), 'teams', 8, 24900, 'usd', null, null, 'cus_e2e')`);
 await owner.reload(); await owner.waitForSelector("#t-people", { timeout: 20000 });
+ok(/Your Teams plan covers 8 people/.test(await text(owner)) && /0 on teams now, 8 open/.test(await text(owner)), "the start-a-team page shows the plan: 8 people, all open");
 await owner.fill("#t-name", "Front Range staff");
 await owner.fill("#t-people", "Ava Stone, ava@fr.church\nBen Cole, ben@fr.church\nCara Diaz, cara@fr.church\nDev Patel, dev@fr.church");
 await submit(owner, "#newteam");
@@ -224,7 +228,7 @@ const inv = emails.filter((e) => e.kind === "invite");
 ok(inv.length === 4, "each person is emailed their link (" + inv.length + ")");
 const rows = (await db.query(`select settings, reports_released from public.cases where settings->>'purpose' = 'team'`)).rows;
 ok(rows.length === 4 && rows.every((r) => r.settings.team.name === "Front Range staff" && r.settings.audience === "staff" && r.reports_released), "4 team assessments, released, with the team name");
-ok((await db.query(`select credits from public.networks`)).rows[0].credits === 6, "each person used one assessment (10 to 6)");
+ok((await db.query(`select credits from public.networks`)).rows[0].credits === 1, "the Teams plan covered all 4 people (the free assessment is still there)");
 
 // 2. Three people take it
 const people = ["ava@fr.church", "ben@fr.church", "cara@fr.church"];
