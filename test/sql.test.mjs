@@ -255,10 +255,12 @@ async function main() {
   await q(`select public.pl_finish($1, '{"meta":{"name":"Tia One"},"likert":{"x":5},"privateNote":"secret"}')`, [await tok(t1)]);
   ok((await as(OWNER, () => q(`select * from public.participants where case_id=$1`, [t1]))).length === 0, "team: the leader can't read a team member's row (answers) directly");
   const tp = (await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0];
-  ok(tp && tp.token && tp.status === "finished" && JSON.stringify(tp.answers) === "{}", "team: the leader sees progress and the link, not the answers");
+  ok(tp && !tp.token && tp.status === "finished" && JSON.stringify(tp.answers) === "{}", "team: once someone finishes, the leader sees progress, not their answers or their link");
   await tryAs(OWNER, `update public.participants set shared = true where case_id = $1`, [t1]);
   ok((await q(`select shared from public.participants where case_id=$1`, [t1]))[0].shared === false, "team: the leader can't turn sharing on for someone");
   ok(!(await q(`select public.pl_team_save_summary($1, $2::jsonb) as ok`, [await tok(t2), sum(70)]))[0].ok, "team: a summary only saves once the person has finished");
+  ok(!!(await as(OWNER, () => q(`select token from public.pl_team_people($1)`, [t2])))[0].token, "team: before someone finishes, the leader can copy their link to resend it");
+  ok(!(await q(`select public.pl_team_share($1, true) as ok`, [await tok(t2)]))[0].ok, "team: sharing can't be switched on before the person finishes");
   await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [await tok(t1), sum(80)]);
   const s1 = (await q(`select team_summary from public.participants where case_id=$1`, [t1]))[0].team_summary;
   ok(s1.pillars.character === 80 && s1.pillars.bogus === undefined && s1.giftsTop.length === 3 && !JSON.stringify(s1).includes("secret"), "team: the saved summary keeps only clean scores");
