@@ -31,6 +31,8 @@ export async function makeDb() {
   await db.exec(upd3); await db.exec(upd3);
   const upd4 = readFileSync(new URL("../supabase/update-2026-10-24-team-plans.sql", import.meta.url), "utf8");
   await db.exec(upd4); await db.exec(upd4);
+  const upd5 = readFileSync(new URL("../supabase/update-2026-10-24-report-keys.sql", import.meta.url), "utf8");
+  await db.exec(upd5); await db.exec(upd5);
   return db;
 }
 
@@ -250,35 +252,58 @@ async function main() {
   // Plumbline Teams privacy: answers stay with the person; leaders see combined results (3+ people) and what's shared
   const teamCase = async (name) => (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, $3, 'x@t.org', false, '{"audience":"staff","purpose":"team","team":{"id":"t_priv","name":"Staff"}}') returning id`, [nid, OWNER, name])))[0].id;
   const tok = async (cid) => (await q(`select token from public.participants where case_id=$1`, [cid]))[0].token;
+  const key = async (cid) => (await q(`select k.key from public.report_keys k join public.participants p on p.id = k.participant_id where p.case_id=$1`, [cid]))[0]?.key;
   const sum = (h) => JSON.stringify({ pillars: { character: h, health: h - 10, bogus: "x" }, wiring: { pace: h, people: 100 - h }, giftsTop: ["lead", "teach", "help", "extra"], giftsStrong: ["lead"], strengths: ["integrity"], growth: ["load"] });
   const t1 = await teamCase("Tia One"), t2 = await teamCase("Tom Two"), t3 = await teamCase("Tess Three");
-  await q(`select public.pl_finish($1, '{"meta":{"name":"Tia One"},"likert":{"x":5},"privateNote":"secret"}')`, [await tok(t1)]);
+  const oldLink = await tok(t1);  // a leader could have copied this before Tia finished
+  const k1 = (await as(null, () => q(`select public.pl_finish_team($1, '{"meta":{"name":"Tia One"},"likert":{"x":5},"privateNote":"secret"}') as k`, [oldLink])))[0].k;
+  ok(k1 && k1.length === 64 && k1 !== oldLink && k1 === (await key(t1)), "team: finishing hands the person a private report key, different from their link");
+  ok((await as(null, () => q(`select public.pl_finish_team($1, '{}') as k`, [oldLink])))[0].k === null, "team: the key is handed out only once, to the browser that finished");
+  ok((await as(OWNER, () => q(`select public.pl_report($1) as j`, [oldLink])))[0].j === null && (await as(null, () => q(`select public.pl_report($1) as j`, [oldLink])))[0].j === null, "team: a leader holding the old link can't open the report after they finish");
+  const r1 = (await as(null, () => q(`select public.pl_report($1) as j`, [k1])))[0].j;
+  ok(r1?.released && r1.me.likert.x === 5 && !r1.me.privateNote, "team: the person opens their own report with their key");
+  ok(JSON.stringify(await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1]))).indexOf(k1) < 0 && JSON.stringify(await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid]))).indexOf(k1) < 0, "team: the key never shows in anything the leader reads");
+  ok(!!(await tryAs(OWNER, `select * from public.report_keys`)) && !!(await tryAs(null, `select * from public.report_keys`)), "team: nobody can read the keys table directly");
+  ok(!(await as(null, () => q(`select public.pl_team_share($1, true) as ok`, [oldLink])))[0].ok, "team: the old link can't switch sharing on");
   ok((await as(OWNER, () => q(`select * from public.participants where case_id=$1`, [t1]))).length === 0, "team: the leader can't read a team member's row (answers) directly");
   const tp = (await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0];
   ok(tp && !tp.token && tp.status === "finished" && JSON.stringify(tp.answers) === "{}", "team: once someone finishes, the leader sees progress, not their answers or their link");
   await tryAs(OWNER, `update public.participants set shared = true where case_id = $1`, [t1]);
   ok((await q(`select shared from public.participants where case_id=$1`, [t1]))[0].shared === false, "team: the leader can't turn sharing on for someone");
-  ok(!(await q(`select public.pl_team_save_summary($1, $2::jsonb) as ok`, [await tok(t2), sum(70)]))[0].ok, "team: a summary only saves once the person has finished");
+  ok(!(await q(`select public.pl_team_save_summary($1, $2::jsonb) as ok`, [await tok(t2), sum(70)]))[0].ok && !(await key(t2)), "team: no key and no summary until the person has finished");
   ok(!!(await as(OWNER, () => q(`select token from public.pl_team_people($1)`, [t2])))[0].token, "team: before someone finishes, the leader can copy their link to resend it");
   ok(!(await q(`select public.pl_team_share($1, true) as ok`, [await tok(t2)]))[0].ok, "team: sharing can't be switched on before the person finishes");
-  await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [await tok(t1), sum(80)]);
+  ok(!(await q(`select public.pl_team_save_summary($1, $2::jsonb) as ok`, [oldLink, sum(10)]))[0].ok, "team: the old link can't change the team map summary");
+  await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [k1, sum(80)]);
   const s1 = (await q(`select team_summary from public.participants where case_id=$1`, [t1]))[0].team_summary;
   ok(s1.pillars.character === 80 && s1.pillars.bogus === undefined && s1.giftsTop.length === 3 && !JSON.stringify(s1).includes("secret"), "team: the saved summary keeps only clean scores");
   let m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
   ok(m.total === 3 && m.finished === 1 && m.combined === null && m.shared.length === 0, "team map: nothing combined until 3 people finish");
-  for (const [c, h] of [[t2, 60], [t3, 70]]) { await q(`select public.pl_finish($1, '{"meta":{}}')`, [await tok(c)]); await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [await tok(c), sum(h)]); }
+  for (const [c, h] of [[t2, 60], [t3, 70]]) { await q(`select public.pl_finish($1, '{"meta":{}}')`, [await tok(c)]); await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [await key(c), sum(h)]); }
+  ok(!!(await key(t2)), "team: a key is made even if they finished through the older finish call");
   m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
   ok(m.combined && m.combined.n === 3 && Number(m.combined.pillars.character) === 70 && m.combined.wiring.pace.right === 2 && m.combined.wiring.pace.mid === 1 && Number(m.combined.healthLow) === 2, "team map: combined averages and counts once 3 finish");
   ok(!JSON.stringify(m).includes("Tia") && m.shared.length === 0, "team map: no names unless someone shares");
-  ok(await q(`select public.pl_team_share($1, true) as ok`, [await tok(t1)]).then((r) => r[0].ok), "team: the person can share through their own link");
+  ok((await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0].answers.likert === undefined, "team: unshared, the leader can't see their report");
+  ok(await as(null, () => q(`select public.pl_team_share($1, true) as ok`, [k1])).then((r) => r[0].ok), "team: the person can share with their key");
   m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
   const tp2 = (await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0];
   ok(m.shared.length === 1 && m.shared[0].name === "Tia One" && tp2.answers.likert && tp2.answers.privateNote === undefined, "team: once shared, the leader sees their report, never their private note");
-  await q(`select public.pl_team_share($1, false)`, [await tok(t1)]);
+  ok((await as(OWNER, () => q(`select public.pl_report($1) as j`, [oldLink])))[0].j === null, "team: even when shared, the old link still doesn't open the person's own report page");
+  await q(`select public.pl_team_share($1, false)`, [k1]);
   ok(JSON.stringify((await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0].answers) === "{}", "team: they can stop sharing");
   ok((await as(OUTSIDER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j === null && (await as(OUTSIDER, () => q(`select * from public.pl_team_people($1)`, [t1]))).length === 0, "team: other networks see nothing");
   const other = (await q(`select p.token, p.case_id from public.participants p join public.cases c on c.id = p.case_id where c.network_id = $1 and coalesce(c.settings->>'purpose', 'decide') <> 'team' limit 1`, [nid]))[0];
   ok(!(await q(`select public.pl_team_share($1, true) as ok`, [other.token]))[0].ok, "sharing only applies to team members");
+  // Lost key: it's emailed only to the person's own address, at most once an hour, and the leader can't change that address now
+  const t1id = (await q(`select id from public.participants where case_id=$1`, [t1]))[0].id;
+  ok(!(await as(OWNER, () => q(`select public.pl_team_set_email($1, 'leader@net.org') as ok`, [t1id])))[0].ok, "team: a leader can't change a finished person's email (where their key is sent)");
+  ok(!!(await tryAs(null, `select * from public.pl_report_key_email($1)`, [oldLink])), "team: only the email function can look up a key to send");
+  const ke = await q(`select * from public.pl_report_key_email($1)`, [oldLink]);
+  ok(ke.length === 1 && ke[0].email === "x@t.org" && ke[0].report_key === k1, "team: the email function gets the person's own address and key");
+  ok((await q(`select * from public.pl_report_key_email($1)`, [oldLink])).length === 0, "team: the key email goes at most once an hour");
+  const t4 = await teamCase("Old Finisher"); await q(`update public.participants set status='finished' where case_id=$1`, [t4]); await q(`delete from public.report_keys k using public.participants p where p.id = k.participant_id and p.case_id=$1`, [t4]);
+  ok((await q(`select * from public.pl_report_key_email($1)`, [await tok(t4)]))[0]?.report_key?.length === 64, "team: someone who finished before keys existed gets one by email");
   const tk1 = await tok(t1);
   ok((await as(OWNER, () => q(`select public.pl_result_team($1 || '/f.pdf', false) as ok`, [tk1])))[0].ok === false, "team: files they uploaded stay private unless shared");
   ok((await as(OWNER, () => q(`select count(*)::int n from public.participants where case_id=$1`, [other.case_id])))[0].n >= 1, "hiring and planting assessments still show their people to the leader");

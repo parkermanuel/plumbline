@@ -98,3 +98,17 @@ export function finishedEmail(r, site) {
     footer: "You're getting this because you're on this network's Plumbline team.", site,
   }) };
 }
+
+// Plumbline Teams: a person's private growth report link, sent only to their own address
+export function reportKeyEmail(r, site) {
+  const link = `${site}/my/${r.report_key}`;
+  const nm = esc(first(r.name));
+  return { subject: "Your private Plumbline growth report", ...layout({
+    preheader: "Your growth report link. It's yours alone.",
+    heading: nm ? `${nm}, here's your growth report` : "Here's your growth report",
+    paragraphs: [`This is your own private link to your Plumbline growth report${r.team_name ? ` for ${esc(r.team_name)}` : ""}. Only this link opens it, so keep this email and don't forward it.`,
+      "Your report stays private unless you choose to share it with your team leader. You can do that, or stop sharing, from the report any time."],
+    button: { href: link, label: "Open my growth report" },
+    footer: "You're getting this because someone asked for your report link from your Plumbline Teams page. Only you receive it. If that wasn't you, you can ignore this email; your report is still private.", site,
+  }) };
+}

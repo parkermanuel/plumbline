@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 import { readFileSync, writeFileSync } from "fs";
 import { execSync } from "child_process";
 import { makeDb } from "./sql.test.mjs";
-import { personEmail, teamInviteEmail, finishedEmail } from "../supabase/functions/plumbline-email/templates.js";
+import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail } from "../supabase/functions/plumbline-email/templates.js";
 
 const SITE = process.env.PL_SITE || "http://127.0.0.1:5175";
 
@@ -113,6 +113,9 @@ async function fnEmail(route) {
     } else if (body.action === "finished") {
       rows = (await asService(() => db.query(`select * from public.pl_finish_notice(${lit(body.token)})`))).rows;
       rows.forEach((r) => emails.push({ to: r.email, ...finishedEmail(r, SITE), kind: "finished" }));
+    } else if (body.action === "report_key") {
+      rows = (await asService(() => db.query(`select * from public.pl_report_key_email(${lit(body.token)})`))).rows;
+      rows.forEach((r) => emails.push({ to: r.email, ...reportKeyEmail(r, SITE), kind: "report_key" }));
     }
     return json(200, { sent: rows.length, skipped: (body.ids?.length || 0) - rows.length });
   } catch (err) { return json(403, { error: err.message }); }
@@ -253,12 +256,36 @@ for (const [i, who] of people.entries()) {
     ok(!/Ready with Conditions|Pause & Talk|Development Needed|Recommendation/.test(rep), "no grade or recommendation in their report");
     ok(/How to work with/.test(rep) && /I work best with/.test(rep) && /To work well with me/.test(rep), "their report has a How to work with me card");
     ok(/Your report is private/.test(rep) && !!(await p.$('[data-act="share-toggle"]')), "their report says it's private, with a Share button");
+    ok(/\/my\/[a-f0-9]{64}$/.test(p.url()) && !p.url().includes(link.split("/t/")[1]), "their report opens at its own private address, not the assessment link");
+    ok(/Bookmark this page/.test(rep), "the report page tells them to bookmark their private link");
     ok(!/Your story|debt|When could you start/i.test(JSON.stringify(await db.query(`select answers->'facts' f from public.participants where email = 'ava@fr.church'`).then((r) => r.rows[0].f || {}))), "team members skip the hiring-only questions");
     await click(p, '[data-act="share-toggle"]'); await wait(1200);
     ok((await db.query(`select shared from public.participants where email = 'ava@fr.church'`)).rows[0].shared === true && /Shared with/.test(await text(p)), "Ava shares her report with one tap");
     await shot(p, "teams-report-phone");
+    await p.emulateMedia({ colorScheme: "dark" }); await shot(p, "teams-report-phone-dark");
+    ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the private report fits a phone screen");
+    // Coming back to the old link on the same phone goes straight to the report
+    await p.goto(link); await p.waitForURL(/\/my\//, { timeout: 15000 }).catch(() => {});
+    ok(/\/my\//.test(p.url()), "the old link on their own phone goes on to their private report");
   }
   await p.context().close();
+}
+
+// 2b. A leader who copied Ava's link before she finished can't open her report with it
+{
+  const avaLink = linkIn(inv.find((e) => e.to === "ava@fr.church")).replace(/#\//, "");
+  const spy = await device("owner", 390);
+  await spy.goto(avaLink); await spy.waitForSelector(".intro-card", { timeout: 20000 }).catch(() => {}); await wait(800);
+  const st = await text(spy);
+  ok(!/how God has wired you/.test(st) && !(await spy.$(".report")) && /private/.test(st) && !!(await spy.$('[data-act="email-report-key"]')), "a leader with the old link sees only a private notice, never the report");
+  await shot(spy, "teams-old-link-phone");
+  await spy.emulateMedia({ colorScheme: "dark" }); await shot(spy, "teams-old-link-phone-dark");
+  ok(await spy.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the private notice fits a phone screen");
+  const before = emails.length;
+  await click(spy, '[data-act="email-report-key"]'); await wait(1200);
+  const sent = emails.slice(before);
+  ok(sent.length === 1 && sent[0].to === "ava@fr.church" && sent[0].kind === "report_key" && /\/my\/[a-f0-9]{64}/.test(sent[0].text) && /sent it to your email/i.test(await text(spy)), "asking for the link emails it to Ava's own address only");
+  await spy.context().close();
 }
 
 // 3. The leader's team map: private until 3 finish, then combined; Ava shows by name because she shared

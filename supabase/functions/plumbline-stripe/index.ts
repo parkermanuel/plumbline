@@ -25,7 +25,7 @@ const EXTRA_SEAT_CENTS = 2500, MAX_EXTRA_SEATS = 950;
 const RETURN_SITES = ["https://plumblineassessment.com", "https://plumblineteams.com"];
 // Beta invites: sha256(invite token) -> who it's for and how many free assessments. Each works once (payments row "invite_<hash>").
 const INVITES: Record<string, { label: string; credits: number }> = {
-  "88e5a5db739f8cf4df8877485a79ce8ae3bed07f765b12fe7a95722f76b8a983": { label: "SLN (Rick Burge)", credits: 5 },
+  "88e5a5db739f8cf4df8877485a79ce8ae3bed07f765b12fe7a95722f76b8a983": { label: "SLN", credits: 5 },
   "11e484af7c43390db5eee8a6b627b4a3c05825d805314781e2a6b7f06ce1afb6": { label: "Friend test 1", credits: 5 },
   "5156d6e8634c003e6a733feb622d7adfcc89b1b0d047e1c87147128349ca3fde": { label: "Friend test 2", credits: 5 },
   "1c3ebb0e1d591bc76adbcccca9cb2529ac2fd35781a69f52652ebc938135ddca": { label: "Friend test 3", credits: 5 },

@@ -69,7 +69,7 @@ insert into public.platform_admins select id from auth.users where email = 'park
 
 ## 7. Try it
 1. Go to plumblineassessment.com, select **Network leaders**, sign in, and create your network.
-2. Under **Settings & team**, invite Jess as an assessor.
+2. Under **Settings & team**, invite a teammate as an assessor.
 3. Select **New assessment** and set one up for the two of you with your emails.
 4. Open the invite email on your phone, answer a few questions, then open the same link on your laptop. It should pick up where you left off.
 5. Watch the progress bar move on your dashboard.
