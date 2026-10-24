@@ -3,12 +3,19 @@
 //                      Stripe emails a paid invoice and receipt with the network's name on it.
 //   action "codes"     the platform admin lists, creates or switches off discount codes (Stripe promotion codes).
 //   Stripe webhook     checkout.session.completed and invoice.paid add credits or extend the plan, once per payment.
+//   action "invite"    a beta invite link (/beta?invite=…) applied to the network its owner just set up: 5 free assessments and the
+//                      founding price, once per invite. Only a SHA-256 of each invite is kept here, so this public code can't be used to redeem one.
 // Secrets: STRIPE_SECRET_KEY (a restricted key is enough: Checkout Sessions, Coupons, Promotion Codes write; Customers read),
 //          STRIPE_WEBHOOK_SECRET (from the webhook endpoint in Stripe).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const COUPLE_CENTS = 9900, FOUNDING_CENTS = 7900, PLAN_CENTS = 250000;  // founding = beta networks, $79 per couple through 2027
 const FOUNDING_UNTIL = "2027-12-31";
+// Beta invites: sha256(invite token) -> who it's for and how many free assessments. Each works once (payments row "invite_<hash>").
+const INVITES: Record<string, { label: string; credits: number }> = {
+  "88e5a5db739f8cf4df8877485a79ce8ae3bed07f765b12fe7a95722f76b8a983": { label: "SLN (Rick Burge)", credits: 5 },
+};
+const sha256 = async (t: string) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((b) => b.toString(16).padStart(2, "0")).join("");
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
@@ -115,6 +122,25 @@ Deno.serve(async (req) => {
         cancel_url: `${site}/#/leader`,
       });
       return json({ url: session.url });
+    }
+
+    if (body.action === "invite") {
+      const hash = await sha256(String(body.token || "").trim());
+      const inv = INVITES[hash];
+      if (!inv) return json({ error: "That invite link isn't valid" }, 404);
+      const { data: isAdmin } = await user.rpc("pl_is_admin", { p_network: body.networkId });
+      if (!isAdmin) return json({ error: "Only the network's owners and admins can use an invite" }, 403);
+      const id = `invite_${hash.slice(0, 40)}`;
+      const { error: dup } = await admin.from("payments").insert({ id, network_id: body.networkId, kind: "grant", quantity: inv.credits, promo: `beta invite: ${inv.label}`, email: me.user.email });
+      if (dup) {
+        const { data: prev } = await admin.from("payments").select("network_id").eq("id", id).maybeSingle();
+        if (!prev) return json({ error: dup.message }, 400);
+        return json(prev.network_id === body.networkId ? { ok: true, already: true } : { used: true, error: "This invite has already been used" });
+      }
+      const { data: net } = await admin.from("networks").select("credits").eq("id", body.networkId).single();
+      // Exactly the invite's number left (it replaces the usual first free couple rather than adding to it).
+      await admin.from("networks").update({ credits: Math.max(net?.credits ?? 0, inv.credits), founding: true }).eq("id", body.networkId);
+      return json({ ok: true, credits: inv.credits });
     }
 
     if (body.action === "codes") {
