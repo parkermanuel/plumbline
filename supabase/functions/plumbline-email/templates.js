@@ -27,8 +27,10 @@ ${button ? `<tr><td style="padding:4px 32px 28px"><a href="${escHtml(button.href
 // r.audience: "planting" (default), "staff", "nonprofit" or "business". r.job_role: the role a candidate is being considered for.
 const AUD_WHAT = { staff: "a church staff role", nonprofit: "a nonprofit leadership role", business: "a business leadership role" };
 const what = (r) => (r.job_role ? `the ${esc(r.job_role)} role` : AUD_WHAT[r.audience] || "this role");
-const planting = (r) => !r.audience || r.audience === "planting";
-const footFor = (r) => (planting(r) ? FOOT : "Plumbline is a leadership assessment. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.");
+const planting = (r) => (!r.audience || r.audience === "planting") && r.purpose !== "team";
+// Plumbline Teams: someone already on a team taking it to grow, not to be hired or approved
+const isTeam = (r) => r.purpose === "team";
+const footFor = (r) => (isTeam(r) ? "Plumbline Teams helps teams grow together. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you." : planting(r) ? FOOT : "Plumbline is a leadership assessment. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.");
 const FOOT = "Plumbline is a church planter assessment for networks. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.";
 
 export function personEmail(kind, r, site) {
@@ -52,9 +54,14 @@ export function personEmail(kind, r, site) {
   } else {
     const mins = r.role === "planter" ? (planting(r) ? 35 : 30) : 25;
     const other = r.role === "planter" ? sn : pn;
-    subject = reminder ? `Pick up where you left off on Plumbline` : `Your Plumbline assessment from ${net}`;
-    heading = reminder ? `Pick up where you left off, ${nm}` : `${nm}, your assessment is ready`;
-    paragraphs = reminder ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`] : [
+    const tm = esc(r.team_name) || esc(net);
+    subject = reminder ? `Pick up where you left off on Plumbline` : isTeam(r) ? `${clean(r.sender_name) || net} invited you to Plumbline Teams` : `Your Plumbline assessment from ${net}`;
+    heading = reminder ? `Pick up where you left off, ${nm}` : isTeam(r) ? `${nm}, see how you're wired` : `${nm}, your assessment is ready`;
+    paragraphs = reminder ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`] : isTeam(r) ? [
+      `${sender} invited ${tm} to take Plumbline together, so you can each see your strengths and grow as a team. It takes about ${mins} minutes.`,
+      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away.`,
+      `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
+    ] : [
       planting(r) ? `${sender} at ${esc(net)} invited you to take Plumbline, a church planter assessment. It takes about ${mins} minutes.` : `${sender} at ${esc(net)} invited you to take Plumbline, a leadership assessment, as part of considering you for ${what(r)}. It takes about ${mins} minutes.`,
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
       other ? `${other} has a separate link. Please take it on your own, and don't compare answers until you've both finished. The differences are some of the most helpful things you'll learn.` : "",

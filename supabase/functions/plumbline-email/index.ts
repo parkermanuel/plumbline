@@ -10,7 +10,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 async function audienceByToken(admin: any, tokens: string[]) {
   if (!tokens.length) return {};
   const { data } = await admin.from("participants").select("token, cases(settings)").in("token", tokens);
-  return Object.fromEntries((data ?? []).map((p: any) => [p.token, { audience: p.cases?.settings?.audience || "planting", job_role: p.cases?.settings?.role || "" }]));
+  return Object.fromEntries((data ?? []).map((p: any) => [p.token, { audience: p.cases?.settings?.audience || "planting", job_role: p.cases?.settings?.role || "", purpose: p.cases?.settings?.purpose || "decide", team_name: p.cases?.settings?.team?.name || "" }]));
 }
 
 Deno.serve(async (req) => {
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       if (error) return json({ error: "Couldn't send" }, 500);
       const ids = [...new Set((data ?? []).map((r: any) => r.case_id))];
       const { data: cs } = ids.length ? await admin.from("cases").select("id, settings").in("id", ids) : { data: [] };
-      const byCase = Object.fromEntries((cs ?? []).map((c: any) => [c.id, { audience: c.settings?.audience || "planting", job_role: c.settings?.role || "" }]));
+      const byCase = Object.fromEntries((cs ?? []).map((c: any) => [c.id, { audience: c.settings?.audience || "planting", job_role: c.settings?.role || "", purpose: c.settings?.purpose || "decide", team_name: c.settings?.team?.name || "" }]));
       for (const r of data ?? []) (await send(r.email, null, finishedEmail({ ...r, ...(byCase[r.case_id] || {}) }, site))) ? sent++ : failed++;
       return json({ sent, failed });
     }

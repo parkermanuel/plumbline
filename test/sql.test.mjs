@@ -27,6 +27,8 @@ export async function makeDb() {
   await db.exec(sql); // must be safe to run twice
   const upd = readFileSync(new URL("../supabase/update-2026-10-23.sql", import.meta.url), "utf8");
   await db.exec(upd); await db.exec(upd); // the pasted update must also be safe to run on top, twice
+  const upd3 = readFileSync(new URL("../supabase/update-2026-10-24-teams.sql", import.meta.url), "utf8");
+  await db.exec(upd3); await db.exec(upd3);
   return db;
 }
 
@@ -228,6 +230,20 @@ async function main() {
   ok(!!(await tryAs(OWNER, `select public.pl_set_founding($1, true)`, [nid])) && !!(await tryAs(OWNER, `update public.networks set founding = true where id=$1`, [nid])), "a network can't make itself founding");
   await as(PARKER, () => q(`select public.pl_set_founding($1, true)`, [nid]));
   ok((await q(`select founding from public.networks where id=$1`, [nid]))[0].founding === true, "the platform admin can mark a founding network");
+
+  // Plumbline Teams: a team member's case keeps its purpose and team, and their link knows it
+  const tc = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, 'Ava Team', 'ava@t.org', false, '{"audience":"staff","purpose":"team","team":{"id":"t_abc","name":"Pinewood staff","extra":"x"},"evil":"y"}') returning id`, [nid, OWNER])))[0].id;
+  const ts = (await q(`select settings, reports_released from public.cases where id=$1`, [tc]))[0];
+  ok(ts.reports_released === true, "a team member's growth report is released from the start");
+  Object.assign(ts, ts.settings);
+  ok(ts.settings.purpose === "team" && ts.settings.team.id === "t_abc" && ts.settings.team.name === "Pinewood staff" && ts.settings.team.extra === undefined && ts.settings.evil === undefined, "a team case keeps purpose and team, nothing else");
+  const ttok = (await q(`select token from public.participants where case_id=$1`, [tc]))[0].token;
+  const topen = (await q(`select public.pl_open($1) as j`, [ttok]))[0].j;
+  ok(topen.case.purpose === "team" && topen.case.team.name === "Pinewood staff", "a team member's link knows it's for their team");
+  const bad = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1, $2, 'Odd', false, '{"purpose":"spy","team":"x"}') returning id`, [nid, OWNER])))[0].id;
+  const bs = (await q(`select settings from public.cases where id=$1`, [bad]))[0].settings;
+  ok(bs.purpose === undefined && bs.team === undefined, "unknown purpose or a malformed team is dropped");
+  ok((await q(`select public.pl_open($1) as j`, [(await q(`select token from public.participants where case_id=$1`, [bad]))[0].token]))[0].j.case.purpose === "decide", "assessments default to a decision");
 
   // Delete my account
   ok(!!(await tryAs(null, `select public.pl_delete_account()`)), "you must be signed in to delete an account");
