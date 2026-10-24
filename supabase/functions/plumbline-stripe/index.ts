@@ -14,6 +14,16 @@ const FOUNDING_UNTIL = "2027-12-31";
 // Beta invites: sha256(invite token) -> who it's for and how many free assessments. Each works once (payments row "invite_<hash>").
 const INVITES: Record<string, { label: string; credits: number }> = {
   "88e5a5db739f8cf4df8877485a79ce8ae3bed07f765b12fe7a95722f76b8a983": { label: "SLN (Rick Burge)", credits: 5 },
+  "11e484af7c43390db5eee8a6b627b4a3c05825d805314781e2a6b7f06ce1afb6": { label: "Friend test 1", credits: 5 },
+  "5156d6e8634c003e6a733feb622d7adfcc89b1b0d047e1c87147128349ca3fde": { label: "Friend test 2", credits: 5 },
+  "1c3ebb0e1d591bc76adbcccca9cb2529ac2fd35781a69f52652ebc938135ddca": { label: "Friend test 3", credits: 5 },
+  "b2098764af982df2c3062efa76c4bb6ef581f1e4c44da8b2a79c276f7a293d16": { label: "Friend test 4", credits: 5 },
+  "758f42cc661e0ebe342646c4ae5884fb3ef416aeecf004b14143b3a35ac8aa0e": { label: "Friend test 5", credits: 5 },
+  "f2ebb777c34367dfc517462b50dc6ea713e647fc4360b3b5ad84a4e4b8d5e5e1": { label: "Friend test 6", credits: 5 },
+  "02d97bfdbe8d29fdf8847ed33ff852a430d6d234310672904a35467d2b785ba2": { label: "Friend test 7", credits: 5 },
+  "a104998aae3e969915c1d06832a86805522057c5c2d0091d49aaa32eae6a62fd": { label: "Friend test 8", credits: 5 },
+  "48f9d065a33557d7126043a8a2d4922361149ba0ac355e55ab7431cf0934ea17": { label: "Friend test 9", credits: 5 },
+  "7f34dd937587b9d1996c062e3ba1de47962a88ccf0bae54d25efb93fca1b867e": { label: "Friend test 10", credits: 5 },
 };
 const sha256 = async (t: string) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((b) => b.toString(16).padStart(2, "0")).join("");
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
