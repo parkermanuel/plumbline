@@ -842,11 +842,12 @@ create or replace function public.pl_result_team(p_name text, p_admin boolean) r
       and (coalesce(c.settings->>'purpose', 'decide') <> 'team' or p.shared))
 $$;
 
--- The person (through their own link): share or stop sharing their growth report with their team's leaders
+-- The person (through their own link): share or stop sharing their growth report with their team's leaders.
+-- Only once they've finished, from their own report, so a leader holding the invite link can't switch sharing on ahead of time.
 create or replace function public.pl_team_share(p_token text, p_on boolean) returns boolean language plpgsql security definer set search_path = public as $$
 begin
   update public.participants p set shared = coalesce(p_on, false)
-  from public.cases c where c.id = p.case_id and p.token = p_token and p.role = 'planter' and c.settings->>'purpose' = 'team' and not c.archived;
+  from public.cases c where c.id = p.case_id and p.token = p_token and p.role = 'planter' and p.status = 'finished' and c.settings->>'purpose' = 'team' and not c.archived;
   return found;
 end $$;
 
@@ -865,12 +866,13 @@ begin
   return found;
 end $$;
 
--- The leader: a team member's progress, link and email, never their answers
+-- The leader: a team member's progress, link and email, never their answers.
+-- The link is only handed out until they finish: after that it opens their private growth report, which is theirs alone.
 create or replace function public.pl_team_people(p_case uuid) returns table(
   id uuid, case_id uuid, role text, token text, name text, email text, relationship text, status text, step int, total int, progress int, chapter text,
   started_at timestamptz, finished_at timestamptz, invited_at timestamptz, reminded_at timestamptz, created_at timestamptz, updated_at timestamptz, shared boolean, answers jsonb)
 language sql stable security definer set search_path = public as $$
-  select p.id, p.case_id, p.role, p.token, p.name, p.email, p.relationship, p.status, p.step, p.total, p.progress, p.chapter,
+  select p.id, p.case_id, p.role, case when p.status = 'finished' then null else p.token end, p.name, p.email, p.relationship, p.status, p.step, p.total, p.progress, p.chapter,
          p.started_at, p.finished_at, p.invited_at, p.reminded_at, p.created_at, p.updated_at, p.shared,
          case when p.shared and p.status = 'finished' then p.answers - 'privateNote' - 'safety' else '{}'::jsonb end
   from public.participants p join public.cases c on c.id = p.case_id

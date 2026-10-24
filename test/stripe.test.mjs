@@ -61,6 +61,15 @@ r = await call({ action: "teams", tier: "team", networkId: "net2" }); ok(r.statu
 // 2. Billing page needs a Stripe customer first
 r = await call({ action: "portal", networkId: "net1" }); ok(r.status === 400, "Manage billing explains there's nothing yet before a first purchase");
 NET.stripe_customer = "cus_1";
+// Buying couples: the first purchase makes a Stripe customer; later ones reuse it (Stripe refuses both at once)
+NET.stripe_customer = null;
+await call({ action: "checkout", kind: "couples", quantity: 2, networkId: "net1" });
+let cf = sent.at(-1).fields;
+ok(cf.customer_creation === "always" && !cf.customer && cf["line_items[0][price_data][unit_amount]"] === "9900", "first couples purchase: $99 each and a new Stripe customer");
+NET.stripe_customer = "cus_1";
+await call({ action: "checkout", kind: "couples", quantity: 1, networkId: "net1" });
+cf = sent.at(-1).fields;
+ok(cf.customer === "cus_1" && !("customer_creation" in cf), "a repeat couples purchase reuses the network's Stripe customer");
 r = await call({ action: "portal", networkId: "net1", returnTo: "https://plumblineteams.com" }); j = await r.json();
 ok(j.url === "https://billing.stripe.test/p" && sent.at(-1).fields.return_url === "https://plumblineteams.com/leader", "Manage billing opens Stripe's billing page and comes back to the dashboard");
 

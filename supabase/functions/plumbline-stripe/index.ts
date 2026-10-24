@@ -137,7 +137,8 @@ Deno.serve(async (req) => {
         mode: plan ? "subscription" : "payment",
         client_reference_id: net.id,
         ...(net.stripe_customer ? { customer: net.stripe_customer } : { customer_email: me.user.email }),
-        ...(plan ? {} : { customer_creation: "always" }),
+        // Stripe refuses customer_creation alongside an existing customer, so it's only asked for on a network's first purchase
+        ...(plan || net.stripe_customer ? {} : { customer_creation: "always" }),
         line_items: { 0: {
           quantity: plan ? 1 : qty,
           ...(plan ? {} : { adjustable_quantity: { enabled: true, minimum: 1, maximum: 50 } }),
