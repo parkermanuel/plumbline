@@ -247,6 +247,7 @@ for (const [i, who] of people.entries()) {
     const rep = await text(p);
     ok(/how God has wired you/.test(rep) && /Your next 90 days/.test(rep), "they see their own growth report right away");
     ok(!/Ready with Conditions|Pause & Talk|Development Needed|Recommendation/.test(rep), "no grade or recommendation in their report");
+    ok(/How to work with/.test(rep) && /I work best with/.test(rep) && /To work well with me/.test(rep), "their report has a How to work with me card");
     ok(/Your report is private/.test(rep) && !!(await p.$('[data-act="share-toggle"]')), "their report says it's private, with a Share button");
     ok(!/Your story|debt|When could you start/i.test(JSON.stringify(await db.query(`select answers->'facts' f from public.participants where email = 'ava@fr.church'`).then((r) => r.rows[0].f || {}))), "team members skip the hiring-only questions");
     await click(p, '[data-act="share-toggle"]'); await wait(1200);
@@ -266,6 +267,7 @@ ok((await owner.$$(".team-wiring")).length === 5 && (await owner.$$(".team-split
 ok(t.includes("Gifts on the team"), "team map: gifts for a church staff team");
 ok((await owner.$$('a:has-text("Shared report")')).length === 1 && (await owner.$$(".team-private")).length === 2, "people: Ava's shared report opens; the other two show Private");
 ok(!/Ben|Cara/.test(await owner.evaluate(() => [...document.querySelectorAll(".team-pillar, .team-wiring, .legend")].map((e) => e.innerText).join(" "))) && /Ava/.test(await owner.evaluate(() => document.querySelector(".legend")?.innerText || "")), "team map: only the person who shared shows by name");
+ok(/Talk about it together/.test(t) && (await owner.$$(".guide-steps li")).length >= 5 && /60-minute/.test(t), "team map: a 60-minute team meeting guide");
 await shot(owner, "teams-map-desktop");
 const ph = await device("owner", 390); await ph.goto(teamUrl); await ph.waitForSelector(".team-pillar", { timeout: 20000 }).catch(() => {});
 ok(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "team map fits a phone screen");
@@ -276,6 +278,8 @@ await owner.click('a:has-text("Shared report")'); await owner.waitForURL(/\/case
 
 t = await text(owner);
 ok(!t.includes("Leader report") && /shared report/i.test(await owner.evaluate(() => document.querySelector(".tabs")?.innerText || "")) && /how God has wired you/.test(t), "Ava's shared report opens, no leader report");
+ok(/For your next 1:1/.test(t) && /next 1:1 with Ava/.test(t) && (await owner.$$(".qa-list li")).length >= 5, "Ava's shared report comes with 1:1 questions");
+await shot(owner, "teams-shared-report-desktop");
 const benCase = (await db.query(`select c.id from public.cases c where c.planter_name = 'Ben Cole'`)).rows[0].id;
 await owner.goto(SITE + "/case/" + benCase); await owner.waitForSelector(".notice", { timeout: 20000 }).catch(() => {}); await wait(800);
 t = await owner.evaluate(() => document.body.innerText);
