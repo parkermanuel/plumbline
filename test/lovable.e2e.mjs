@@ -140,6 +140,8 @@ let failed = 0;
 const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) failed++; };
 const text = (p) => p.evaluate(() => document.querySelector("main").innerText);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Waits until the page's main text matches (a slow dev server can take a few seconds), then carries on either way
+const until = (p, fn, arg = null, ms = 15000) => p.waitForFunction(fn, arg, { timeout: ms }).catch(() => {});
 const click = (p, sel) => p.evaluate((s) => { const el = document.querySelector(s); if (!el) throw new Error("missing " + s); el.click(); }, sel);
 const submit = (p, sel) => p.evaluate((s) => document.querySelector(s).requestSubmit(), sel);
 const linkIn = (mail) => (mail.text.match(/https?:\/\/\S+/) || [])[0];
@@ -234,11 +236,11 @@ await wait(1500);
 const prog = (await db.query(`select progress, chapter from public.participant_status where role='planter'`)).rows[0];
 ok(prog.progress >= 25, `progress mirror shows ${prog.progress}% (${prog.chapter})`);
 await shot(phone, "take-phone");
-await owner.evaluate(() => document.querySelector('a[href="/leader"]').click()); await owner.reload(); await wait(1000);
+await owner.evaluate(() => document.querySelector('a[href="/leader"]').click()); await owner.reload(); await until(owner, (n) => (document.querySelector("main")?.innerText || "").includes(n + "%"), prog.progress);
 ok((await text(owner)).includes(`${prog.progress}%`), "owner's dashboard shows the planter's progress");
 await shot(owner, "dashboard");
 const laptop = await device(null);
-await laptop.goto(joshLink); await wait(1200);
+await laptop.goto(joshLink); await until(laptop, () => !!document.querySelector(".chapter-name .num"));
 ok(+(await laptop.evaluate(() => document.querySelector(".chapter-name .num")?.textContent || "0").then((x) => x.replace("%", ""))) >= prog.progress - 1, "resumes on another device");
 await laptop.evaluate(() => { window.__wantUpload = true; });
 ok((await answer(laptop, 900)) === "done", "planter finishes (network belief and question included)");
@@ -284,7 +286,7 @@ ok((await text(owner)).includes("Team: Sam 4"), "after scoring, owner sees Sam's
 await shot(owner, "report");
 await click(owner, '[data-tab="status"]'); await wait(400);
 await click(owner, '[data-act="release"]'); await wait(800);
-const me = await device(null); await me.goto(joshLink); await wait(1200);
+const me = await device(null); await me.goto(joshLink); await until(me, () => /wired you/.test(document.querySelector("main")?.innerText || ""));
 const mine = await text(me);
 ok(mine.includes("here's how God has wired you") && !mine.includes("PRIVATE-NOTE-XYZ"), "planter sees his own report, never the spouse's private note");
 
@@ -301,7 +303,7 @@ await owner.evaluate(() => document.querySelector('[data-act="delete-yes"]').cli
 ok((await db.query(`select count(*)::int n from public.participants`)).rows[0].n === 0, "owner deletes the assessment and every answer");
 console.log("STORAGE CALLS:", JSON.stringify(calls.filter((c) => c.removed != null || c.storageErr || c.upload)));
 ok(calls.some((c) => c.removed === 1) && (await db.query(`select count(*)::int n from storage.objects where bucket_id='results'`)).rows[0].n === 0, "deleting an assessment deletes its uploaded files");
-await owner.goto(SITE + "/#/privacy"); await wait(800);
+await owner.goto(SITE + "/#/privacy"); await until(owner, () => /Who sees your answers/.test(document.querySelector("main")?.innerText || ""));
 ok((await text(owner)).includes("Who sees your answers"), "privacy page");
 
 console.log("emails:", emails.map((e) => e.kind).reduce((a, k) => ((a[k] = (a[k] || 0) + 1), a), {}));
