@@ -128,6 +128,8 @@ Deno.serve(async (req) => {
       const hash = await sha256(String(body.token || "").trim());
       const inv = INVITES[hash];
       if (!inv) return json({ error: "That invite link isn't valid" }, 404);
+      const { data: isPlatform } = await admin.from("platform_admins").select("user_id").eq("user_id", me.user.id).maybeSingle();
+      if (isPlatform) return json({ error: "Invite links are for the networks you invite, so your own account doesn't use them" }, 400);
       const { data: isAdmin } = await user.rpc("pl_is_admin", { p_network: body.networkId });
       if (!isAdmin) return json({ error: "Only the network's owners and admins can use an invite" }, 403);
       const id = `invite_${hash.slice(0, 40)}`;
