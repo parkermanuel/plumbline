@@ -83,7 +83,8 @@ begin
       'giftsTop', coalesce((select jsonb_agg(x) from (select x from jsonb_array_elements_text(case when jsonb_typeof(p_summary->'giftsTop') = 'array' then p_summary->'giftsTop' else '[]'::jsonb end) x where x ~ '^[a-z_]{1,30}$' limit 3) t), '[]'::jsonb),
       'giftsStrong', coalesce((select jsonb_agg(x) from (select x from jsonb_array_elements_text(case when jsonb_typeof(p_summary->'giftsStrong') = 'array' then p_summary->'giftsStrong' else '[]'::jsonb end) x where x ~ '^[a-z_]{1,30}$' limit 30) t), '[]'::jsonb),
       'strengths', coalesce((select jsonb_agg(x) from (select x from jsonb_array_elements_text(case when jsonb_typeof(p_summary->'strengths') = 'array' then p_summary->'strengths' else '[]'::jsonb end) x where x ~ '^[a-z_0-9]{1,30}$' limit 12) t), '[]'::jsonb),
-      'growth', coalesce((select jsonb_agg(x) from (select x from jsonb_array_elements_text(case when jsonb_typeof(p_summary->'growth') = 'array' then p_summary->'growth' else '[]'::jsonb end) x where x ~ '^[a-z_0-9]{1,30}$' limit 12) t), '[]'::jsonb))
+      'growth', coalesce((select jsonb_agg(x) from (select x from jsonb_array_elements_text(case when jsonb_typeof(p_summary->'growth') = 'array' then p_summary->'growth' else '[]'::jsonb end) x where x ~ '^[a-z_0-9]{1,30}$' limit 12) t), '[]'::jsonb),
+      'team', coalesce((select jsonb_object_agg(k, least(100, greatest(0, round(v::numeric)))) from jsonb_each_text(case when jsonb_typeof(p_summary->'team') = 'object' then p_summary->'team' else '{}'::jsonb end) e(k, v) where v ~ '^[0-9]+(\.[0-9]+)?$' and k ~ '^[a-z_]{1,30}$'), '{}'::jsonb))
   where p.id = public.pl_key_person(p_token);
   return found;
 end $$;

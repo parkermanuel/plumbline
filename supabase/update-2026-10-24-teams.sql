@@ -118,7 +118,7 @@ create or replace function public.pl_team_people(p_case uuid) returns table(
 language sql stable security definer set search_path = public as $$
   select p.id, p.case_id, p.role, case when p.status = 'finished' then null else p.token end, p.name, p.email, p.relationship, p.status, p.step, p.total, p.progress, p.chapter,
          p.started_at, p.finished_at, p.invited_at, p.reminded_at, p.created_at, p.updated_at, p.shared,
-         case when p.shared and p.status = 'finished' then p.answers - 'privateNote' - 'safety' else '{}'::jsonb end
+         case when p.shared and p.status = 'finished' then p.answers - 'privateNote' - 'safety' - 'teamh' else '{}'::jsonb end
   from public.participants p join public.cases c on c.id = p.case_id
   where p.case_id = p_case and c.settings->>'purpose' = 'team' and public.pl_is_member(c.network_id);
 $$;
@@ -145,7 +145,7 @@ create or replace function public.pl_team_map(p_network uuid, p_team text) retur
     'total', (select count(*) from team),
     'finished', (select count(*) from team where status = 'finished'),
     'counted', (select count(*) from done),
-    'shared', coalesce((select jsonb_agg(jsonb_build_object('caseId', case_id, 'name', planter_name, 'summary', s) order by planter_name) from done where shared), '[]'::jsonb),
+    'shared', coalesce((select jsonb_agg(jsonb_build_object('caseId', case_id, 'name', planter_name, 'summary', s - 'team') order by planter_name) from done where shared), '[]'::jsonb),
     'sharedIds', coalesce((select jsonb_agg(case_id) from team where shared), '[]'::jsonb),
     'combined', case when (select yes from ok) then jsonb_build_object(
       'n', (select count(*) from done),
@@ -157,7 +157,11 @@ create or replace function public.pl_team_map(p_network uuid, p_team text) retur
       'giftsStrong', (select coalesce(jsonb_agg(distinct g), '[]'::jsonb) from done, jsonb_array_elements_text(s->'giftsStrong') g),
       'strengths', (select coalesce(jsonb_object_agg(x, n), '{}'::jsonb) from (select x, count(*) n from done, jsonb_array_elements_text(s->'strengths') x group by x) t),
       'growth', (select coalesce(jsonb_object_agg(x, n), '{}'::jsonb) from (select x, count(*) n from done, jsonb_array_elements_text(s->'growth') x group by x) t),
-      'healthLow', (select count(*) from done where (s->'pillars'->>'health') is not null and (s->'pillars'->>'health')::numeric < 65)
+      'healthLow', (select count(*) from done where (s->'pillars'->>'health') is not null and (s->'pillars'->>'health')::numeric < 65),
+      -- "Our team" (25 Oct 2026): how the team works together. Averages and counts only, never one person's view.
+      'teamN', (select count(*) from done where jsonb_typeof(s->'team') = 'object' and s->'team' <> '{}'::jsonb),
+      'team', (select coalesce(jsonb_object_agg(k, a), '{}'::jsonb) from (select k, round(avg(v::numeric)) a from done, jsonb_each_text(s->'team') e(k, v) group by k) t),
+      'teamLow', (select coalesce(jsonb_object_agg(k, n), '{}'::jsonb) from (select k, count(*) filter (where v::numeric < 50) n from done, jsonb_each_text(s->'team') e(k, v) group by k) t)
     ) end
   ) end
 $$;
