@@ -253,7 +253,7 @@ async function main() {
   const teamCase = async (name) => (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, $3, 'x@t.org', false, '{"audience":"staff","purpose":"team","team":{"id":"t_priv","name":"Staff"}}') returning id`, [nid, OWNER, name])))[0].id;
   const tok = async (cid) => (await q(`select token from public.participants where case_id=$1`, [cid]))[0].token;
   const key = async (cid) => (await q(`select k.key from public.report_keys k join public.participants p on p.id = k.participant_id where p.case_id=$1`, [cid]))[0]?.key;
-  const sum = (h) => JSON.stringify({ pillars: { character: h, health: h - 10, bogus: "x" }, wiring: { pace: h, people: 100 - h }, giftsTop: ["lead", "teach", "help", "extra"], giftsStrong: ["lead"], strengths: ["integrity"], growth: ["load"] });
+  const sum = (h) => JSON.stringify({ pillars: { character: h, health: h - 10, bogus: "x" }, wiring: { pace: h, people: 100 - h }, giftsTop: ["lead", "teach", "help", "extra"], giftsStrong: ["lead"], strengths: ["integrity"], growth: ["load"], team: { th_trust: h, th_care: h - 40, bogus: "x" } });
   const t1 = await teamCase("Tia One"), t2 = await teamCase("Tom Two"), t3 = await teamCase("Tess Three");
   const oldLink = await tok(t1);  // a leader could have copied this before Tia finished
   const k1 = (await as(null, () => q(`select public.pl_finish_team($1, '{"meta":{"name":"Tia One"},"likert":{"x":5},"privateNote":"secret"}') as k`, [oldLink])))[0].k;
@@ -277,6 +277,7 @@ async function main() {
   await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [k1, sum(80)]);
   const s1 = (await q(`select team_summary from public.participants where case_id=$1`, [t1]))[0].team_summary;
   ok(s1.pillars.character === 80 && s1.pillars.bogus === undefined && s1.giftsTop.length === 3 && !JSON.stringify(s1).includes("secret"), "team: the saved summary keeps only clean scores");
+  ok(s1.team.th_trust === 80 && s1.team.th_care === 40 && s1.team.bogus === undefined, "our team: the summary keeps clean team-health scores");
   let m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
   ok(m.total === 3 && m.finished === 1 && m.combined === null && m.shared.length === 0, "team map: nothing combined until 3 people finish");
   for (const [c, h] of [[t2, 60], [t3, 70]]) { await q(`select public.pl_finish($1, '{"meta":{}}')`, [await tok(c)]); await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [await key(c), sum(h)]); }
@@ -284,11 +285,13 @@ async function main() {
   m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
   ok(m.combined && m.combined.n === 3 && Number(m.combined.pillars.character) === 70 && m.combined.wiring.pace.right === 2 && m.combined.wiring.pace.mid === 1 && Number(m.combined.healthLow) === 2, "team map: combined averages and counts once 3 finish");
   ok(!JSON.stringify(m).includes("Tia") && m.shared.length === 0, "team map: no names unless someone shares");
+  ok(Number(m.combined.teamN) === 3 && Number(m.combined.team.th_trust) === 70 && Number(m.combined.team.th_care) === 30 && Number(m.combined.teamLow.th_care) === 3 && Number(m.combined.teamLow.th_trust) === 0, "our team: the team map shows the team's average and how many rate an area low");
   ok((await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0].answers.likert === undefined, "team: unshared, the leader can't see their report");
   ok(await as(null, () => q(`select public.pl_team_share($1, true) as ok`, [k1])).then((r) => r[0].ok), "team: the person can share with their key");
   m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
   const tp2 = (await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0];
   ok(m.shared.length === 1 && m.shared[0].name === "Tia One" && tp2.answers.likert && tp2.answers.privateNote === undefined, "team: once shared, the leader sees their report, never their private note");
+  ok(tp2.answers.teamh === undefined && m.shared[0].summary.team === undefined && m.shared[0].summary.pillars, "our team: even when shared, one person's view of the team never reaches the leader");
   ok((await as(OWNER, () => q(`select public.pl_report($1) as j`, [oldLink])))[0].j === null, "team: even when shared, the old link still doesn't open the person's own report page");
   await q(`select public.pl_team_share($1, false)`, [k1]);
   ok(JSON.stringify((await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0].answers) === "{}", "team: they can stop sharing");
