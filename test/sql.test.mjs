@@ -329,7 +329,7 @@ async function main() {
   await q(`update public.cases set archived = true where network_id=$1 and planter_name='A'`, [pnet]);
   ok(!(await teamIns("C")), "teams plan: removing someone frees their place");
   await q(`set role service_role`);
-  await q(`select public.pl_record_payment('in_team2', null, 'teams_renewal', 15, 49900, 'usd', null, null, 'cus_team')`);
+  await q(`select public.pl_record_payment('in_team2', null, 'teams_renewal', 15, 44900, 'usd', null, null, 'cus_team')`);
   await q(`reset role`);
   const pr = (await q(`select team_seats, team_until > now() + interval '700 days' as two from public.networks where id=$1`, [pnet]))[0];
   ok(pr.team_seats === 15 && pr.two, "teams plan: a renewal (found by Stripe customer) adds a year and can change the size");

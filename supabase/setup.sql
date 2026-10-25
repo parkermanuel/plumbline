@@ -928,7 +928,7 @@ revoke all on function public.pl_team_people(uuid), public.pl_team_set_email(uui
 grant execute on function public.pl_team_people(uuid), public.pl_team_set_email(uuid, text), public.pl_team_map(uuid, text) to authenticated;
 
 -- ============ Plumbline Teams yearly plans (24 Oct 2026) ============
--- Starter (up to 8 people) $249, Team (up to 15) $499, Staff (up to 50) $1,299 a year; past 50, $25 a person a year.
+-- Starter (up to 8 people) $249, Team (up to 15) $449, Staff (up to 50) $1,299 a year; past 50, $25 a person a year.
 -- A plan covers that many people on teams at once. Removing someone from a team frees their place.
 -- Without a plan (or past its size), each person on a team uses one assessment credit, as before.
 alter table public.networks add column if not exists team_seats int not null default 0 check (team_seats >= 0);

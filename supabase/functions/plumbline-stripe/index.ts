@@ -1,7 +1,7 @@
 // Plumbline payments (Supabase Edge Function), deployed with --no-verify-jwt because it checks every caller itself.
 //   action "checkout"  a network owner/admin buys assessments ($99 per couple, $79 for founding networks) or the yearly plan ($2,500). Returns a Stripe Checkout URL.
 //                      Stripe emails a paid invoice and receipt with the network's name on it.
-//   action "teams"     a network owner/admin buys a Plumbline Teams yearly plan: Starter (8 people) $249, Team (15) $499,
+//   action "teams"     a network owner/admin buys a Plumbline Teams yearly plan: Starter (8 people) $249, Team (15) $449,
 //                      Staff (50) $1,299, plus $25 a person a year past 50. Returns a Stripe Checkout URL.
 //   action "portal"    a network owner/admin opens Stripe's billing page to see invoices, change the card or cancel.
 //   action "codes"     the platform admin lists, creates or switches off discount codes (Stripe promotion codes).
@@ -17,7 +17,7 @@ const FOUNDING_UNTIL = "2027-12-31";
 // Plumbline Teams yearly plans (owner, 24 Oct 2026). Past 50 people: $25 a person a year on top of Staff.
 const TEAM_PLANS: Record<string, { name: string; seats: number; cents: number }> = {
   starter: { name: "Starter", seats: 8, cents: 24900 },
-  team: { name: "Team", seats: 15, cents: 49900 },
+  team: { name: "Team", seats: 15, cents: 44900 },
   staff: { name: "Staff", seats: 50, cents: 129900 },
 };
 const EXTRA_SEAT_CENTS = 2500, MAX_EXTRA_SEATS = 950;
