@@ -8,7 +8,14 @@ Talking to Parker
 - Plain English, short. No jargon without a one-line explanation.
 - Make routine technical decisions yourself and say what you decided. Ask only about content, money, privacy or anything hard to undo.
 - When asking a multiple-choice question, give three options with your recommendation first.
-- Finish every task with: what changed, what you tested, what is still uncertain. Never call something done that you have not verified.
+- Never call something done that you have not verified.
+
+Default workflow (do this every time without being asked; added 26 Oct 2026)
+1. Big or risky task (new feature, several files, database, payments, sign-in): post a short plain-English plan and wait for Parker's "go". Small fixes: just do them.
+2. Any screen change: check light and dark mode at phone width before finishing.
+3. Run the checks listed below for what you touched.
+4. Commit, push and open a pull request with a plain-English description. Merge it yourself only if it is low-risk and this repo's rules allow it; otherwise leave it for Parker.
+5. End with three short lines: what changed (plain English), what you tested, what is uncertain or needs Parker.
 
 Product rules for every app
 - Light AND dark mode on every screen; check both (Parker uses dark mode on his iPhone).
