@@ -43,7 +43,9 @@ jobs:
         working-directory: android
         env:
           PL_VERSION_CODE: ${{ github.run_number }}
-        run: ./gradlew --no-daemon assembleDebug
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon assembleDebug 2>&1 | tee "$RUNNER_TEMP/gradle.log" || { grep -E "What went wrong|rror|FAIL" -A3 "$RUNNER_TEMP/gradle.log" | head -12 | sed 's/^/::error::/'; exit 1; }
       - uses: actions/upload-artifact@v4
         if: steps.key.outputs.signed == 'no'
         with:
@@ -58,7 +60,9 @@ jobs:
           PL_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           PL_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           PL_VERSION_CODE: ${{ github.run_number }}
-        run: ./gradlew --no-daemon bundleRelease
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon bundleRelease 2>&1 | tee "$RUNNER_TEMP/gradle.log" || { grep -E "What went wrong|rror|FAIL" -A3 "$RUNNER_TEMP/gradle.log" | head -12 | sed 's/^/::error::/'; exit 1; }
       - uses: actions/upload-artifact@v4
         if: steps.key.outputs.signed == 'yes'
         with:

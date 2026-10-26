@@ -32,6 +32,15 @@ jobs:
       - name: Build the app's web bundle and copy it into the iPhone project
         run: npm run app
 
+      - name: Check the Apple keys are set
+        env:
+          A: ${{ secrets.APPLE_TEAM_ID }}
+          B: ${{ secrets.ASC_KEY_ID }}
+          C: ${{ secrets.ASC_ISSUER_ID }}
+          D: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          miss=""; [ -z "$A" ] && miss="$miss APPLE_TEAM_ID"; [ -z "$B" ] && miss="$miss ASC_KEY_ID"; [ -z "$C" ] && miss="$miss ASC_ISSUER_ID"; [ -z "$D" ] && miss="$miss ASC_KEY_P8"
+          if [ -n "$miss" ]; then echo "::error::Missing repository secrets:$miss (see the top of this file)."; exit 1; fi
       - name: Write the App Store Connect key
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
