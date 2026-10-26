@@ -32,6 +32,7 @@ jobs:
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
       STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       SITE_URL: ${{ vars.SITE_URL }}
     steps:
       - uses: actions/checkout@v4
@@ -57,12 +58,16 @@ jobs:
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
         with:
           version: 2.121.0
-      - name: Deploy the email, sweep and payment functions
+      - name: Deploy the email, sweep, payment and coach functions
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
         run: |
           supabase functions deploy plumbline-email --project-ref "$SUPABASE_PROJECT_REF" --use-api
           supabase functions deploy plumbline-sweep --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           supabase functions deploy plumbline-stripe --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy plumbline-coach --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+          fi
           if [ -n "$STRIPE_SECRET_KEY" ]; then
             supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" STRIPE_SECRET_KEY="$STRIPE_SECRET_KEY"
           fi
