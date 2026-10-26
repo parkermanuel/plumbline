@@ -7,13 +7,15 @@
     "build": "node build.mjs",
     "e2e": "node test/live.e2e.mjs",
     "test": "node test/aud.test.mjs && node test/engine.test.mjs && node test/email.test.mjs && node test/stripe.test.mjs && node test/sql.test.mjs",
-    "app": "PL_APP=1 node build.mjs && npx cap sync ios"
+    "app": "npx cap sync ios",
+    "app:android": "npx cap sync android"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
     "@capacitor/core": "8.5.3",
     "@capacitor/haptics": "8.0.2",
     "@capacitor/ios": "8.5.3",

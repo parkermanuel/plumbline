@@ -1,14 +1,38 @@
 {
   "appId": "com.parkermanuel.plumbline",
   "appName": "Plumbline",
-  "webDir": "dist-app",
+  "webDir": "app-shell",
+  "server": {
+    "url": "https://plumblineassessment.com",
+    "allowNavigation": [
+      "plumblineassessment.com",
+      "*.plumblineassessment.com",
+      "plumblineteams.com",
+      "*.plumblineteams.com",
+      "msjmhbggcwwppqzfkxug.supabase.co"
+    ],
+    "errorPath": "offline.html"
+  },
+  "appendUserAgent": "PlumblineApp/1",
+  "backgroundColor": "#121212",
   "ios": {
     "contentInset": "never",
-    "backgroundColor": "#121212",
-    "limitsNavigationsToAppBoundDomains": false
+    "limitsNavigationsToAppBoundDomains": false,
+    "scrollEnabled": true
+  },
+  "android": {
+    "allowMixedContent": false
   },
   "plugins": {
-    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#121212", "showSpinner": false },
-    "StatusBar": { "overlaysWebView": true, "style": "LIGHT" }
+    "SplashScreen": {
+      "launchShowDuration": 500,
+      "launchAutoHide": true,
+      "backgroundColor": "#121212",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DEFAULT"
+    }
   }
 }
