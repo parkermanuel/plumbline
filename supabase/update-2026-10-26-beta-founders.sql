@@ -9,10 +9,10 @@ $$;
 create or replace function public.pl_in_beta() returns boolean language sql stable set search_path = public as $$
   select public.pl_today() <= date '2026-12-31'
 $$;
--- A founder: set up before launch (or marked founding by the platform admin), during 2027.
+-- A founder: joined during the beta, through 31 Dec 2026 (or marked founding by the platform admin). Founder prices run 1 Jan – 31 Dec 2027; public launch at regular prices is 5 Jan 2027.
 create or replace function public.pl_is_founder(p_network uuid) returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.networks n where n.id = p_network
-    and (n.founding or (n.created_at at time zone 'America/Denver')::date < date '2027-01-05'))
+    and (n.founding or (n.created_at at time zone 'America/Denver')::date < date '2027-01-01'))  -- joined during the beta (through 31 Dec 2026)
     and public.pl_today() <= date '2027-12-31'
 $$;
 revoke all on function public.pl_is_founder(uuid) from public, anon;

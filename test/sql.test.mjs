@@ -354,6 +354,11 @@ async function main() {
   ok((await as(ASSESSOR, () => q(`select public.pl_is_founder($1) f`, [pnet])))[0].f === true, "founders: a network set up before launch gets founder pricing in 2027");
   await q(`select set_config('pl.today', '2028-01-01', false)`);
   ok((await as(ASSESSOR, () => q(`select public.pl_is_founder($1) f`, [pnet])))[0].f === false, "founders: back to regular prices on Jan 1, 2028");
+  await q(`select set_config('pl.today', '2027-06-01', false)`);
+  await q(`update public.networks set created_at = '2027-01-02 12:00' where id=$1`, [pnet]);
+  ok((await as(ASSESSOR, () => q(`select public.pl_is_founder($1) f`, [pnet])))[0].f === false, "founders: joining Jan 2, after the beta ended, isn't a founder");
+  await q(`update public.networks set created_at = '2026-12-31 20:00-07' where id=$1`, [pnet]);
+  ok((await as(ASSESSOR, () => q(`select public.pl_is_founder($1) f`, [pnet])))[0].f === true, "founders: joining on Dec 31 (Mountain time) is a founder");
   await q(`update public.networks set created_at = '2027-02-01' where id=$1`, [pnet]);
   await q(`select set_config('pl.today', '2027-06-01', false)`);
   ok((await as(ASSESSOR, () => q(`select public.pl_is_founder($1) f`, [pnet])))[0].f === false, "founders: a network set up after launch pays regular prices");

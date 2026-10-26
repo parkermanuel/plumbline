@@ -121,8 +121,11 @@ env.PL_TODAY = "2028-01-01";
 await call({ action: "checkout", kind: "couples", quantity: 1, networkId: "net1" });
 tf = sent.at(-1).fields;
 ok(tf["line_items[0][price_data][unit_amount]"] === "9900" && tf.allow_promotion_codes === "true", "founders: regular $99 from Jan 1, 2028");
-env.PL_TODAY = "2027-03-01"; NET.created_at = "2027-02-10T18:00:00Z";
+env.PL_TODAY = "2027-01-01"; NET.created_at = "2026-12-31T20:00:00Z";
+await call({ action: "checkout", kind: "couples", quantity: 1, networkId: "net1" });
+ok(sent.at(-1).fields["line_items[0][price_data][unit_amount]"] === "6600", "founders: the founder price starts Jan 1, the day after the beta ends");
+env.PL_TODAY = "2027-03-01"; NET.created_at = "2027-01-02T18:00:00Z";
 await call({ action: "teams", tier: "starter", networkId: "net1" });
-ok(!("discounts[0][coupon]" in sent.at(-1).fields), "founders: a network set up after launch pays regular prices");
+ok(!("discounts[0][coupon]" in sent.at(-1).fields), "founders: a network that joined after the beta (Jan 2) pays regular prices");
 
 process.exit(failed ? 1 : 0);

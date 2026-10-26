@@ -17,13 +17,13 @@ const COUPLE_CENTS = 9900, PLAN_CENTS = 250000;
 // 31 Dec 2026. Launch is 5 Jan 2027. Founders (networks set up before launch, or marked founding) get a third off
 // through 31 Dec 2027, then regular prices. Couples are one-time, so founders simply pay $66. Yearly plans get a
 // first-year-only discount, so a renewal in 2028 is at the regular price.
-const BETA_UNTIL = "2026-12-31", LAUNCH = "2027-01-05", FOUNDER_UNTIL = "2027-12-31";
+const BETA_UNTIL = "2026-12-31", FOUNDER_JOINED_BEFORE = "2027-01-01", FOUNDER_UNTIL = "2027-12-31";  // founders = joined during the beta; founder prices 1 Jan – 31 Dec 2027; public launch 5 Jan
 const FOUNDER_COUPLE_CENTS = 6600, FOUNDER_PLAN_OFF = 83300;  // $2,500 - $833 = $1,667 the first year
 // Mountain time; tests set PL_TODAY to check other days
 const today = () => Deno.env.get("PL_TODAY") || new Date().toLocaleDateString("en-CA", { timeZone: "America/Denver" });
 const BETA_MSG = "Plumbline is free during the beta through December 31, 2026, so there's nothing to buy yet. Founders get a third off through 2027.";
 const isFounder = (n: { founding?: boolean; created_at?: string } | null) => !!n && today() <= FOUNDER_UNTIL
-  && (!!n.founding || (n.created_at ? new Date(n.created_at).toLocaleDateString("en-CA", { timeZone: "America/Denver" }) < LAUNCH : false));
+  && (!!n.founding || (n.created_at ? new Date(n.created_at).toLocaleDateString("en-CA", { timeZone: "America/Denver" }) < FOUNDER_JOINED_BEFORE : false));
 // A first-year-only discount, made once in Stripe and reused (id is stable per amount)
 async function founderCoupon(off: number, name: string) {
   const id = `founder-2027-${off}`;
