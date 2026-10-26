@@ -35,6 +35,8 @@ export async function makeDb() {
   await db.exec(upd5); await db.exec(upd5);
   const upd6 = readFileSync(new URL("../supabase/update-2026-10-26-beta-founders.sql", import.meta.url), "utf8");
   await db.exec(upd6); await db.exec(upd6);
+  const upd7 = readFileSync(new URL("../supabase/update-2026-10-26-peers-coach.sql", import.meta.url), "utf8");
+  await db.exec(upd7); await db.exec(upd7);
   // The existing payment checks run as a day after the free beta; the beta itself is checked on its own below.
   await db.exec(`select set_config('pl.today', '${process.env.PL_TODAY || "2027-02-01"}', false)`);
   return db;
@@ -252,6 +254,25 @@ async function main() {
   const bs = (await q(`select settings from public.cases where id=$1`, [bad]))[0].settings;
   ok(bs.purpose === undefined && bs.team === undefined, "unknown purpose or a malformed team is dropped");
   ok((await q(`select public.pl_open($1) as j`, [(await q(`select token from public.participants where case_id=$1`, [bad]))[0].token]))[0].j.case.purpose === "decide", "assessments default to a decision");
+
+  // Plumbline Teams peers: a teammate's ratings show only as averages, and only once 2 have finished
+  {
+    const pc = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, 'Pat Peer', 'p@t.org', false, '{"audience":"staff","purpose":"team","team":{"id":"t_peer","name":"Peers"}}') returning id`, [nid, OWNER])))[0].id;
+    const pid = (await q(`update public.participants set status='finished' where case_id=$1 and role='planter' returning id`, [pc]))[0].id;
+    await q(`insert into public.report_keys(participant_id) values ($1) on conflict do nothing`, [pid]);
+    const PK = (await q(`select key from public.report_keys where participant_id=$1`, [pid]))[0].key;
+    const link = (await as(null, () => q(`select public.pl_team_peer_link($1) t`, [PK])))[0].t;
+    ok(link && link === (await q(`select ref_token from public.cases where id=$1`, [pc]))[0].ref_token, "team peers: the person gets their own teammate link");
+    await q(`insert into public.participants(case_id, role, name, status, answers) values ($1, 'reference', 'A', 'finished', '{"items":{"rf_x":4,"rf_y":0}}')`, [pc]);
+    let peers = (await as(null, () => q(`select public.pl_team_peers($1) p`, [PK])))[0].p;
+    ok(peers.finished === 1 && Object.keys(peers.items).length === 0, "team peers: nothing shows with only one rating");
+    await q(`insert into public.participants(case_id, role, name, status, answers) values ($1, 'reference', 'B', 'finished', '{"items":{"rf_x":5,"rf_y":3}}')`, [pc]);
+    peers = (await as(null, () => q(`select public.pl_team_peers($1) p`, [PK])))[0].p;
+    ok(peers.finished === 2 && Number(peers.items.rf_x.avg) === 4.5 && !peers.items.rf_y, "team peers: averages show at 2 ratings; an item only one person saw stays hidden");
+    ok((await as(null, () => q(`select public.pl_team_peers('nokey00000000000000000000') p`)))[0].p === null, "team peers: a wrong key gets nothing");
+    const seen = await as(OWNER, () => q(`select role from public.pl_team_people($1)`, [pc]));
+    ok(seen.length === 1 && seen[0].role === "planter", "team peers: the leader never sees who rated a team member");
+  }
 
   // Plumbline Teams privacy: answers stay with the person; leaders see combined results (3+ people) and what's shared
   const teamCase = async (name) => (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, $3, 'x@t.org', false, '{"audience":"staff","purpose":"team","team":{"id":"t_priv","name":"Staff"}}') returning id`, [nid, OWNER, name])))[0].id;
