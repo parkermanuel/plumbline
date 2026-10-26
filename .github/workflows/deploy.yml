@@ -50,6 +50,8 @@ jobs:
             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" --data @/tmp/q.json)
           echo "Supabase answered $code"
+          # A token without database permission: say so plainly, and still deploy the functions below
+          if [ "$code" = "403" ]; then echo "::warning::The SUPABASE_ACCESS_TOKEN secret can't change the database (it needs Database write). Run supabase/setup.sql in the Supabase SQL editor, or replace the token."; cat /tmp/out.json; exit 0; fi
           if [ "$code" -ge 300 ]; then cat /tmp/out.json; exit 1; fi
       - uses: supabase/setup-cli@v1
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
