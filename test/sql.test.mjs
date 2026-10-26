@@ -374,5 +374,13 @@ async function main() {
   const owners = await q(`select user_id from public.network_members where network_id=$1 and role='owner'`, [netId]);
   ok(owners.length === 1 && owners[0].user_id !== OWNER && (await q(`select count(*)::int n from public.networks where id=$1`, [netId]))[0].n === 1, "when an owner leaves, the network stays and someone else becomes owner");
 
+  // Report coach: a daily count per key, only the coach function (service role) can touch it
+  await q(`set role service_role`);
+  const ticks = [];
+  for (let i = 0; i < 4; i++) ticks.push((await q(`select public.pl_coach_tick('t:abc', 3) ok`))[0].ok);
+  await q(`reset role`);
+  ok(ticks.join() === "true,true,true,false", "coach: the daily limit stops the 4th question when the limit is 3");
+  ok(!!(await tryAs(null, `select public.pl_coach_tick('t:abc', 99)`)) && !!(await tryAs(ASSESSOR, `select public.pl_coach_tick('t:abc', 99)`)), "coach: visitors and signed-in people can't touch the count");
+
   process.exit(failed ? 1 : 0);
 }

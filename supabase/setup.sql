@@ -1138,3 +1138,19 @@ begin
   update public.networks set credits = credits - 1 where id = new.network_id;
   return new;
 end $$;
+
+-- ============ Report coach (26 Oct 2026) ============
+-- How many questions each report link (stored only as a hash) or signed-in leader asked the coach today.
+-- No questions or answers are stored. Only the plumbline-coach function (service role) can touch it.
+create table if not exists public.coach_usage (k text not null, day date not null, n int not null default 0, primary key (k, day));
+alter table public.coach_usage enable row level security;
+create or replace function public.pl_coach_tick(p_key text, p_limit int) returns boolean language plpgsql security definer set search_path = public as $$
+declare used int;
+begin
+  insert into public.coach_usage as u (k, day, n) values (p_key, public.pl_today(), 1)
+    on conflict (k, day) do update set n = u.n + 1 returning u.n into used;
+  delete from public.coach_usage where day < public.pl_today() - 7;
+  return used <= p_limit;
+end $$;
+revoke all on function public.pl_coach_tick(text, int) from public, anon, authenticated;
+grant execute on function public.pl_coach_tick(text, int) to service_role;
