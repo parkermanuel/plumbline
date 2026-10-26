@@ -39,10 +39,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   const key = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!key) return json({ error: "The coach isn't set up yet" }, 503);
-  const url = Deno.env.get("SUPABASE_URL")!, anon = Deno.env.get("SUPABASE_ANON_KEY")!, service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "Bad request" }, 400); }
+  if (body?.ping) return json({ ready: !!key });
+  if (!key) return json({ error: "The coach isn't set up yet" }, 503);
+  const url = Deno.env.get("SUPABASE_URL")!, anon = Deno.env.get("SUPABASE_ANON_KEY")!, service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const mode: "person" | "leader" = body.mode === "leader" ? "leader" : "person";
   const admin = createClient(url, service);
 
