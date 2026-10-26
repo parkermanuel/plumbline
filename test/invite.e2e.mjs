@@ -120,6 +120,7 @@ const b = await chromium.launch();
 const errs = [];
 async function device(who, width = 1100) {
   const ctx = await b.newContext({ viewport: { width, height: 900 } });
+  await ctx.addInitScript((d) => { globalThis.PL_TODAY = d; }, process.env.PL_TODAY || "2027-02-01");  // after the free beta unless a check says otherwise
   await ctx.addInitScript((site) => { window.PLUMBLINE_CONFIG = { supabaseUrl: "https://test.supabase.co", supabaseAnonKey: "anon-test", siteUrl: site }; }, SITE);
   await ctx.route("https://test.supabase.co/rest/**", rest);
   await ctx.route("https://test.supabase.co/functions/**", (r) => r.request().url().includes("plumbline-stripe") ? fnStripe(r) : fnEmail(r));

@@ -33,6 +33,10 @@ export async function makeDb() {
   await db.exec(upd4); await db.exec(upd4);
   const upd5 = readFileSync(new URL("../supabase/update-2026-10-24-report-keys.sql", import.meta.url), "utf8");
   await db.exec(upd5); await db.exec(upd5);
+  const upd6 = readFileSync(new URL("../supabase/update-2026-10-26-beta-founders.sql", import.meta.url), "utf8");
+  await db.exec(upd6); await db.exec(upd6);
+  // The existing payment checks run as a day after the free beta; the beta itself is checked on its own below.
+  await db.exec(`select set_config('pl.today', '${process.env.PL_TODAY || "2027-02-01"}', false)`);
   return db;
 }
 
@@ -333,6 +337,28 @@ async function main() {
   await q(`reset role`);
   const pr = (await q(`select team_seats, team_until > now() + interval '700 days' as two from public.networks where id=$1`, [pnet]))[0];
   ok(pr.team_seats === 15 && pr.two, "teams plan: a renewal (found by Stripe customer) adds a year and can change the size");
+
+  // Free beta and founders (owner, 26 Oct 2026)
+  await q(`update public.networks set credits = 0, plan_until = null, team_seats = 0, team_until = null where id=$1`, [pnet]);
+  await q(`select set_config('pl.today', '2026-11-15', false)`);
+  const betaErrs = [await tryAs(ASSESSOR, `insert into public.cases(network_id, created_by, planter_name, married) values ($1, $2, 'Beta hire', false)`, [pnet, ASSESSOR]), await teamIns("Beta1"), await teamIns("Beta2")];
+  if (betaErrs.some(Boolean)) console.log("beta errors:", betaErrs, (await q(`select public.pl_today()::text t, current_setting('pl.today', true) s`))[0]);
+  ok(!betaErrs.some(Boolean),
+    "beta: assessments and team members are free through Dec 31, 2026, with no credits or plan");
+  ok((await q(`select credits from public.networks where id=$1`, [pnet]))[0].credits === 0, "beta: no credit is used");
+  await q(`select set_config('pl.today', '2026-12-31', false)`);
+  ok(!(await teamIns("Beta3")), "beta: still free on Dec 31 (Mountain time)");
+  await q(`select set_config('pl.today', '2027-01-01', false)`);
+  ok(/No assessments left/.test((await teamIns("After")) || ""), "after the beta: a plan or credits are needed again");
+  await q(`select set_config('pl.today', '2027-06-01', false)`);
+  ok((await as(ASSESSOR, () => q(`select public.pl_is_founder($1) f`, [pnet])))[0].f === true, "founders: a network set up before launch gets founder pricing in 2027");
+  await q(`select set_config('pl.today', '2028-01-01', false)`);
+  ok((await as(ASSESSOR, () => q(`select public.pl_is_founder($1) f`, [pnet])))[0].f === false, "founders: back to regular prices on Jan 1, 2028");
+  await q(`update public.networks set created_at = '2027-02-01' where id=$1`, [pnet]);
+  await q(`select set_config('pl.today', '2027-06-01', false)`);
+  ok((await as(ASSESSOR, () => q(`select public.pl_is_founder($1) f`, [pnet])))[0].f === false, "founders: a network set up after launch pays regular prices");
+  ok(!!(await tryAs(null, `select public.pl_is_founder($1)`, [pnet])), "founders: only signed-in people can ask");
+  await q(`select set_config('pl.today', '2027-02-01', false)`);
 
   // Delete my account
   ok(!!(await tryAs(null, `select public.pl_delete_account()`)), "you must be signed in to delete an account");

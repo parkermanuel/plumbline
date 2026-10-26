@@ -40,6 +40,17 @@ jobs:
         run: |
           sudo apt-get install -y -qq postgresql-client >/dev/null
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -q -f supabase/setup.sql
+      # Without the database password, the same file goes through Supabase's API with the access token the
+      # function deploy already uses (setup.sql is safe to run again and again; test/sql.test.mjs runs it twice).
+      - name: Update the database (through the Supabase API)
+        if: env.SUPABASE_DB_URL == '' && env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
+        run: |
+          jq -Rs '{query: .}' supabase/setup.sql > /tmp/q.json
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' -X POST \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" --data @/tmp/q.json)
+          echo "Supabase answered $code"
+          if [ "$code" -ge 300 ]; then cat /tmp/out.json; exit 1; fi
       - uses: supabase/setup-cli@v1
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
         with:

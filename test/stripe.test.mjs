@@ -16,7 +16,7 @@ await build({ entryPoints: [new URL("../supabase/functions/plumbline-stripe/inde
   plugins: [{ name: "shim", setup(b) { b.onResolve({ filter: /^npm:@supabase/ }, () => ({ path: join(dir, "shim.mjs") })); } }] });
 
 const SECRET = "whsec_test";
-const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_ROLE_KEY: "service", STRIPE_SECRET_KEY: "sk_test", STRIPE_WEBHOOK_SECRET: SECRET, STRIPE_API_BASE: "https://stripe.test/v1" };
+const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_ROLE_KEY: "service", STRIPE_SECRET_KEY: "sk_test", STRIPE_WEBHOOK_SECRET: SECRET, STRIPE_API_BASE: "https://stripe.test/v1", PL_TODAY: "2027-02-01" };  // a day after the free beta; the beta is checked below
 let handler;
 globalThis.Deno = { env: { get: (k) => env[k] }, serve: (h) => { handler = h; } };
 
@@ -30,9 +30,13 @@ globalThis.__sbShim = (_u, key) => ({
 });
 // Pretend Stripe: remembers each request's form fields
 const sent = [];
+const coupons = new Set();
 globalThis.fetch = async (url, init) => {
   const fields = Object.fromEntries(new URLSearchParams(init?.body || ""));
-  sent.push({ url: String(url), fields });
+  sent.push({ url: String(url), fields, method: init?.method });
+  const cm = String(url).match(/\/coupons\/(.+)$/);
+  if (cm) return coupons.has(cm[1]) ? new Response(JSON.stringify({ id: cm[1] }), { status: 200 }) : new Response(JSON.stringify({ error: { message: "No such coupon" } }), { status: 404 });
+  if (String(url).endsWith("/coupons")) { coupons.add(fields.id); return new Response(JSON.stringify({ id: fields.id }), { status: 200 }); }
   if (String(url).includes("billing_portal")) return new Response(JSON.stringify({ url: "https://billing.stripe.test/p" }), { status: 200 });
   return new Response(JSON.stringify({ id: "cs_1", url: "https://checkout.stripe.test/s" }), { status: 200 });
 };
@@ -92,5 +96,33 @@ rpcs.length = 0;
 [raw, h] = signed({ type: "invoice.paid", data: { object: { id: "in_3", billing_reason: "subscription_cycle", customer: "cus_1", amount_paid: 250000, currency: "usd" } } });
 await call(raw, h);
 ok(rpcs.find((x) => x.fn === "pl_record_payment")?.args.p_kind === "renewal", "the Plumbline network plan still renews as before");
+
+// 5. Free beta and founders (owner, 26 Oct 2026)
+env.PL_TODAY = "2026-11-20";
+let n0 = sent.length;
+r = await call({ action: "teams", tier: "team", networkId: "net1" }); j = await r.json();
+ok(r.status === 400 && /free during the beta/.test(j.error) && sent.length === n0, "beta: Teams can't be bought before Jan 1, 2027 (nothing sent to Stripe)");
+r = await call({ action: "checkout", kind: "couples", quantity: 1, networkId: "net1" }); j = await r.json();
+ok(r.status === 400 && /free during the beta/.test(j.error), "beta: assessments can't be bought either");
+env.PL_TODAY = "2027-03-01"; NET.created_at = "2026-10-25T18:00:00Z"; NET.founding = false;
+await call({ action: "teams", tier: "team", networkId: "net1" });
+let tf = sent.at(-1).fields, made = sent.find((x) => x.url.endsWith("/coupons"));
+ok(tf["discounts[0][coupon]"] === "founder-2027-15000" && made?.fields.amount_off === "15000" && made.fields.duration === "once" && !("allow_promotion_codes" in tf),
+  "founders: Team plan is $449 - $150 = $299 the first year only, so 2028 renews at $449");
+ok(tf["line_items[0][price_data][unit_amount]"] === "44900", "founders: the plan itself stays at the regular price (the discount is first-year only)");
+const nc = sent.filter((x) => x.url.endsWith("/coupons")).length;
+await call({ action: "teams", tier: "team", networkId: "net1" });
+ok(sent.filter((x) => x.url.endsWith("/coupons")).length === nc, "founders: the discount is made once in Stripe and reused");
+await call({ action: "checkout", kind: "couples", quantity: 2, networkId: "net1" });
+ok(sent.at(-1).fields["line_items[0][price_data][unit_amount]"] === "6600", "founders: $66 per couple in 2027");
+await call({ action: "checkout", kind: "plan", networkId: "net1" });
+ok(sent.at(-1).fields["discounts[0][coupon]"] === "founder-2027-83300", "founders: network plan $2,500 - $833 = $1,667 the first year");
+env.PL_TODAY = "2028-01-01";
+await call({ action: "checkout", kind: "couples", quantity: 1, networkId: "net1" });
+tf = sent.at(-1).fields;
+ok(tf["line_items[0][price_data][unit_amount]"] === "9900" && tf.allow_promotion_codes === "true", "founders: regular $99 from Jan 1, 2028");
+env.PL_TODAY = "2027-03-01"; NET.created_at = "2027-02-10T18:00:00Z";
+await call({ action: "teams", tier: "starter", networkId: "net1" });
+ok(!("discounts[0][coupon]" in sent.at(-1).fields), "founders: a network set up after launch pays regular prices");
 
 process.exit(failed ? 1 : 0);

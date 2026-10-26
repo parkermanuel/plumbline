@@ -1,5 +1,5 @@
 // Plumbline payments (Supabase Edge Function), deployed with --no-verify-jwt because it checks every caller itself.
-//   action "checkout"  a network owner/admin buys assessments ($99 per couple, $79 for founding networks) or the yearly plan ($2,500). Returns a Stripe Checkout URL.
+//   action "checkout"  a network owner/admin buys assessments ($99 per couple; founders $66 in 2027) or the yearly plan ($2,500; founders $1,667 the first year). Returns a Stripe Checkout URL. Nothing is sold during the free beta (through 31 Dec 2026).
 //                      Stripe emails a paid invoice and receipt with the network's name on it.
 //   action "teams"     a network owner/admin buys a Plumbline Teams yearly plan: Starter (8 people) $249, Team (15) $449,
 //                      Staff (50) $1,299, plus $25 a person a year past 50. Returns a Stripe Checkout URL.
@@ -12,13 +12,31 @@
 //          STRIPE_WEBHOOK_SECRET (from the webhook endpoint in Stripe).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
-const COUPLE_CENTS = 9900, FOUNDING_CENTS = 7900, PLAN_CENTS = 250000;  // founding = beta networks, $79 per couple through 2027
-const FOUNDING_UNTIL = "2027-12-31";
+const COUPLE_CENTS = 9900, PLAN_CENTS = 250000;
+// Free beta and founders (owner, 26 Oct 2026; the same rule for every Parker Manuel app): nothing is sold through
+// 31 Dec 2026. Launch is 5 Jan 2027. Founders (networks set up before launch, or marked founding) get a third off
+// through 31 Dec 2027, then regular prices. Couples are one-time, so founders simply pay $66. Yearly plans get a
+// first-year-only discount, so a renewal in 2028 is at the regular price.
+const BETA_UNTIL = "2026-12-31", LAUNCH = "2027-01-05", FOUNDER_UNTIL = "2027-12-31";
+const FOUNDER_COUPLE_CENTS = 6600, FOUNDER_PLAN_OFF = 83300;  // $2,500 - $833 = $1,667 the first year
+// Mountain time; tests set PL_TODAY to check other days
+const today = () => Deno.env.get("PL_TODAY") || new Date().toLocaleDateString("en-CA", { timeZone: "America/Denver" });
+const BETA_MSG = "Plumbline is free during the beta through December 31, 2026, so there's nothing to buy yet. Founders get a third off through 2027.";
+const isFounder = (n: { founding?: boolean; created_at?: string } | null) => !!n && today() <= FOUNDER_UNTIL
+  && (!!n.founding || (n.created_at ? new Date(n.created_at).toLocaleDateString("en-CA", { timeZone: "America/Denver" }) < LAUNCH : false));
+// A first-year-only discount, made once in Stripe and reused (id is stable per amount)
+async function founderCoupon(off: number, name: string) {
+  const id = `founder-2027-${off}`;
+  const got = await stripe(`coupons/${id}`, undefined, "GET").catch(() => null);
+  if (got?.id) return id;
+  await stripe("coupons", { id, amount_off: String(off), currency: "usd", duration: "once", name });
+  return id;
+}
 // Plumbline Teams yearly plans (owner, 24 Oct 2026). Past 50 people: $25 a person a year on top of Staff.
-const TEAM_PLANS: Record<string, { name: string; seats: number; cents: number }> = {
-  starter: { name: "Starter", seats: 8, cents: 24900 },
-  team: { name: "Team", seats: 15, cents: 44900 },
-  staff: { name: "Staff", seats: 50, cents: 129900 },
+const TEAM_PLANS: Record<string, { name: string; seats: number; cents: number; founderOff: number }> = {
+  starter: { name: "Starter", seats: 8, cents: 24900, founderOff: 8300 },   // founders $166 the first year
+  team: { name: "Team", seats: 15, cents: 44900, founderOff: 15000 },      // founders $299
+  staff: { name: "Staff", seats: 50, cents: 129900, founderOff: 43300 },   // founders $866 (people past 50 stay $25)
 };
 const EXTRA_SEAT_CENTS = 2500, MAX_EXTRA_SEATS = 950;
 // Where to send people back after checkout: only our own sites
@@ -128,10 +146,12 @@ Deno.serve(async (req) => {
     if (body.action === "checkout") {
       const { data: isAdmin } = await user.rpc("pl_is_admin", { p_network: body.networkId });
       if (!isAdmin) return json({ error: "Only the network's owners and admins can buy assessments" }, 403);
-      const { data: net } = await admin.from("networks").select("id,name,stripe_customer,founding").eq("id", body.networkId).single();
-      const founding = !!net?.founding && new Date().toISOString().slice(0, 10) <= FOUNDING_UNTIL;
+      if (today() <= BETA_UNTIL) return json({ error: BETA_MSG }, 400);
+      const { data: net } = await admin.from("networks").select("id,name,stripe_customer,founding,created_at").eq("id", body.networkId).single();
       if (!net) return json({ error: "Network not found" }, 404);
+      const founding = isFounder(net);
       const plan = body.kind === "plan";
+      const planCoupon = plan && founding ? await founderCoupon(FOUNDER_PLAN_OFF, "Founder price, first year (2027)") : null;
       const qty = Math.min(50, Math.max(1, Number(body.quantity) || 1));
       const session = await stripe("checkout/sessions", {
         mode: plan ? "subscription" : "payment",
@@ -142,12 +162,13 @@ Deno.serve(async (req) => {
         line_items: { 0: {
           quantity: plan ? 1 : qty,
           ...(plan ? {} : { adjustable_quantity: { enabled: true, minimum: 1, maximum: 50 } }),
-          price_data: { currency: "usd", unit_amount: plan ? PLAN_CENTS : founding ? FOUNDING_CENTS : COUPLE_CENTS,
+          price_data: { currency: "usd", unit_amount: plan ? PLAN_CENTS : founding ? FOUNDER_COUPLE_CENTS : COUPLE_CENTS,
             product_data: { name: plan ? "Plumbline network plan (one year, unlimited assessments)"
-              : `Plumbline assessment (one couple and their references)${founding ? ", founding network price" : ""}` },
+              : `Plumbline assessment (one couple and their references)${founding ? ", founder price" : ""}` },
             ...(plan ? { recurring: { interval: "year" } } : {}) },
         } },
-        allow_promotion_codes: true,
+        // Stripe takes either a set discount or customer codes, not both
+        ...(planCoupon ? { discounts: { 0: { coupon: planCoupon } } } : { allow_promotion_codes: true }),
         ...(plan ? { subscription_data: { description: `Plumbline network plan for ${net.name}` } }
                  : { invoice_creation: { enabled: true, invoice_data: { description: `Plumbline assessments for ${net.name}`,
                      custom_fields: { 0: { name: "Network", value: String(net.name).slice(0, 30) } }, footer: "Plumbline · plumblineassessment.com · Thank you for investing in your planters." } } }),
@@ -162,10 +183,12 @@ Deno.serve(async (req) => {
       if (!isAdmin) return json({ error: "Only the owners and admins can buy a plan" }, 403);
       const tier = TEAM_PLANS[String(body.tier)];
       if (!tier) return json({ error: "Choose Starter, Team or Staff" }, 400);
+      if (today() <= BETA_UNTIL) return json({ error: "Plumbline Teams is free during the beta through December 31, 2026, so there's nothing to buy yet. Founders get a third off through 2027." }, 400);
       const extra = body.tier === "staff" ? Math.min(MAX_EXTRA_SEATS, Math.max(0, Math.floor(Number(body.extra) || 0))) : 0;
       const seats = tier.seats + extra;
-      const { data: net } = await admin.from("networks").select("id,name,stripe_customer").eq("id", body.networkId).single();
+      const { data: net } = await admin.from("networks").select("id,name,stripe_customer,founding,created_at").eq("id", body.networkId).single();
       if (!net) return json({ error: "Organization not found" }, 404);
+      const teamCoupon = isFounder(net) ? await founderCoupon(tier.founderOff, `Founder price, ${tier.name} plan first year (2027)`) : null;
       const back = RETURN_SITES.includes(String(body.returnTo)) ? String(body.returnTo) : "https://plumblineteams.com";
       const meta = { kind: "teams", tier: String(body.tier), seats: String(seats), network: net.id };
       const items: Record<string, unknown> = { 0: { quantity: 1, price_data: { currency: "usd", unit_amount: tier.cents, recurring: { interval: "year" },
@@ -177,7 +200,7 @@ Deno.serve(async (req) => {
         client_reference_id: net.id,
         ...(net.stripe_customer ? { customer: net.stripe_customer } : { customer_email: me.user.email }),
         line_items: items,
-        allow_promotion_codes: true,
+        ...(teamCoupon ? { discounts: { 0: { coupon: teamCoupon } } } : { allow_promotion_codes: true }),
         metadata: meta,
         subscription_data: { description: `Plumbline Teams ${tier.name} plan for ${net.name} (up to ${seats} people)`, metadata: meta },
         success_url: `${back}/teams/new?paid=1`,

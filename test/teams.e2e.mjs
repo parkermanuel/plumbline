@@ -125,6 +125,7 @@ const b = await chromium.launch();
 const errs = [];
 async function device(who, width = 1100) {
   const ctx = await b.newContext({ viewport: { width, height: 900 } });
+  await ctx.addInitScript((d) => { globalThis.PL_TODAY = d; }, process.env.PL_TODAY || "2027-02-01");  // after the free beta unless a check says otherwise
   await ctx.addInitScript((site) => { window.PLUMBLINE_CONFIG = { supabaseUrl: "https://test.supabase.co", supabaseAnonKey: "anon-test", siteUrl: site }; }, SITE);
   await ctx.route("https://test.supabase.co/rest/**", rest);
   await ctx.route("https://test.supabase.co/functions/**", fnEmail);
@@ -201,7 +202,7 @@ import { personEmail as pe } from "../supabase/functions/plumbline-email/templat
 // 1. A leader starts a team from the Teams home
 const owner = await device("owner");
 await owner.goto(SITE + "/teams"); await wait(1500);
-ok((await text(owner)).includes("See your whole team"), "Teams home page loads");
+ok((await text(owner)).includes("An assessment your whole team takes"), "Teams home page loads");
 await click(owner, 'main a[href="/teams/new"]'); await owner.waitForSelector("#o-net", { timeout: 20000 }).catch(() => {});
 ok((await text(owner)).includes("Set up your church or organization"), "new leader sets up their organization first");
 await owner.fill("#o-net", "Front Range Church"); await owner.fill("#o-me", "Dana Ellis");
@@ -212,6 +213,11 @@ await owner.fill("#t-people", "Ava Stone, ava@fr.church\nBen Cole <ben@fr.church
 await wait(300);
 let t = await text(owner);
 ok(/4 people/.test(t) && /1 line need/.test(t), "it reads 4 people and flags the line without an email");
+const BETA = (process.env.PL_TODAY || "2027-02-01") <= "2026-12-31";
+if (BETA) {
+  // Free beta through Dec 31, 2026: no plan picker, nothing to buy, the team starts right away
+  ok(!(await owner.$$('[data-act="choose-plan"]')).length && !(await owner.$eval("#t-go", (b) => b.disabled)), "beta: no plan needed to start a team of 4");
+} else {
 ok(/You have 1 free assessment, and this adds 4/.test(t) && await owner.$eval("#t-go", (b) => b.disabled), "with 1 free assessment it asks for a plan before starting");
 ok((await owner.$$('[data-act="choose-plan"]')).length === 3 && /Choose Starter/.test(await owner.$eval(".teams-plan.pick", (e) => e.innerText)), "it shows the three plans and points to Starter for 4 people");
 await shot(owner, "teams-plans-desktop");
@@ -219,6 +225,7 @@ await shot(owner, "teams-plans-desktop");
 await db.query(`select public.pl_record_payment('cs_e2e_team', (select id from public.networks limit 1), 'teams', 8, 24900, 'usd', null, null, 'cus_e2e')`);
 await owner.reload(); await owner.waitForSelector("#t-people", { timeout: 20000 });
 ok(/Your Teams plan covers 8 people/.test(await text(owner)) && /0 on teams now, 8 open/.test(await text(owner)), "the start-a-team page shows the plan: 8 people, all open");
+}
 await owner.fill("#t-name", "Front Range staff");
 await owner.fill("#t-people", "Ava Stone, ava@fr.church\nBen Cole, ben@fr.church\nCara Diaz, cara@fr.church\nDev Patel, dev@fr.church");
 await submit(owner, "#newteam");
