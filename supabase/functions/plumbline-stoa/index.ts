@@ -1,7 +1,7 @@
 // Plumbline -> Stoa (Supabase Edge Function), run hourly by .github/workflows/stoa.yml.
 // For each network linked to a church's Stoa (pl_stoa_links), sends the shareable "how they're wired"
 // cards from pl_stoa_cards() (summary only; see setup.sql) to that church's Stoa, signed with
-// STOA_SHARED_SECRET (HMAC-SHA256 of the body, hex, in x-plumbline-signature). Stoa shows a card only
+// STOA_SHARED_SECRET: x-plumbline-timestamp (Unix seconds) and x-plumbline-signature = hex HMAC-SHA256 of `${timestamp}.${body}`. Stoa shows a card only
 // when it's released here AND the person turns it on in Stoa. Safe for anyone to call: it only re-sends.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
@@ -24,7 +24,8 @@ Deno.serve(async (req) => {
     if (e2) { out.push({ network: l.network_id, error: e2.message }); continue; }
     if (!cards?.length) { out.push({ network: l.network_id, sent: 0 }); continue; }
     const body = JSON.stringify(cards);
-    const r = await fetch(l.stoa_url, { method: "POST", headers: { "content-type": "application/json", "x-plumbline-signature": await sign(body, secret) }, body });
+    const ts = String(Math.floor(Date.now() / 1000)); // Stoa refuses requests older than 5 minutes (replay protection)
+    const r = await fetch(l.stoa_url, { method: "POST", headers: { "content-type": "application/json", "x-plumbline-timestamp": ts, "x-plumbline-signature": await sign(`${ts}.${body}`, secret) }, body });
     out.push({ network: l.network_id, sent: cards.length, status: r.status, results: await r.json().catch(() => null) });
   }
   return Response.json({ networks: out });
