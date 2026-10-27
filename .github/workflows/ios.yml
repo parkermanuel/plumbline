@@ -1,7 +1,7 @@
 # Builds the Plumbline iPhone app on a Mac in the cloud, signs it, and uploads it to App Store Connect (TestFlight).
 # Run it from GitHub: Actions → "iPhone app" → Run workflow.
 # Needs four repository secrets (Settings → Secrets and variables → Actions):
-#   APPLE_TEAM_ID              your 10-character Apple Developer Team ID
+#   APPLE_TEAM_ID              optional; defaults to Parker's Team ID B458AXF7U2 (public, shown in every signed app)
 #   ASC_KEY_ID                 App Store Connect API key ID
 #   ASC_ISSUER_ID              App Store Connect API issuer ID
 #   ASC_KEY_P8                 the full text of the downloaded AuthKey_XXXX.p8 file
@@ -34,7 +34,7 @@ jobs:
 
       - name: Check the Apple keys are set
         env:
-          A: ${{ secrets.APPLE_TEAM_ID }}
+          A: ${{ secrets.APPLE_TEAM_ID || 'B458AXF7U2' }}
           B: ${{ secrets.ASC_KEY_ID }}
           C: ${{ secrets.ASC_ISSUER_ID }}
           D: ${{ secrets.ASC_KEY_P8 }}
@@ -51,7 +51,7 @@ jobs:
 
       - name: Archive (signed automatically with the API key)
         env:
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID || 'B458AXF7U2' }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
@@ -66,7 +66,7 @@ jobs:
       - name: Export and upload to App Store Connect
         if: ${{ inputs.upload }}
         env:
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID || 'B458AXF7U2' }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
