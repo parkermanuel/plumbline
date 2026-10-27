@@ -268,7 +268,10 @@ async function main() {
     ok(peers.finished === 1 && Object.keys(peers.items).length === 0, "team peers: nothing shows with only one rating");
     await q(`insert into public.participants(case_id, role, name, status, answers) values ($1, 'reference', 'B', 'finished', '{"items":{"rf_x":5,"rf_y":3}}')`, [pc]);
     peers = (await as(null, () => q(`select public.pl_team_peers($1) p`, [PK])))[0].p;
-    ok(peers.finished === 2 && Number(peers.items.rf_x.avg) === 4.5 && !peers.items.rf_y, "team peers: averages show at 2 ratings; an item only one person saw stays hidden");
+    ok(peers.finished === 2 && Object.keys(peers.items).length === 0, "team peers: still nothing with two ratings");
+    await q(`insert into public.participants(case_id, role, name, status, answers) values ($1, 'reference', 'C', 'finished', '{"items":{"rf_x":3,"rf_y":4}}')`, [pc]);
+    peers = (await as(null, () => q(`select public.pl_team_peers($1) p`, [PK])))[0].p;
+    ok(peers.finished === 3 && Number(peers.items.rf_x.avg) === 4 && !peers.items.rf_y, "team peers: averages show at 3 ratings; an item fewer than 3 people saw stays hidden");
     ok((await as(null, () => q(`select public.pl_team_peers('nokey00000000000000000000') p`)))[0].p === null, "team peers: a wrong key gets nothing");
     const seen = await as(OWNER, () => q(`select role from public.pl_team_people($1)`, [pc]));
     ok(seen.length === 1 && seen[0].role === "planter", "team peers: the leader never sees who rated a team member");
