@@ -8,7 +8,7 @@ Everything to paste into App Store Connect and Google Play, plus the one-time se
 - **Subtitle (30):** Assess planters. Grow teams.
 - **Bundle ID:** com.parkermanuel.plumbline
 - **SKU:** plumbline-ios
-- **Primary category:** Business · **Secondary:** Reference
+- **Primary category:** Business · **Secondary:** Productivity
 - **Price:** Free app, no in-app purchases. Plans and prices are shown in the app; buying happens on the website.
 - **Availability:** United States only at launch. Since May 2025 Apple lets US apps show prices and link to the website to buy; other countries don't allow that yet.
 - **Promotional text (170):** One assessment instead of eight. Planter, spouse and references answer on their own; you get one graded report. Plus Plumbline Teams to grow the team you have.
@@ -16,7 +16,7 @@ Everything to paste into App Store Connect and Google Play, plus the one-time se
 - **Support URL:** https://plumblineassessment.com
 - **Marketing URL:** https://plumblineassessment.com
 - **Privacy policy URL:** https://plumblineassessment.com/privacy
-- **Copyright:** 2026 Parker Manuel
+- **Copyright:** 2026 Parker Manuel LLC
 
 **Description**
 
@@ -60,7 +60,7 @@ Plumbline is used by church planting network leaders to assess planting couples.
 
 **Export compliance:** the app uses only standard HTTPS encryption (ITSAppUsesNonExemptEncryption = NO is set).
 
-**Age rating:** answer "None" to every question → 4+.
+**Age rating:** every question "No"/"None" except Health or Wellness Topics = Yes (emotional health questions) → 9+.
 
 ## App Privacy ("nutrition label")
 
@@ -70,11 +70,13 @@ Tracking: **No**. Every type below is **linked to the user** and used only for *
 |---|---|
 | Contact Info → Name | Names of network leaders, planters, spouses and references |
 | Contact Info → Email Address | For sign-in and assessment links |
-| Sensitive Info | Religious beliefs and marriage, health and stress answers in assessments |
+| Health & Fitness → Health | Emotional health, rest and stress answers in assessments |
+| Sensitive Info | Religious beliefs and marriage answers in assessments |
+| Purchases → Purchase History | Which plan a network or team bought (payment itself is on Stripe's page) |
 | User Content → Other User Content | Assessment answers, notes, uploaded results, teammate ratings (shown only as averages) and report-coach questions |
 | Identifiers → User ID | The network leader's account ID |
 
-Not collected: location, contacts, browsing history, purchases, financial info, diagnostics, advertising data. Photos added to story slides stay on the device; they're never uploaded.
+Not collected: location, contacts, browsing history, payment or financial info, diagnostics, advertising data. Photos added to story slides stay on the device; they're never uploaded.
 
 ## One-time setup (in order)
 
@@ -97,3 +99,8 @@ Not collected: location, contacts, browsing history, purchases, financial info, 
 - **Account:** set up Google Play as an organization (Parker Manuel LLC). Brand-new personal accounts must run a 12-tester, 14-day closed test first; organization accounts skip that.
 - **Build:** GitHub → Actions → "Android app". It makes a test APK until the signing secrets exist (`ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`), then a signed bundle for Play.
 - **Data safety:** same answers as the App Privacy table above.
+
+## Status (27 Oct 2026)
+- App record created (Apple ID 6827432089). Build 10 uploaded and ready in TestFlight; internal group "Plumbline team".
+- Listing text, screenshots (Actions → "App Store screenshots"), categories, age rating, content rights, free price, US-only availability and privacy answers are filled in.
+- Left for Parker: add himself to the TestFlight group, publish the privacy answers, set the review demo password, then Add for Review.
