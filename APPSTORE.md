@@ -4,7 +4,7 @@ Everything to paste into App Store Connect and Google Play, plus the one-time se
 
 ## Listing
 
-- **App name (30):** Plumbline: Planter Assessment
+- **App name (30):** Plumbline: Assess & Grow
 - **Subtitle (30):** Assess planters. Grow teams.
 - **Bundle ID:** com.parkermanuel.plumbline
 - **SKU:** plumbline-ios
@@ -86,7 +86,7 @@ Not collected: location, contacts, browsing history, purchases, financial info, 
    - Settings → Branding: the Plumbline icon (`appstore/app-icon-1024.png`), accent #ff6b4a, brand color #121212.
    - Settings → Customer emails: turn on "Successful payments" and "Refunds".
 4. **Apple:**
-   - App Store Connect → Apps → + New App: iOS, name above, bundle ID com.parkermanuel.plumbline (register it under Certificates, Identifiers & Profiles → Identifiers first), SKU plumbline-ios.
+   - App Store Connect → Apps → + New App: iOS, name "Plumbline: Assess & Grow", bundle ID com.parkermanuel.plumbline (register it under Certificates, Identifiers & Profiles → Identifiers first), SKU plumbline-ios.
    - Users and Access → Integrations → App Store Connect API → generate a key with the App Manager role. Save GitHub secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the whole .p8 file) and `APPLE_TEAM_ID` (Membership details).
 5. **Reviewer account:** Supabase → Authentication → Users → Add user: review@plumblineassessment.com with a password of your choice, "Auto confirm". Sign in once on the website, create a network called "App Review", then give it assessments from the Platform page.
 6. **Build:** GitHub → Actions → "iPhone app" → Run workflow. About 15 minutes later the build shows in TestFlight. Install it on your phone, check it, then add it to the version in App Store Connect and Submit for Review.
