@@ -21,14 +21,14 @@ jobs:
           python3 -c 'import json,os; print(json.dumps({"key_id":os.environ["ASC_KEY_ID"],"issuer_id":os.environ["ASC_ISSUER_ID"],"key":os.environ["ASC_KEY_P8"],"in_house":False}))' > "$RUNNER_TEMP/keys/asc.json"
       - name: Upload screenshots
         run: |
-          fastlane deliver --api_key_path "$RUNNER_TEMP/keys/asc.json" \
-            --app_identifier com.parkermanuel.plumbline --platform ios \
+          FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 fastlane deliver --api_key_path "$RUNNER_TEMP/keys/asc.json" \
+            --app_identifier com.parkermanuel.plumbline --platform ios --app_version 1.0 \
             --skip_binary_upload true --skip_metadata true --skip_app_version_update true \
             --screenshots_path appstore/screenshots --overwrite_screenshots true \
             --run_precheck_before_submit false --force true 2>&1 | tee "$RUNNER_TEMP/deliver.log"
           rc=${PIPESTATUS[0]}
           if [ "$rc" != "0" ]; then
-            grep -iE "error|invalid|couldn't|could not|unable|not found|wrong size|unsupported" "$RUNNER_TEMP/deliver.log" | grep -v "^\s*$" | sort -u | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+            grep -v "^\s*$" "$RUNNER_TEMP/deliver.log" | grep -viE "^\s*\* \[|changelog|^\+-|^\|" | tail -30 | sed 's/\x1b\[[0-9;]*m//g' | while IFS= read -r l; do echo "::error::${l:0:300}"; done
             exit "$rc"
           fi
       - name: Remove the key
