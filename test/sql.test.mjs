@@ -274,6 +274,42 @@ async function main() {
     ok(seen.length === 1 && seen[0].role === "planter", "team peers: the leader never sees who rated a team member");
   }
 
+  // Plumbline Teams: a leader who chose "I see each person's report"
+  {
+    const lc = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, 'Lee Sees', 'l@t.org', false, '{"audience":"staff","purpose":"team","team":{"id":"t_sees","name":"Sees"},"leaderSees":true}') returning id`, [nid, OWNER])))[0].id;
+    const lp = (await q(`select id, shared, token from public.participants where case_id=$1`, [lc]))[0];
+    ok(lp.shared === true, "leader sees: a new member's report is shared from the start");
+    ok((await q(`select public.pl_open($1) j`, [lp.token]))[0].j.case.leaderSees === true, "leader sees: the person's link says so (they're told before they start)");
+    await q(`update public.participants set status='finished', answers='{"likert":{"x":4},"teamh":{"t":2},"privateNote":"p"}' where id=$1`, [lp.id]);
+    const lk = (await q(`select key from public.report_keys where participant_id=$1`, [lp.id]))[0]?.key || (await q(`insert into public.report_keys(participant_id) values ($1) returning key`, [lp.id]))[0].key;
+    await as(null, () => q(`select public.pl_team_share($1, false)`, [lk]));
+    ok((await q(`select shared from public.participants where id=$1`, [lp.id]))[0].shared === true, "leader sees: the person can't turn sharing off");
+    const seen = (await as(OWNER, () => q(`select answers from public.pl_team_people($1)`, [lc])))[0].answers;
+    ok(seen.likert && !seen.teamh && !seen.privateNote, "leader sees: the leader gets the answers, never the Our team answers");
+    const old = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1, $2, 'Old Way', false, '{"audience":"staff","purpose":"team","team":{"id":"t_old","name":"Old"}}') returning id`, [nid, OWNER])))[0].id;
+    ok((await q(`select shared from public.participants where case_id=$1`, [old]))[0].shared === false, "leader sees: teams without the choice stay private");
+    const plant = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1, $2, 'Plant', false, '{"leaderSees":true}') returning id, settings`, [nid, OWNER])))[0];
+    ok(plant.settings.leaderSees === undefined, "leader sees: only team assessments keep the choice");
+  }
+
+  // Plumbline Teams: the leader releases the team map to the team
+  {
+    const mk = async (nm) => {
+      const id = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1, $2, $3, false, '{"audience":"staff","purpose":"team","team":{"id":"t_rel","name":"Rel"},"leaderSees":true}') returning id`, [nid, OWNER, nm])))[0].id;
+      const pid = (await q(`update public.participants set status='finished', team_summary='{"pillars":{"health":40,"character":80},"wiring":{"pace":70},"giftsTop":["lead"],"team":{"th_trust":60}}' where case_id=$1 and role='planter' returning id`, [id]))[0].id;
+      return (await q(`select key from public.report_keys where participant_id=$1`, [pid]))[0]?.key || (await q(`insert into public.report_keys(participant_id) values ($1) returning key`, [pid]))[0].key;
+    };
+    const k1 = await mk("Ann"); await mk("Bo"); await mk("Cy");
+    ok((await as(null, () => q(`select public.pl_team_map_member($1) m`, [k1])))[0].m === null, "team release: members see nothing until the leader releases it");
+    ok(!!(await tryAs(null, `select public.pl_team_release($1, 't_rel', true)`, [nid])), "team release: only the leader's team can release it");
+    await as(OWNER, () => q(`select public.pl_team_release($1, 't_rel', true)`, [nid]));
+    const m = (await as(null, () => q(`select public.pl_team_map_member($1) m`, [k1])))[0].m;
+    ok(m && m.combined && m.shared.length === 3 && m.shared[0].summary.wiring && !m.shared[0].summary.pillars && m.combined.healthLow === undefined, "team release: members see the map and everyone's wiring, never personal scores");
+    ok((await as(OWNER, () => q(`select public.pl_team_map($1, 't_rel') m`, [nid])))[0].m.released === true, "team release: the leader sees it's released");
+    await as(OWNER, () => q(`select public.pl_team_release($1, 't_rel', false)`, [nid]));
+    ok((await as(null, () => q(`select public.pl_team_map_member($1) m`, [k1])))[0].m === null, "team release: the leader can take it back");
+  }
+
   // Plumbline Teams privacy: answers stay with the person; leaders see combined results (3+ people) and what's shared
   const teamCase = async (name) => (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, $3, 'x@t.org', false, '{"audience":"staff","purpose":"team","team":{"id":"t_priv","name":"Staff"}}') returning id`, [nid, OWNER, name])))[0].id;
   const tok = async (cid) => (await q(`select token from public.participants where case_id=$1`, [cid]))[0].token;
