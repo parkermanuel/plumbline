@@ -107,8 +107,22 @@ export function reportKeyEmail(r, site) {
     preheader: "Your growth report link. It's yours alone.",
     heading: nm ? `${nm}, here's your growth report` : "Here's your growth report",
     paragraphs: [`This is your own private link to your Plumbline growth report${r.team_name ? ` for ${esc(r.team_name)}` : ""}. Only this link opens it, so keep this email and don't forward it.`,
-      "Your report stays private unless you choose to share it with your team leader. You can do that, or stop sharing, from the report any time."],
+      "Who else can see it (your team leader, or anyone you share it with) was explained when you started, and you can see it on your report."],
     button: { href: link, label: "Open my growth report" },
     footer: "You're getting this because someone asked for your report link from your Plumbline Teams page. Only you receive it. If that wasn't you, you can ignore this email; your report is still private.", site,
+  }) };
+}
+
+export function boardEmail(r, site) {
+  const link = `${site}/b/${r.token}`;
+  const owner = esc(first(r.owner_name)) || "Someone";
+  const nm = esc(first(r.name));
+  return { subject: `${owner} shared their Plumbline report with you`, ...layout({
+    preheader: `${owner} wants you to see how they're wired.`,
+    heading: nm ? `${nm}, ${owner} shared their report with you` : `${owner} shared their report with you`,
+    paragraphs: [`${owner} took Plumbline, an assessment of how they're wired, their strengths, gifts and health, and chose to share their growth report with you.`,
+      "It's read-only and made for you alone, so please don't forward this email. They can take it back any time."],
+    button: { href: link, label: `Open ${owner}'s report` },
+    footer: `You're getting this because ${owner} added your email to share their Plumbline report. If you weren't expecting it, you can ignore this email.`, site,
   }) };
 }

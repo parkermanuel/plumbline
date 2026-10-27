@@ -37,6 +37,8 @@ export async function makeDb() {
   await db.exec(upd6); await db.exec(upd6);
   const upd7 = readFileSync(new URL("../supabase/update-2026-10-26-peers-coach.sql", import.meta.url), "utf8");
   await db.exec(upd7); await db.exec(upd7);
+  const upd8 = readFileSync(new URL("../supabase/update-2026-10-26-board.sql", import.meta.url), "utf8");
+  await db.exec(upd8); await db.exec(upd8);
   // The existing payment checks run as a day after the free beta; the beta itself is checked on its own below.
   await db.exec(`select set_config('pl.today', '${process.env.PL_TODAY || "2027-02-01"}', false)`);
   return db;
@@ -311,6 +313,25 @@ async function main() {
     ok((await as(OWNER, () => q(`select public.pl_team_map($1, 't_rel') m`, [nid])))[0].m.released === true, "team release: the leader sees it's released");
     await as(OWNER, () => q(`select public.pl_team_release($1, 't_rel', false)`, [nid]));
     ok((await as(null, () => q(`select public.pl_team_map_member($1) m`, [k1])))[0].m === null, "team release: the leader can take it back");
+  }
+
+  // Share your report with your board
+  {
+    const bc = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1, $2, 'Pastor Pat', false, '{"audience":"staff","purpose":"team","team":{"id":"t_lead","name":"Lead"}}') returning id`, [nid, OWNER])))[0].id;
+    const bp = (await q(`update public.participants set status='finished', answers='{"likert":{"x":4},"privateNote":"secret","teamh":{"t":1}}' where case_id=$1 and role='planter' returning id`, [bc]))[0].id;
+    const bk = (await q(`select key from public.report_keys where participant_id=$1`, [bp]))[0]?.key || (await q(`insert into public.report_keys(participant_id) values ($1) returning key`, [bp]))[0].key;
+    const vid = (await as(null, () => q(`select public.pl_viewers_add($1, 'Board@Church.org', 'Bob') v`, [bk])))[0].v;
+    ok(!!vid && (await as(null, () => q(`select public.pl_viewers_list($1) l`, [bk])))[0].l[0].email === "board@church.org", "board: the person adds a board member and sees who has it");
+    ok(!!(await tryAs(null, `select public.pl_viewers_add('nope0000000000000000000000', 'x@y.org', 'X')`)), "board: only the person's own key can share");
+    const vt = (await q(`select token from public.report_viewers where id=$1`, [vid]))[0].token;
+    const rep = (await as(null, () => q(`select public.pl_viewer_report($1) r`, [vt])))[0].r;
+    ok(rep && rep.me.likert && !rep.me.privateNote && !rep.me.teamh, "board: the board member sees the report, never the private note or Our team answers");
+    ok(!!(await tryAs(null, `select * from public.pl_viewer_email($1, $2)`, [bk, vid])), "board: only the email function can send board links");
+    await as(null, () => q(`select public.pl_viewers_remove($1, $2)`, [bk, vid]));
+    ok((await as(null, () => q(`select public.pl_viewer_report($1) r`, [vt])))[0].r === null, "board: taking it back closes the link");
+    await as(null, () => q(`select public.pl_viewers_add($1, 'b2@church.org', 'B2')`, [bk]));
+    const direct = await tryAs(OWNER, `select * from public.report_viewers`);
+    ok(direct !== null || (await as(OWNER, () => q(`select count(*)::int n from public.report_viewers`)))[0].n === 0, "board: nobody reads the viewers table directly");
   }
 
   // Plumbline Teams privacy: answers stay with the person; leaders see combined results (3+ people) and what's shared
