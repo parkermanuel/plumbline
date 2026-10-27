@@ -19,13 +19,16 @@ concurrency: ios
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Use the newest Xcode (Apple requires the iOS 26 SDK or later)
+        run: |
+          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1); [ -n "$x" ] && sudo xcode-select -s "$x"; xcodebuild -version
       - run: npm ci
       - run: npm test
 
