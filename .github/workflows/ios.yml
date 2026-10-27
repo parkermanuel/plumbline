@@ -49,7 +49,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/keys"
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8"
 
-      - name: Archive (signed automatically with the API key)
+      - name: Archive (unsigned; the export step signs it for the App Store)
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID || 'B458AXF7U2' }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -57,7 +57,7 @@ jobs:
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
@@ -69,9 +69,11 @@ jobs:
             exit "$rc"
           fi
 
-      - name: Export and upload to App Store Connect
-        if: ${{ inputs.upload }}
+      # Signing happens here with an App Store (distribution) profile, which needs no test devices.
+      # With "upload" off, it signs and exports only, as a check.
+      - name: Sign for the App Store, then upload
         env:
+          DEST: ${{ inputs.upload && 'upload' || 'export' }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID || 'B458AXF7U2' }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -81,7 +83,7 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>${DEST}</string>
             <key>teamID</key><string>${TEAM_ID}</string>
             <key>signingStyle</key><string>automatic</string>
             <key>uploadSymbols</key><true/>
@@ -91,7 +93,12 @@ jobs:
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/export.log"
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" != "0" ]; then
+            grep -E "error:|Error|No profiles|provisioning|not registered|No suitable application records|Unable to" "$RUNNER_TEMP/export.log" | sort -u | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+            exit "$rc"
+          fi
 
       - name: Remove the key
         if: always()
