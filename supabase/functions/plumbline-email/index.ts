@@ -1,7 +1,7 @@
 // Plumbline email function (Supabase Edge Function). Sends invites, reminders, team invites and "finished" notices through Resend.
 // Every permission check lives in the database functions it calls (see supabase/setup.sql).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail } from "./templates.js";
+import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail, boardEmail } from "./templates.js";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
@@ -58,6 +58,14 @@ Deno.serve(async (req) => {
       const { data: cs } = ids.length ? await admin.from("cases").select("id, settings").in("id", ids) : { data: [] };
       const byCase = Object.fromEntries((cs ?? []).map((c: any) => [c.id, { audience: c.settings?.audience || "planting", job_role: c.settings?.role || "", purpose: c.settings?.purpose || "decide", team_name: c.settings?.team?.name || "" }]));
       for (const r of data ?? []) (await send(r.email, null, finishedEmail({ ...r, ...(byCase[r.case_id] || {}) }, site))) ? sent++ : failed++;
+      return json({ sent, failed });
+    }
+    if (body.action === "board") {
+      // A person shares their own report with a board member they just added (checked by their private key)
+      if (typeof body.key !== "string" || body.key.length < 20 || typeof body.id !== "string") return json({ sent: 0 });
+      const { data, error } = await admin.rpc("pl_viewer_email", { p_key: body.key, p_id: body.id });
+      if (error) return json({ error: "Couldn't send" }, 500);
+      for (const r of data ?? []) (await send(r.email, null, boardEmail(r, site))) ? sent++ : failed++;
       return json({ sent, failed });
     }
     if (body.action === "report_key") {
