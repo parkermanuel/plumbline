@@ -124,3 +124,96 @@ create or replace function public.pl_report(p_token text) returns jsonb language
   ) end
   from me;
 $$;
+
+-- ============ Plumbline Teams: the leader can release the team map to the team (26 Oct 2026) ============
+-- After meeting with the staff, the leader can let everyone on the team see the team map from their own report.
+-- Teammates see combined results, team health averages, and how each person is wired (no one's personal scores).
+create table if not exists public.team_releases (network_id uuid not null references public.networks(id) on delete cascade, team_id text not null, released_at timestamptz not null default now(), primary key (network_id, team_id));
+alter table public.team_releases enable row level security;
+create or replace function public.pl_team_release(p_network uuid, p_team text, p_on boolean) returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  if not public.pl_is_member(p_network) then raise exception 'Not on this team'; end if;
+  if coalesce(p_on, false) then insert into public.team_releases(network_id, team_id) values (p_network, left(p_team, 40)) on conflict do nothing;
+  else delete from public.team_releases where network_id = p_network and team_id = p_team; end if;
+  return coalesce(p_on, false);
+end $$;
+revoke all on function public.pl_team_release(uuid, text, boolean) from public, anon;
+grant execute on function public.pl_team_release(uuid, text, boolean) to authenticated;
+
+create or replace function public.pl_team_map(p_network uuid, p_team text) returns jsonb language sql stable security definer set search_path = public as $$
+  with team as (
+    select c.id as case_id, c.planter_name, c.settings->>'audience' as audience, p.status, p.shared, p.team_summary s
+    from public.cases c join public.participants p on p.case_id = c.id and p.role = 'planter'
+    where c.network_id = p_network and public.pl_is_member(p_network) and not c.archived
+      and c.settings->>'purpose' = 'team' and c.settings->'team'->>'id' = p_team
+  ), done as (select * from team where status = 'finished' and s is not null),
+  ok as (select count(*) >= 3 as yes from done)
+  select case when not public.pl_is_member(p_network) then null else jsonb_build_object(
+    'released', exists (select 1 from public.team_releases r where r.network_id = p_network and r.team_id = p_team),
+    'total', (select count(*) from team),
+    'finished', (select count(*) from team where status = 'finished'),
+    'counted', (select count(*) from done),
+    'shared', coalesce((select jsonb_agg(jsonb_build_object('caseId', case_id, 'name', planter_name, 'summary', s - 'team') order by planter_name) from done where shared), '[]'::jsonb),
+    'sharedIds', coalesce((select jsonb_agg(case_id) from team where shared), '[]'::jsonb),
+    'combined', case when (select yes from ok) then jsonb_build_object(
+      'n', (select count(*) from done),
+      'pillars', (select coalesce(jsonb_object_agg(k, a), '{}'::jsonb) from (select k, round(avg(v::numeric)) a from done, jsonb_each_text(s->'pillars') e(k, v) group by k) t),
+      'wiring', (select coalesce(jsonb_object_agg(k, jsonb_build_object('left', l, 'mid', m, 'right', r)), '{}'::jsonb) from (
+                   select k, count(*) filter (where v::numeric <= 35) l, count(*) filter (where v::numeric > 35 and v::numeric < 65) m, count(*) filter (where v::numeric >= 65) r
+                   from done, jsonb_each_text(s->'wiring') e(k, v) group by k) t),
+      'giftsTop', (select coalesce(jsonb_object_agg(g, n), '{}'::jsonb) from (select g, count(*) n from done, jsonb_array_elements_text(s->'giftsTop') g group by g) t),
+      'giftsStrong', (select coalesce(jsonb_agg(distinct g), '[]'::jsonb) from done, jsonb_array_elements_text(s->'giftsStrong') g),
+      'strengths', (select coalesce(jsonb_object_agg(x, n), '{}'::jsonb) from (select x, count(*) n from done, jsonb_array_elements_text(s->'strengths') x group by x) t),
+      'growth', (select coalesce(jsonb_object_agg(x, n), '{}'::jsonb) from (select x, count(*) n from done, jsonb_array_elements_text(s->'growth') x group by x) t),
+      'healthLow', (select count(*) from done where (s->'pillars'->>'health') is not null and (s->'pillars'->>'health')::numeric < 65),
+      -- "Our team" (25 Oct 2026): how the team works together. Averages and counts only, never one person's view.
+      'teamN', (select count(*) from done where jsonb_typeof(s->'team') = 'object' and s->'team' <> '{}'::jsonb),
+      'team', (select coalesce(jsonb_object_agg(k, a), '{}'::jsonb) from (select k, round(avg(v::numeric)) a from done, jsonb_each_text(s->'team') e(k, v) group by k) t),
+      'teamLow', (select coalesce(jsonb_object_agg(k, n), '{}'::jsonb) from (select k, count(*) filter (where v::numeric < 50) n from done, jsonb_each_text(s->'team') e(k, v) group by k) t)
+    ) end
+  ) end
+$$;
+
+create or replace function public.pl_team_map_for(p_network uuid, p_team text) returns jsonb language sql stable security definer set search_path = public as $$
+  with team as (
+    select c.id as case_id, c.planter_name, c.settings->>'audience' as audience, p.status, p.shared, p.team_summary s
+    from public.cases c join public.participants p on p.case_id = c.id and p.role = 'planter'
+    where c.network_id = p_network and not c.archived
+      and c.settings->>'purpose' = 'team' and c.settings->'team'->>'id' = p_team
+  ), done as (select * from team where status = 'finished' and s is not null),
+  ok as (select count(*) >= 3 as yes from done)
+  select jsonb_build_object(
+    'total', (select count(*) from team),
+    'finished', (select count(*) from team where status = 'finished'),
+    'counted', (select count(*) from done),
+    -- Teammates see how each person is wired and their top gifts, never personal scores
+    'shared', coalesce((select jsonb_agg(jsonb_build_object('caseId', case_id, 'name', planter_name, 'summary', jsonb_build_object('wiring', s->'wiring', 'giftsTop', s->'giftsTop')) order by planter_name) from done where shared), '[]'::jsonb),
+    'sharedIds', coalesce((select jsonb_agg(case_id) from team where shared), '[]'::jsonb),
+    'combined', case when (select yes from ok) then jsonb_build_object(
+      'n', (select count(*) from done),
+      'pillars', (select coalesce(jsonb_object_agg(k, a), '{}'::jsonb) from (select k, round(avg(v::numeric)) a from done, jsonb_each_text(s->'pillars') e(k, v) group by k) t),
+      'wiring', (select coalesce(jsonb_object_agg(k, jsonb_build_object('left', l, 'mid', m, 'right', r)), '{}'::jsonb) from (
+                   select k, count(*) filter (where v::numeric <= 35) l, count(*) filter (where v::numeric > 35 and v::numeric < 65) m, count(*) filter (where v::numeric >= 65) r
+                   from done, jsonb_each_text(s->'wiring') e(k, v) group by k) t),
+      'giftsTop', (select coalesce(jsonb_object_agg(g, n), '{}'::jsonb) from (select g, count(*) n from done, jsonb_array_elements_text(s->'giftsTop') g group by g) t),
+      'giftsStrong', (select coalesce(jsonb_agg(distinct g), '[]'::jsonb) from done, jsonb_array_elements_text(s->'giftsStrong') g),
+      'strengths', (select coalesce(jsonb_object_agg(x, n), '{}'::jsonb) from (select x, count(*) n from done, jsonb_array_elements_text(s->'strengths') x group by x) t),
+      'growth', (select coalesce(jsonb_object_agg(x, n), '{}'::jsonb) from (select x, count(*) n from done, jsonb_array_elements_text(s->'growth') x group by x) t),
+      -- "Our team" (25 Oct 2026): how the team works together. Averages and counts only, never one person's view.
+      'teamN', (select count(*) from done where jsonb_typeof(s->'team') = 'object' and s->'team' <> '{}'::jsonb),
+      'team', (select coalesce(jsonb_object_agg(k, a), '{}'::jsonb) from (select k, round(avg(v::numeric)) a from done, jsonb_each_text(s->'team') e(k, v) group by k) t),
+      'teamLow', (select coalesce(jsonb_object_agg(k, n), '{}'::jsonb) from (select k, count(*) filter (where v::numeric < 50) n from done, jsonb_each_text(s->'team') e(k, v) group by k) t)
+    ) end
+  )
+$$;
+revoke all on function public.pl_team_map_for(uuid, text) from public, anon, authenticated;
+
+-- A team member, with their private report key: the team map, only once the leader released it
+create or replace function public.pl_team_map_member(p_key text) returns jsonb language sql stable security definer set search_path = public as $$
+  select case when r.team_id is null then null else public.pl_team_map_for(c.network_id, c.settings->'team'->>'id') || jsonb_build_object('teamName', c.settings->'team'->>'name', 'audience', c.settings->>'audience', 'faith', coalesce((c.settings->>'faith')::boolean, true)) end
+  from public.participants p join public.cases c on c.id = p.case_id
+  left join public.team_releases r on r.network_id = c.network_id and r.team_id = c.settings->'team'->>'id'
+  where p.id = public.pl_key_person(p_key)
+$$;
+revoke all on function public.pl_team_map_member(text) from public, anon, authenticated;
+grant execute on function public.pl_team_map_member(text) to anon, authenticated;
