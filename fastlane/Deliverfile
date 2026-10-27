@@ -1,0 +1,7 @@
+# Settings for uploading App Store screenshots (used by .github/workflows/appstore-screens.yml).
+app_identifier "com.parkermanuel.plumbline"
+platform "ios"
+screenshots_path "./appstore/screenshots"
+skip_binary_upload true
+skip_metadata true
+run_precheck_before_submit false
