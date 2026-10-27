@@ -1,0 +1,31 @@
+# Uploads the App Store screenshots in appstore/screenshots/en-US to the Plumbline listing (replacing what's there).
+# Run it from GitHub: Actions → "App Store screenshots" → Run workflow. Uses the same Apple key secrets as "iPhone app".
+name: App Store screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write the App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          python3 -c 'import json,os; print(json.dumps({"key_id":os.environ["ASC_KEY_ID"],"issuer_id":os.environ["ASC_ISSUER_ID"],"key":os.environ["ASC_KEY_P8"],"in_house":False}))' > "$RUNNER_TEMP/keys/asc.json"
+      - name: Upload screenshots
+        run: |
+          fastlane deliver --api_key_path "$RUNNER_TEMP/keys/asc.json" \
+            --app_identifier com.parkermanuel.plumbline --platform ios \
+            --skip_binary_upload true --skip_metadata true --skip_app_version_update true \
+            --screenshots_path appstore/screenshots --overwrite_screenshots true \
+            --run_precheck_before_submit false --force true
+      - name: Remove the key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
