@@ -28,7 +28,7 @@ jobs:
             --run_precheck_before_submit false --force true 2>&1 | tee "$RUNNER_TEMP/deliver.log"
           rc=${PIPESTATUS[0]}
           if [ "$rc" != "0" ]; then
-            grep -v "^\s*$" "$RUNNER_TEMP/deliver.log" | grep -viE "^\s*\* \[|changelog|^\+-|^\|" | tail -30 | sed 's/\x1b\[[0-9;]*m//g' | while IFS= read -r l; do echo "::error::${l:0:300}"; done
+            grep -v "^\s*$" "$RUNNER_TEMP/deliver.log" | grep -viE "^\s*\* \[|changelog|^\+-|^\|" | grep -vE "^[[:space:]]*from |^/opt|[.]rb:[0-9]+:in" | tail -25 | sed 's/\x1b\[[0-9;]*m//g' | while IFS= read -r l; do echo "::error::${l:0:300}"; done
             exit "$rc"
           fi
       - name: Remove the key
