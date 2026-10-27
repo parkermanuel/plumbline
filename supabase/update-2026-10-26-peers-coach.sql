@@ -49,3 +49,78 @@ language sql stable security definer set search_path = public as $$
   from public.participants p join public.cases c on c.id = p.case_id
   where p.case_id = p_case and p.role <> 'reference' and c.settings->>'purpose' = 'team' and public.pl_is_member(c.network_id);
 $$;
+
+-- The leader's choice is kept when a team member is added
+create or replace function public.case_snapshot() returns trigger language plpgsql security definer set search_path = public as $$
+declare ns jsonb; nn text; nl text;
+begin
+  select settings, name, logo_url into ns, nn, nl from public.networks where id = new.network_id;
+  new.settings := coalesce(ns, '{}'::jsonb) || jsonb_build_object('networkName', nn, 'logoUrl', nl)
+                  || jsonb_strip_nulls(jsonb_build_object(  -- the only choices made when creating an assessment
+                       'audience', case when new.settings->>'audience' in ('planting', 'staff', 'nonprofit', 'business') then to_jsonb(new.settings->>'audience') end,
+                       'faith', case when jsonb_typeof(new.settings->'faith') = 'boolean' then new.settings->'faith' end,
+                       'role', case when jsonb_typeof(new.settings->'role') = 'string' then to_jsonb(left(new.settings->>'role', 80)) end,
+                       'signGifts', case when jsonb_typeof(new.settings->'signGifts') = 'boolean' then new.settings->'signGifts' end,
+                       'bankVersion', case when jsonb_typeof(new.settings->'bankVersion') = 'string' then to_jsonb(left(new.settings->>'bankVersion', 20)) end,
+                       -- Plumbline Teams: growing someone already on a team, grouped into a named team
+                       'purpose', case when new.settings->>'purpose' in ('decide', 'team') then to_jsonb(new.settings->>'purpose') end,
+                       'team', case when jsonb_typeof(new.settings->'team') = 'object' and jsonb_typeof(new.settings->'team'->'id') = 'string'
+                                    then jsonb_build_object('id', left(new.settings->'team'->>'id', 40), 'name', left(coalesce(new.settings->'team'->>'name', 'Team'), 80)) end,
+                       -- Plumbline Teams (26 Oct 2026): the leader chose to see each person's full report; the person is told before they start
+                       'leaderSees', case when new.settings->>'purpose' = 'team' and jsonb_typeof(new.settings->'leaderSees') = 'boolean' then new.settings->'leaderSees' end));
+  -- A team member sees their own growth report as soon as they finish; there's no decision meeting to wait for.
+  if new.settings->>'purpose' = 'team' then new.reports_released := true; end if;
+  return new;
+end $$;
+
+
+-- ============ Plumbline Teams: the leader can see each person's report (26 Oct 2026) ============
+-- When a team is started with "leader sees each report", every new member's report is shared from the start
+-- and can't be unshared; the person is told on the first screen. Teams started before this stay as they were.
+-- "Our team" answers are still only ever shown as the team's average.
+create or replace function public.pl_leader_sees(p_case uuid) returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select (settings->>'leaderSees')::boolean from public.cases where id = p_case and settings->>'purpose' = 'team'), false)
+$$;
+revoke all on function public.pl_leader_sees(uuid) from public, anon, authenticated;
+create or replace function public.pl_team_auto_share() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.role = 'planter' and public.pl_leader_sees(new.case_id) then new.shared := true; end if;
+  return new;
+end $$;
+drop trigger if exists pl_team_auto_share on public.participants;
+create trigger pl_team_auto_share before insert or update of shared on public.participants for each row execute function public.pl_team_auto_share();
+
+create or replace function public.pl_case_header(c public.cases) returns jsonb language sql stable set search_path = public as $$
+  select jsonb_build_object('id', c.id, 'planterName', c.planter_name, 'spouseName', c.spouse_name, 'married', c.married,
+    'city', c.city, 'network', c.settings->>'networkName', 'logoUrl', c.settings->>'logoUrl',
+    'signGifts', coalesce((c.settings->>'signGifts')::boolean, true),
+    'beliefs', coalesce(c.settings->'beliefs', '[]'::jsonb), 'questions', coalesce(c.settings->'questions', '[]'::jsonb),
+    'bankVersion', c.settings->>'bankVersion', 'released', c.reports_released,
+    'audience', coalesce(c.settings->>'audience', 'planting'), 'faith', coalesce((c.settings->>'faith')::boolean, true), 'role', c.settings->>'role',
+    'purpose', coalesce(c.settings->>'purpose', 'decide'), 'team', c.settings->'team',
+    'leaderSees', coalesce((c.settings->>'leaderSees')::boolean, false))
+$$;
+
+create or replace function public.pl_report(p_token text) returns jsonb language sql security definer set search_path = public stable as $$
+  with me as (
+    select p.*, c.reports_released, c.married, c.planter_name, c.spouse_name, c.settings, c.city
+    from public.participants p join public.cases c on c.id = p.case_id
+    where p.role in ('planter', 'spouse') and p.status = 'finished' and not c.archived
+      and ((coalesce(c.settings->>'purpose', 'decide') <> 'team' and p.token = p_token)
+        or (c.settings->>'purpose' = 'team' and p.id = public.pl_key_person(p_token)))
+  )
+  select case when not me.reports_released then jsonb_build_object('released', false) else jsonb_build_object(
+    'released', true,
+    'case', jsonb_build_object('id', me.case_id, 'planterName', me.planter_name, 'spouseName', me.spouse_name, 'married', me.married,
+                               'network', me.settings->>'networkName', 'logoUrl', me.settings->>'logoUrl', 'city', me.city,
+                               'signGifts', coalesce((me.settings->>'signGifts')::boolean, true),
+                               'audience', coalesce(me.settings->>'audience', 'planting'), 'faith', coalesce((me.settings->>'faith')::boolean, true), 'role', me.settings->>'role',
+                               'purpose', coalesce(me.settings->>'purpose', 'decide'), 'team', me.settings->'team',
+                               'leaderSees', coalesce((me.settings->>'leaderSees')::boolean, false)),
+    'role', me.role, 'shared', me.shared,
+    'me', me.answers - 'privateNote' - 'safety',
+    'other', (select public.pl_summary(o.answers) from public.participants o
+              where o.case_id = me.case_id and o.role <> me.role and o.role in ('planter', 'spouse') and o.status = 'finished')
+  ) end
+  from me;
+$$;
