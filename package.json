@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node build.mjs",
     "e2e": "node test/live.e2e.mjs",
-    "test": "node test/aud.test.mjs && node test/engine.test.mjs && node test/email.test.mjs && node test/stripe.test.mjs && node test/sql.test.mjs",
+    "test": "node test/aud.test.mjs && node test/engine.test.mjs && node test/email.test.mjs && node test/stripe.test.mjs && node test/sql.test.mjs && node test/stoa.test.mjs",
     "app": "npx cap sync ios",
     "app:android": "npx cap sync android"
   },

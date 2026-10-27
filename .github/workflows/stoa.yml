@@ -1,0 +1,17 @@
+name: Hourly Stoa profile cards
+# Every hour, send released "how they're wired" cards to churches that use Stoa.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stoa:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Send the cards
+        if: env.SUPABASE_PROJECT_REF != ''
+        run: curl -fsS -X POST "https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1/plumbline-stoa"
