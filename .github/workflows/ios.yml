@@ -61,7 +61,13 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            archive
+            archive 2>&1 | tee "$RUNNER_TEMP/archive.log"
+          rc=${PIPESTATUS[0]}
+          # Show the real errors on the run's summary page (the full log isn't always easy to open).
+          if [ "$rc" != "0" ]; then
+            grep -E "error:|Error:|No profiles|requires a provisioning|not registered|Provisioning profile" "$RUNNER_TEMP/archive.log" | sort -u | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+            exit "$rc"
+          fi
 
       - name: Export and upload to App Store Connect
         if: ${{ inputs.upload }}
