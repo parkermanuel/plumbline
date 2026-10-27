@@ -1160,7 +1160,7 @@ grant execute on function public.pl_coach_tick(text, int) to service_role;
 -- ============ Plumbline Teams: teammates rate what they've seen (26 Oct 2026) ============
 -- The person (with their private report key) gets a link to send a few teammates. Teammates join as references on
 -- the person's own assessment and rate the same traits. The person sees only per-item averages, and only once at
--- least two have finished. No one else sees peer ratings: not the leader, not the team map.
+-- least three have finished (the common 360 standard, so no one's ratings can be picked out). No one else sees peer ratings: not the leader, not the team map.
 create or replace function public.pl_team_peer_link(p_key text) returns text language sql stable security definer set search_path = public as $$
   select c.ref_token from public.participants p join public.cases c on c.id = p.case_id where p.id = public.pl_key_person(p_key)
 $$;
@@ -1172,8 +1172,8 @@ create or replace function public.pl_team_peers(p_key text) returns jsonb langua
            where jsonb_typeof(e.value) = 'number' and (e.value)::text::numeric between 1 and 5)
   select case when not exists (select 1 from me) then null else jsonb_build_object(
     'asked', (select count(*) from refs), 'finished', (select count(*) from done),
-    'items', case when (select count(*) from done) >= 2
-      then coalesce((select jsonb_object_agg(k, jsonb_build_object('avg', round(v, 2), 'n', n)) from (select k, avg(v) v, count(*) n from vals group by k having count(*) >= 2) a), '{}'::jsonb)
+    'items', case when (select count(*) from done) >= 3
+      then coalesce((select jsonb_object_agg(k, jsonb_build_object('avg', round(v, 2), 'n', n)) from (select k, avg(v) v, count(*) n from vals group by k having count(*) >= 3) a), '{}'::jsonb)
       else '{}'::jsonb end) end
 $$;
 revoke all on function public.pl_team_peer_link(text), public.pl_team_peers(text) from public, anon, authenticated;
