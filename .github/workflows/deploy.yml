@@ -65,6 +65,7 @@ jobs:
           supabase functions deploy plumbline-sweep --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           supabase functions deploy plumbline-stripe --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           supabase functions deploy plumbline-coach --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy plumbline-stoa --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           if [ -n "$ANTHROPIC_API_KEY" ]; then
             supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
           fi
