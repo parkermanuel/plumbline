@@ -42,7 +42,9 @@ const EXTRA_SEAT_CENTS = 2500, MAX_EXTRA_SEATS = 950;
 // Where to send people back after checkout: only our own sites
 const RETURN_SITES = ["https://plumblineassessment.com", "https://plumblineteams.com"];
 // Beta invites: sha256(invite token) -> who it's for and how many free assessments. Each works once (payments row "invite_<hash>").
-const INVITES: Record<string, { label: string; credits: number }> = {
+const INVITES: Record<string, { label: string; credits: number; planUntil?: string }> = {
+  // FRMG (Front Range Multiply Group): Parker's partner network, free through 2027 (unlimited plan), 28 Oct 2026
+  "24db0f5fe01417260997841ead05d32ed98e09d4768449ecda8538b463b6ced3": { label: "FRMG", credits: 5, planUntil: "2027-12-31T23:59:59-07:00" },
   "88e5a5db739f8cf4df8877485a79ce8ae3bed07f765b12fe7a95722f76b8a983": { label: "SLN", credits: 5 },
   "11e484af7c43390db5eee8a6b627b4a3c05825d805314781e2a6b7f06ce1afb6": { label: "Friend test 1", credits: 5 },
   "5156d6e8634c003e6a733feb622d7adfcc89b1b0d047e1c87147128349ca3fde": { label: "Friend test 2", credits: 5 },
@@ -236,8 +238,11 @@ Deno.serve(async (req) => {
       }
       const { data: net } = await admin.from("networks").select("credits").eq("id", body.networkId).single();
       // Exactly the invite's number left (it replaces the usual first free couple rather than adding to it).
-      await admin.from("networks").update({ credits: Math.max(net?.credits ?? 0, inv.credits), founding: true }).eq("id", body.networkId);
-      return json({ ok: true, credits: inv.credits });
+      const { data: net2 } = await admin.from("networks").select("plan_until").eq("id", body.networkId).single();
+      // A partner invite also gives the yearly plan (unlimited assessments) through its date, never shortening a longer plan.
+      const planUntil = inv.planUntil && (!net2?.plan_until || new Date(net2.plan_until) < new Date(inv.planUntil)) ? new Date(inv.planUntil).toISOString() : undefined;
+      await admin.from("networks").update({ credits: Math.max(net?.credits ?? 0, inv.credits), founding: true, ...(planUntil ? { plan_until: planUntil } : {}) }).eq("id", body.networkId);
+      return json({ ok: true, credits: inv.credits, ...(inv.planUntil ? { planUntil: inv.planUntil } : {}) });
     }
 
     if (body.action === "codes") {
