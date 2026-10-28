@@ -2,7 +2,7 @@ import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail } from "../
 let fail = 0; const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) fail++; };
 const base = { token: "a".repeat(64), network_name: "Front Range", sender_name: "Dana", planter_name: "Josh Kim", spouse_name: "Hannah Kim" };
 const p = personEmail("invite", { ...base, role: "planter", name: "Josh Kim" }, "https://plumblineassessment.com");
-ok(p.subject.includes("Front Range") && p.html.includes("/#/t/" + "a".repeat(64)) && p.text.includes("35 minutes") && p.text.includes("Hannah"), "planter invite");
+ok(p.subject.includes("Front Range") && p.html.includes("/t/" + "a".repeat(64)) && p.text.includes("35 minutes") && p.text.includes("Hannah"), "planter invite");
 const s = personEmail("invite", { ...base, role: "spouse", name: "Hannah Kim" }, "https://x");
 ok(s.text.includes("25 minutes") && s.text.includes("Josh"), "spouse invite");
 const r = personEmail("remind", { ...base, role: "reference", name: "Mike Lee" }, "https://x");
@@ -10,11 +10,11 @@ ok(r.subject.startsWith("Reminder") && r.text.includes("8 minutes"), "reference 
 const x = personEmail("invite", { ...base, role: "planter", name: "<script>alert(1)</script>" }, "https://x");
 ok(!x.html.includes("<script>"), "names are escaped");
 const t = teamInviteEmail({ token: "b".repeat(64), role: "assessor", network_name: "Front Range", sender_name: "Dana" }, "https://x");
-ok(t.html.includes("/#/join/") && t.text.includes("an assessor"), "team invite");
+ok(t.html.includes("/join/") && !t.html.includes("/#/") && t.text.includes("an assessor"), "team invite");
 const f = finishedEmail({ person_name: "Hannah Kim", person_role: "spouse", planter_name: "Josh Kim", case_id: "c1", all_done: true }, "https://x");
-ok(f.subject.includes("report is ready") && f.html.includes("/#/case/c1"), "finished notice");
+ok(f.subject.includes("report is ready") && f.html.includes("/case/c1") && !f.html.includes("/#/"), "finished notice");
 const spam = personEmail("invite", { ...base, network_name: "Claim your prize at evil.com/win", role: "planter", name: "Visit www.evil.com now" }, "https://x");
-ok(!/evil/i.test(spam.html + spam.text + spam.subject) && spam.html.includes("/#/t/"), "links typed into names never reach an email; the real link stays");
+ok(!/evil/i.test(spam.html + spam.text + spam.subject) && spam.html.includes("/t/") && !spam.html.includes("/#/"), "links typed into names never reach an email; the real link stays");
 const st = personEmail("invite", { ...base, spouse_name: null, role: "planter", name: "Josh Kim", audience: "staff", job_role: "Student pastor" }, "https://x");
 const sr = personEmail("invite", { ...base, spouse_name: null, role: "reference", name: "Mike Lee", audience: "business" }, "https://x");
 ok(st.text.includes("Student pastor") && !/plant/i.test(st.text + st.subject) && !/plant/i.test(sr.text + sr.subject), "church staff and business emails never mention planting");

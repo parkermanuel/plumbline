@@ -34,7 +34,7 @@ const footFor = (r) => (isTeam(r) ? "Plumbline Teams helps teams grow together. 
 const FOOT = "Plumbline is a church planter assessment for networks. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.";
 
 export function personEmail(kind, r, site) {
-  const link = `${site}/#/t/${r.token}`;
+  const link = `${site}/t/${r.token}`;
   const net = clean(r.network_name) || "your network";
   const sender = r.sender_name ? esc(r.sender_name) : "Your network leader";
   const nm = esc(first(r.name));
@@ -72,7 +72,7 @@ export function personEmail(kind, r, site) {
 }
 
 export function teamInviteEmail(r, site) {
-  const link = `${site}/#/join/${r.token}`;
+  const link = `${site}/join/${r.token}`;
   const role = r.role === "admin" ? "an admin" : "an assessor";
   const subject = `Join ${clean(r.network_name)} on Plumbline`;
   return { subject, ...layout({
@@ -94,7 +94,7 @@ export function finishedEmail(r, site) {
     heading: r.all_done && r.person_role !== "reference" ? `The report for ${esc(r.planter_name)} is ready` : `${who} finished`,
     paragraphs: [`${who} (${planting(r) || r.person_role === "reference" ? roleWord : "the candidate"}) just finished their Plumbline assessment for ${esc(r.planter_name)}.`,
       r.all_done ? `${planting(r) ? "The planter and spouse are both done." : "The candidate is done."} Open the leader report to see the recommendation and the interview guide.` : `You can watch everyone else's progress on your dashboard.`],
-    button: { href: `${site}/#/case/${r.case_id}`, label: "Open the assessment" },
+    button: { href: `${site}/case/${r.case_id}`, label: "Open the assessment" },
     footer: "You're getting this because you're on this network's Plumbline team.", site,
   }) };
 }
