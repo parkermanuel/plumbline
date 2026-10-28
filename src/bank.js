@@ -741,6 +741,8 @@ export const FIVEFOLD_BLOCKS = [
 ];
 
 // ---------- SCENARIOS (pick best + worst). key: 1 (poor) .. 4 (best) ----------
+// Scenarios that involve the spouse use {sp}: shown with the spouse's first name, or "your spouse" (owner, 28 Oct 2026).
+export const fillSpouse = (t, name) => String(t || "").replace(/\{sp\}/g, (name && String(name).trim().split(/\s+/)[0]) || "your spouse").replace(/^your spouse/, "Your spouse");
 const SCENARIOS_0 = [
   { id: "sj1", title: "The pushback", text: "In a launch team meeting, your most generous volunteer pushes hard for a direction that cuts against the vision. Others start nodding.", options: [
     { t: "Correct them firmly right there so the team hears the vision clearly.", k: 2 },
@@ -752,11 +754,11 @@ const SCENARIOS_0 = [
     { t: "Tell your sending church, network and key leaders now, build a revised plan together, and make a clear ask.", k: 4 },
     { t: "Make an emergency appeal from the stage this Sunday.", k: 2 },
     { t: "Wait a month to see if it turns around.", k: 1 } ] },
-  { id: "sj3", married: true, title: "Running on empty", text: "Your spouse tells you they're exhausted and feel the church gets the best of you.", options: [
-    { t: "Reassure them it's just a season until launch.", k: 1 },
-    { t: "Listen fully, ask what would help, and change your calendar this week together.", k: 4 },
+  { id: "sj3", married: true, title: "Running on empty", text: "{sp} tells you, \"I'm exhausted, and the church gets the best of you.\"", options: [
+    { t: "Reassure {sp} it's just a season until launch.", k: 1 },
+    { t: "Listen fully, ask {sp} what would help, and change your calendar this week together.", k: 4 },
     { t: "Ask a couple from the team to help with meals and childcare.", k: 3 },
-    { t: "Suggest they step back from their ministry roles for a while.", k: 2 } ] },
+    { t: "Suggest {sp} step back from ministry roles for a while.", k: 2 } ] },
   { id: "sj4", title: "The confession", text: "A key leader confides that he has been struggling with pornography for months.", options: [
     { t: "Thank him for being honest, keep it between the two of you, and ask him to keep you posted.", k: 1 },
     { t: "Thank him, walk with him toward repentance, bring in real accountability, and step him back from leadership for a season under a clear restoration plan.", k: 4 },
