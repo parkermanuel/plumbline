@@ -174,8 +174,8 @@ Deno.serve(async (req) => {
         ...(plan ? { subscription_data: { description: `Plumbline network plan for ${net.name}` } }
                  : { invoice_creation: { enabled: true, invoice_data: { description: `Plumbline assessments for ${net.name}`,
                      custom_fields: { 0: { name: "Network", value: String(net.name).slice(0, 30) } }, footer: "Plumbline · plumblineassessment.com · Thank you for investing in your planters." } } }),
-        success_url: `${site}/#/leader?paid=1`,
-        cancel_url: `${site}/#/leader`,
+        success_url: `${site}/leader?paid=1`,
+        cancel_url: `${site}/leader`,
       });
       return json({ url: session.url });
     }
