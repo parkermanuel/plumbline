@@ -3,3 +3,4 @@ dist/
 shots/
 test/tmp/
 dist-app/
+supabase/functions/plumbline-migrate/setup_sql.ts
