@@ -48,7 +48,7 @@ export function personEmail(kind, r, site) {
       reminder ? `${sender} is still hoping to hear from you about ${pn}. It takes about 8 minutes, and it picks up where you left off.`
                : planting(r) ? `${esc(r.planter_name)} is being assessed for church planting by ${esc(net)}, and you were named as someone who knows them well.`
                : `${esc(r.planter_name)} is being considered for ${what(r)} at ${esc(net)}, and you were named as someone who knows them well.`,
-      `Rate only what you've actually seen. Your written comments go only to ${planting(r) ? "the network leader" : "the people hiring"}.`,
+      `Your answers go straight to ${planting(r) ? "the network leader" : "the people hiring"}. ${pn} never sees them. Rate only what you've actually seen.`,
     ];
     label = reminder ? "Finish my reference" : "Start the reference";
   } else {

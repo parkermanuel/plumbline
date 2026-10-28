@@ -37,7 +37,7 @@ await q(`set role service_role`);
 const e1 = await q(`select * from public.pl_my_ref_email($1,$2)`, [tok.planter, r1]);
 const e2 = await q(`select * from public.pl_my_ref_email($1,$2)`, [tok.planter, r1]);
 await q(`reset role`);
-ok(e1.length === 1 && e1[0].sender_email === "josh@k.com" && e1[0].sender_name === "Josh Kim" && e1[0].email === "mike@lee.com" && e2.length === 0, "invite goes out once, reply-to is the planter");
+ok(e1.length === 1 && e1[0].sender_email === "owner@net.org" && e1[0].sender_name === "Dana" && e1[0].email === "mike@lee.com" && e2.length === 0, "invite goes out once, from the network leader; replies go to the leader, never the planter");
 // Remove: only their own, only before the person starts
 const r2 = (await add(tok.planter, "Sara Fox", "sara@fox.com", "Boss or supervisor", ""))[0].id;
 ok((await q(`select ref_context from public.participants where id=$1`, [r2]))[0].ref_context === null, "context is optional");

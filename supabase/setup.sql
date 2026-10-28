@@ -1501,7 +1501,7 @@ begin
 end $$;
 
 -- For the email function only (service role): the invite for a reference the planter just added, stamped once a day at most.
--- Replies go to the planter, since they asked this person.
+-- Comes from the network leader who set up the assessment, and replies go to them, never to the planter (owner, 28 Oct 2026: references answer more honestly).
 create or replace function public.pl_my_ref_email(p_token text, p_id uuid) returns table(
   id uuid, email text, name text, role text, token text, planter_name text, spouse_name text, network_name text, sender_name text, sender_email text)
 language plpgsql security definer set search_path = public as $$
@@ -1518,9 +1518,9 @@ begin
     returning p.*
   ), logged as (insert into public.email_log(network_id, kind) select nid, 'invite' from stamped returning 1)
   select s.id, s.email, s.name, s.role, s.token, c.planter_name, c.spouse_name, c.settings->>'networkName',
-         c.planter_name, me.email
+         coalesce(m.name, split_part(m.email, '@', 1)), m.email
   from stamped s join public.cases c on c.id = s.case_id
-  left join public.participants me on me.case_id = c.id and me.role = 'planter';
+  left join public.network_members m on m.network_id = c.network_id and m.user_id = c.created_by;
 end $$;
 revoke all on function public.pl_my_ref_email(text, uuid) from public, anon, authenticated;
 grant execute on function public.pl_my_ref_email(text, uuid) to service_role;
