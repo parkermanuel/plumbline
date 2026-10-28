@@ -55,5 +55,11 @@ ok(/8 references/.test(await err(null, `select public.pl_add_my_ref($1,'Nine','n
 const tcase = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1,$2,'Team Member','tm@t.com',false,'{"purpose":"team","team":{"id":"t1","name":"Staff"},"audience":"staff"}') returning id`, [nid, OWNER])))[0].id;
 const ttok = (await q(`select token from public.participants where case_id=$1`, [tcase]))[0].token;
 ok(/can't add references/.test(await err(null, `select public.pl_add_my_ref($1,'X','x@y.com','Friend','')`, [ttok])), "Plumbline Teams links can't add references");
+
+// Who's planting (28 Oct 2026): the link header says husband unless the case says wife
+const hdr = (await as(null, () => q(`select public.pl_open($1) as j`, [tok.spouse])))[0].j.case;
+await q(`update public.cases set settings = settings || '{"planterIs":"wife"}' where id=$1`, [cid]);
+const hdr2 = (await as(null, () => q(`select public.pl_open($1) as j`, [tok.spouse])))[0].j.case;
+ok(hdr.planterIs === "husband" && hdr2.planterIs === "wife", "the link knows whether the planter is the husband or the wife");
 if (failed) { console.error(`${failed} planter-reference check(s) failed`); process.exit(1); }
 console.log("\nAll planter-reference checks passed");
