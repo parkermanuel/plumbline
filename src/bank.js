@@ -16,7 +16,7 @@ const PILLARS_0 = [
   { id: "health", name: "Emotional Health", icon: "heart", blurb: "Self-awareness, resilience and rhythms that can carry the weight of planting.",
     why: "Resilience is one of Ridley's 13 traits and emotional stability is a core dimension in the Church Leader Inventory model. Networks treat emotional health as a non-negotiable.", src: ["ridley", "pca"] },
   { id: "family", name: "Marriage & Family", icon: "home", blurb: "A marriage and home that are a strength, not a casualty.",
-    why: "Spousal cooperation is one of Ridley's 13 traits, and Send Network leaders say plainly that if the spouse isn't ready, the planter isn't ready. In a 2017 LifeWay study, 69% of pastors' spouses said they have few people to confide in.", src: ["ridley", "send", "spouses2017"] },
+    why: "Spousal cooperation is one of Ridley's 13 traits, and Send Network leaders say plainly that if the planting wife isn't ready, the planting husband isn't ready. In a 2017 LifeWay study, 69% of pastors' spouses said they have few people to confide in.", src: ["ridley", "send", "spouses2017"] },
   { id: "leadership", name: "Leadership", icon: "compass", blurb: "Vision, teams, leader development and healthy conflict.",
     why: "In the 2007 Church Plant Survivability Study, plants that developed members as leaders survived at 79% compared with 59% for those that didn't.", src: ["survive2007"] },
   { id: "mission", name: "Mission", icon: "send", blurb: "Living among people far from God, sharing the gospel and making disciples.",
@@ -93,7 +93,7 @@ const SCALES_0 = {
     q: "Tell me about a time you stepped out in faith on something that could have failed publicly. What happened?",
     probes: ["What did you do while you waited?", "How did you know it was faith and not just a risk?"],
     look: "Real risk, prayer and action together, and peace either way.",
-    plan: "Name one faith step you've been putting off. Pray over it with your spouse and a mentor and set a date to take it.",
+    plan: "Name one faith step you've been putting off. Pray over it with a mentor (and your wife, if you're married) and set a date to take it.",
     items: [
       { id: "f1", t: "I have stepped out in faith on something that could have failed publicly." },
       { id: "f2", t: "I can lead with confidence before all the resources are in place." },
@@ -143,9 +143,9 @@ const SCALES_0 = {
     strength: "Stays steady and kind under pressure, and is the same at home as in public.",
     growth: "Frustration or anger shows up in ways others feel. Planting multiplies pressure, and pressure reveals this quickly.",
     q: "Tell me about the last time you lost your cool with someone. What happened, and what did you do afterward?",
-    probes: ["What does your spouse see when you're under pressure?", "Who has to walk on eggshells around you?"],
+    probes: ["What does your wife or closest friend see when you're under pressure?", "Who has to walk on eggshells around you?"],
     look: "Honest ownership, repair with the person, and a pattern that's getting better.",
-    plan: "Ask your spouse to name what you're like under stress. Pick one trigger and plan a better response with a mentor or counselor.",
+    plan: "Ask your wife or a close friend to name what you're like under stress. Pick one trigger and plan a better response with a mentor or counselor.",
     items: [
       { id: "w1", t: "When I'm frustrated, I take it out on the people around me.", rev: true },
       { id: "w2", t: "I stay calm and kind in heated conversations." },
@@ -196,7 +196,7 @@ const SCALES_0 = {
     q: "Describe your typical week. When do you rest, and what actually refills you?",
     probes: ["When did you last take a full day off with no ministry?", "Who are your friends who don't need you to be their pastor?"],
     look: "A protected day off, sleep, and at least one friendship outside the ministry.",
-    plan: "Pick a weekly Sabbath day, put it on the calendar for the next 12 weeks, and let your spouse hold you to it.",
+    plan: "Pick a weekly Sabbath day, put it on the calendar for the next 12 weeks, and let your wife or a close friend hold you to it.",
     items: [
       { id: "y1", t: "I take a weekly Sabbath or day off and protect it." },
       { id: "y2", t: "I have friendships where I'm not the pastor." },
@@ -230,13 +230,13 @@ const SCALES_0 = {
     strength: "The marriage is a real partnership and a source of strength.",
     growth: "The marriage partnership needs attention before planting. Plants rarely fix a strained marriage; they usually expose it.",
     q: "How do the two of you make big decisions? Tell me about the decision to plant.",
-    probes: ["Tell me about your last real disagreement and how it got resolved.", "What would your spouse say you need to work on?"],
+    probes: ["Tell me about your last real disagreement and how it got resolved.", "What would your wife say you need to work on?"],
     look: "Both voices in the story, a healthy conflict pattern, and no surprises between them.",
     plan: "Schedule a weekly 30-minute couple meeting: calendar, money, kids, and 'how are we, really?'",
     items: [
-      { id: "m1", t: "My spouse and I make big decisions together." },
-      { id: "m2", t: "My spouse feels genuinely called to this, not just supportive of me." },
-      { id: "m3", t: "I sometimes make ministry commitments before checking with my spouse.", rev: true },
+      { id: "m1", t: "My wife and I make big decisions together." },
+      { id: "m2", t: "My wife feels genuinely called to this, not just supportive of me." },
+      { id: "m3", t: "I sometimes make ministry commitments before checking with my wife.", rev: true },
       { id: "m4", t: "We have a healthy way of working through disagreements." },
       { id: "m5", t: "Our marriage is a source of strength right now, not strain." },
     ],
@@ -517,9 +517,9 @@ const SCALES_0 = {
 export const SPOUSE_SCALES = {
   s_call: {
     label: "Personal Calling",
-    desc: "A personal sense of God's call to this, not just support for a spouse.",
+    desc: "A personal sense of God's call to this, not just support for her husband.",
     strength: "Has a personal, owned sense of God's call to plant.",
-    growth: "The call feels more like support for a spouse than a personal conviction. That's important to talk about gently and honestly before planting.",
+    growth: "The call feels more like support for her husband than a personal conviction. That's important to talk about gently and honestly before planting.",
     q: "Tell me how you've heard from God about planting, in your own time with Him.",
     probes: ["What are you most excited about?", "What would you say if you knew no one would be disappointed?"],
     look: "Personal conviction, specific hopes, and freedom to be honest.",
@@ -527,7 +527,7 @@ export const SPOUSE_SCALES = {
     items: [
       { id: "sc1", t: "I personally sense God calling our family to plant." },
       { id: "sc2", t: "I'm excited about this, not just willing." },
-      { id: "sc3", t: "If I'm honest, I'm going along with this mostly for my spouse's sake.", rev: true },
+      { id: "sc3", t: "If I'm honest, I'm going along with this mostly for my husband's sake.", rev: true },
       { id: "sc4", t: "I've heard from God about this in my own time with Him." },
       { id: "sc5", t: "I can name what I'm hoping God will do through me in this plant." },
     ],
@@ -554,22 +554,22 @@ export const SPOUSE_SCALES = {
     strength: "Feels like a true partner: heard, valued and free to disagree.",
     growth: "Doesn't fully feel like a partner in this yet. That gap matters more than almost anything else in planting.",
     q: "Do you feel like a partner in this decision? Tell me about a time you disagreed and how it went.",
-    probes: ["What would you want your spouse to hear from you that's hard to say?"],
+    probes: ["What would you want your husband to hear from you that's hard to say?"],
     look: "Freedom to disagree, feeling heard, and no fear in the answer.",
-    plan: "Ask your spouse for a weekly couple meeting where you set half the agenda.",
+    plan: "Ask your husband for a weekly couple meeting where you set half the agenda.",
     items: [
-      { id: "sm1", t: "My spouse listens to me before making major decisions." },
+      { id: "sm1", t: "My husband listens to me before making major decisions." },
       { id: "sm2", t: "I feel like a partner in this, not an add-on." },
       { id: "sm3", t: "Ministry has come before our family more often than I've said out loud.", rev: true },
-      { id: "sm4", t: "I'm comfortable telling my spouse when I disagree." },
-      { id: "sm5", t: "My spouse protects our family time." },
+      { id: "sm4", t: "I'm comfortable telling my husband when I disagree." },
+      { id: "sm5", t: "My husband protects our family time." },
     ],
   },
   s_health: {
     label: "Health & Resilience",
     desc: "Self-awareness, rest and energy for the season ahead.",
     strength: "Is healthy, rested and resilient for the season ahead.",
-    growth: "Is running low right now. A spouse's health is as important to a plant as the planter's.",
+    growth: "Is running low right now. A planting wife's health is as important to a plant as her husband's.",
     q: "What fills you up, and how often do you get it right now?",
     probes: ["What drains you most?", "What would you need to thrive in the first year of the plant?"],
     look: "Self-knowledge, real rest, and named needs.",
@@ -584,8 +584,8 @@ export const SPOUSE_SCALES = {
   },
   s_support: {
     label: "Support & Community",
-    desc: "Has friends and community of their own.",
-    strength: "Has friends and a plan for community of their own.",
+    desc: "Has friends and community of her own.",
+    strength: "Has friends and a plan for community of her own.",
     growth: "Support is thin. In a 2017 LifeWay study, 69% of pastors' spouses said they have few people to confide in, so this is worth planning for now.",
     q: "Who are your people? Who will be your people in the new city?",
     probes: ["Who could you call on your hardest day?"],
@@ -606,7 +606,7 @@ export const SPOUSE_SCALES = {
     q: "What's the hardest part of planting for you to think about?",
     probes: ["Is there a fear you haven't said out loud yet?"],
     look: "Fears named, peace that's real, and questions asked.",
-    plan: "Write down your three biggest fears about planting. Share them with your spouse and a planting spouse who's a few years ahead.",
+    plan: "Write down your three biggest fears about planting. Share them with your husband and a planting wife who's a few years ahead.",
     items: [
       { id: "sr1", t: "I'm at peace with the financial risk." },
       { id: "sr2", t: "I'm ready for the change this will bring to our family." },
@@ -616,7 +616,7 @@ export const SPOUSE_SCALES = {
   },
 };
 
-// Spouse rates the planter (spouse as an observer). Maps to planter scales.
+// The planting wife rates her husband (as an observer). Maps to planter scales.
 export const SPOUSE_SEES = [
   { id: "ob_call", scale: "call", t: "Has a clear sense of God's call to plant." },
   { id: "ob_control", scale: "control", t: "Stays calm and kind under pressure at home." },
@@ -643,7 +643,7 @@ export const COUPLE_AREAS = [
     { id: "cmo2", t: "We are at peace with our income and fundraising plan.", guess: true },
     { id: "cmo3", t: "Money is a regular source of tension between us.", rev: true } ] },
   { id: "roles", name: "Roles", items: [
-    { id: "cr1", t: "We've clearly talked through what the spouse's role in the church will and won't be.", guess: true },
+    { id: "cr1", t: "We've clearly talked through what the wife's role in the church will and won't be.", guess: true },
     { id: "cr2", t: "We agree on how home responsibilities will be shared while planting." },
     { id: "cr3", t: "One of us expects more from the other in ministry than has been said out loud.", rev: true } ] },
   { id: "time", name: "Time & Rhythms", items: [
@@ -741,8 +741,8 @@ export const FIVEFOLD_BLOCKS = [
 ];
 
 // ---------- SCENARIOS (pick best + worst). key: 1 (poor) .. 4 (best) ----------
-// Scenarios that involve the spouse use {sp}: shown with the spouse's first name, or "your spouse" (owner, 28 Oct 2026).
-export const fillSpouse = (t, name) => String(t || "").replace(/\{sp\}/g, (name && String(name).trim().split(/\s+/)[0]) || "your spouse").replace(/^your spouse/, "Your spouse");
+// Scenarios that involve the planting wife use {sp}: shown with her first name, or "your wife" (owner, 28 Oct 2026).
+export const fillSpouse = (t, name) => String(t || "").replace(/\{sp\}/g, (name && String(name).trim().split(/\s+/)[0]) || "your wife").replace(/^your wife/, "Your wife");
 const SCENARIOS_0 = [
   { id: "sj1", title: "The pushback", text: "In a launch team meeting, your most generous volunteer pushes hard for a direction that cuts against the vision. Others start nodding.", options: [
     { t: "Correct them firmly right there so the team hears the vision clearly.", k: 2 },
@@ -803,11 +803,11 @@ export const BOGUS = [
 // pairs of an item and its reverse-keyed partner; after reversing, answers should be close.
 export const CONSISTENCY_PAIRS = [["cf1", "cf2"], ["s2", "s3"], ["$1", "$4"], ["e2", "e3"], ["u1", "u3"]];
 
-// ---------- SAFETY (spouse; leader-only; never in couple report) ----------
+// ---------- SAFETY (planting wife; leader-only; never in couple report) ----------
 export const SAFETY = [
   { id: "sf1", t: "I feel safe at home.", concernIf: "low" },
-  { id: "sf2", t: "I can disagree with my spouse without being afraid of how they'll react.", concernIf: "low" },
-  { id: "sf3", t: "I have sometimes felt afraid of my spouse.", concernIf: "high" },
+  { id: "sf2", t: "I can disagree with my husband without being afraid of how he'll react.", concernIf: "low" },
+  { id: "sf3", t: "I have sometimes felt afraid of my husband.", concernIf: "high" },
 ];
 
 // ---------- BELIEFS (Parker's core beliefs, the same ones Pastor To Pastor asks pastors to share) ----------
@@ -926,8 +926,8 @@ export const OTHER_LINKS = [
 ];
 
 // ---------- CONTEXT (optional city fit) ----------
-// Asked only if the couple has identified a city. Plumbline doesn't show a city profile; it asks what the planter
-// and spouse know and feel about the place. The leader report sets their answers beside public data to check.
+// Asked only if the couple has identified a city. Plumbline doesn't show a city profile; it asks what the planting
+// husband and wife know and feel about the place. The leader report sets their answers beside public data to check.
 export const CONTEXT = {
   choices: [
     { id: "cx_type", q: "What kind of place is it?", opts: ["Urban core", "Suburb", "Small town", "Rural", "College town", "Somewhere else"] },
@@ -972,7 +972,7 @@ export const PARTNER = {
 };
 
 // ---------- PRICING ----------
-// Plumbline is $99 per couple (planter, spouse and all their references), or $2,500 a year for unlimited assessments.
+// Plumbline is $99 per couple (planting husband and wife, and all their references), or $2,500 a year for unlimited assessments.
 // Launch prices, set low on purpose; the yearly plan may rise toward $5,000 as Plumbline grows.
 // What a couple pays elsewhere, from each publisher's public prices (checked 23 Oct 2026). Used for the savings line.
 export const PRICING = {
@@ -981,8 +981,8 @@ export const PRICING = {
   foundingUntil: "2027-12-31",
   plan: 2500,
   others: [
-    { tool: "DISC (Everything DiSC)", cost: 147, how: "$73.50 per person, for planter and spouse", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },
-    { tool: "CliftonStrengths 34", cost: 120, how: "$59.99 per person, for planter and spouse", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },
+    { tool: "DISC (Everything DiSC)", cost: 147, how: "$73.50 per person, for the planting husband and wife", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },
+    { tool: "CliftonStrengths 34", cost: 120, how: "$59.99 per person, for the planting husband and wife", src: "https://www.consultclarity.org/post/working-genius-vs-other-assessments-full-price-comparison" },
     { tool: "PREPARE/ENRICH", cost: 35, how: "$35 per couple", src: "https://www.prepare-enrich.com/" },
     { tool: "Online church planter assessment", cost: 88, how: "LifeWay e-Church Planter Candidate Assessment, $88 for the planter", src: "https://lifeway.com/en/product/e-church-planter-candidate-assessment-individual-P005465560" },
   ],
