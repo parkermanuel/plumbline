@@ -79,6 +79,26 @@ jobs:
             supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" RESEND_API_KEY="$RESEND_API_KEY" SITE_URL="${SITE_URL:-https://plumblineassessment.com}" EMAIL_FROM="Plumbline <plumbline@parkermanuel.com>"
           fi
 
+      - name: Update the database (through a one-time Supabase function)
+        # The access token can deploy functions but can't change the database (owner, 28 Oct 2026). So setup.sql is
+        # bundled into plumbline-migrate, which runs it over Supabase's own database connection, guarded by a fresh key.
+        if: env.SUPABASE_DB_URL == '' && env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
+        run: |
+          node -e 'const fs=require("fs");fs.writeFileSync("supabase/functions/plumbline-migrate/setup_sql.ts","export default "+JSON.stringify(fs.readFileSync("supabase/setup.sql","utf8"))+";\n")'
+          KEY=$(openssl rand -hex 32); echo "::add-mask::$KEY"
+          supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" PL_MIGRATE_KEY="$KEY" >/dev/null
+          supabase functions deploy plumbline-migrate --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -sS -o /tmp/mig.json -w '%{http_code}' -X POST "https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1/plumbline-migrate" -H "x-migrate-key: $KEY" || echo 000)
+            echo "Database update answered $code: $(cat /tmp/mig.json 2>/dev/null | head -c 400)"
+            [ "$code" = "200" ] && break
+            [ "$code" = "500" ] && exit 1
+            sleep 10
+          done
+          [ "$code" = "200" ] || exit 1
+          # Retire the key so the function can't be called again until the next deploy
+          supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" PL_MIGRATE_KEY="retired" >/dev/null
+
   site:
     needs: test
     runs-on: ubuntu-latest
