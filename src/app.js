@@ -1043,7 +1043,8 @@ function screen(s) {
       <div><button class="btn" data-act="next" ${pick.most && pick.least ? "" : "disabled"}>Next</button></div></div>`;
   }
   if (s.t === "scenario") {
-    const sc = B.SCENARIOS.find((x) => x.id === s.id), a = R.scenarios[s.id] || {};
+    const raw = B.SCENARIOS.find((x) => x.id === s.id), a = R.scenarios[s.id] || {};
+    const sc = { ...raw, text: B.fillSpouse(raw.text, R.meta?.spouseName), options: raw.options.map((o) => ({ ...o, t: B.fillSpouse(o.t, R.meta?.spouseName) })) };
     return `<div class="qcard"><div class="stack" style="gap:10px"><span class="qsub">${esc(sc.title)}</span><div class="qtext">${esc(sc.text)}</div><span class="small">${a.best == null ? "First, tap the best response." : a.worst == null ? "Now tap the worst response." : "Tap Next, or tap a choice to change it."}</span></div>
       <div class="choice-list">${sc.options.map((o, i) => `<button class="choice" data-act="scen" data-i="${i}" aria-pressed="${a.best === i || a.worst === i}"><span class="tag ${a.best === i ? "best" : a.worst === i ? "worst" : ""}">${a.best === i ? "Best" : a.worst === i ? "Worst" : String.fromCharCode(65 + i)}</span><span>${esc(o.t)}</span></button>`).join("")}</div>
       <div class="row"><button class="btn" data-act="next" ${a.best != null && a.worst != null ? "" : "disabled"}>Next</button>${a.best != null ? `<button class="link" data-act="scen-reset">Start over</button>` : ""}</div></div>`;

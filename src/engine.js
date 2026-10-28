@@ -1,7 +1,7 @@
 // Scoring engine. Pure functions: answers in, results out. No UI.
 import {
   PILLARS, SCALES, SPOUSE_SCALES, SPOUSE_SEES, COUPLE_AREAS, WIRING, GIFTS, SIGN_GIFTS, FIVEFOLD,
-  FIVEFOLD_BLOCKS, SCENARIOS, CANDOR, BOGUS, CONSISTENCY_PAIRS, SAFETY, BELIEFS, FACTS, REF_ITEMS, OTHER, OTHER_LINKS, CONTEXT,
+  FIVEFOLD_BLOCKS, SCENARIOS, fillSpouse, CANDOR, BOGUS, CONSISTENCY_PAIRS, SAFETY, BELIEFS, FACTS, REF_ITEMS, OTHER, OTHER_LINKS, CONTEXT,
   AUD, setAudience,
 } from "./bank.js";
 
@@ -193,6 +193,8 @@ export function scenarios(r, married = true) {
   let pts = 0, max = 0;
   const detail = SCENARIOS.filter((sc) => married || !sc.married).map((sc) => {
     const a = s[sc.id];
+    const nm = r.meta?.spouseName;
+    sc = { ...sc, text: fillSpouse(sc.text, nm), options: sc.options.map((o) => ({ ...o, t: fillSpouse(o.t, nm) })) };
     if (!a || a.best == null || a.worst == null) return { ...sc, answered: false };
     const kb = sc.options[a.best].k, kw = sc.options[a.worst].k;
     const got = (kb - 1) / 3 + (4 - kw) / 3;
