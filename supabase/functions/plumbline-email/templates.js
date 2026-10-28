@@ -87,13 +87,13 @@ export function teamInviteEmail(r, site) {
 
 export function finishedEmail(r, site) {
   const who = esc(r.person_name || (r.person_role === "reference" ? "A reference" : "Someone"));
-  const roleWord = r.person_role === "planter" ? "the planter" : r.person_role === "spouse" ? "the spouse" : "a reference";
+  const roleWord = r.person_role === "planter" ? "the planter" : r.person_role === "spouse" ? "the planting wife" : "a reference";
   const subject = r.all_done && r.person_role !== "reference" ? `${first(r.planter_name)}'s Plumbline report is ready` : `${clean(r.person_name) || "Someone"} finished Plumbline`;
   return { subject, ...layout({
     preheader: `${clean(r.person_name) || "Someone"} finished.`,
     heading: r.all_done && r.person_role !== "reference" ? `The report for ${esc(r.planter_name)} is ready` : `${who} finished`,
-    paragraphs: [`${who} (${planting(r) || r.person_role === "reference" ? roleWord : "the candidate"}) just finished their Plumbline assessment for ${esc(r.planter_name)}.`,
-      r.all_done ? `${planting(r) ? "The planter and spouse are both done." : "The candidate is done."} Open the leader report to see the recommendation and the interview guide.` : `You can watch everyone else's progress on your dashboard.`],
+    paragraphs: [`${who} (${planting(r) || r.person_role === "reference" ? roleWord : "the candidate"}) just finished ${planting(r) && r.person_role === "spouse" ? "her" : planting(r) && r.person_role === "planter" ? "his" : "their"} Plumbline assessment for ${esc(r.planter_name)}.`,
+      r.all_done ? `${!planting(r) ? "The candidate is done." : r.person_role === "spouse" ? `${esc(first(r.planter_name))} and ${esc(first(r.person_name))} are both done.` : "Everyone being assessed is done."} Open the leader report to see the recommendation and the interview guide.` : `You can watch everyone else's progress on your dashboard.`],
     button: { href: `${site}/case/${r.case_id}`, label: "Open the assessment" },
     footer: "You're getting this because you're on this network's Plumbline team.", site,
   }) };

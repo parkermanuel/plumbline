@@ -335,7 +335,7 @@ export function scoreCase(c) {
   const P = c.planter, S = c.spouse;
   const married = AUD.sections.spouse ? (c.married != null ? !!c.married : !!P?.meta?.married) : false;
   const signGifts = c.network?.signGifts !== false;
-  const out = { audience: AUD.id, words: AUD.words, sections: AUD.sections, married, names: { planter: P?.meta?.name || "Planter", spouse: S?.meta?.name || "Spouse" } };
+  const out = { audience: AUD.id, words: AUD.words, sections: AUD.sections, married, names: { planter: P?.meta?.name || (married ? "Planting husband" : "Planter"), spouse: S?.meta?.name || "Planting wife" } };
 
   // planter scales
   const self = {};
@@ -397,6 +397,8 @@ export function scoreCase(c) {
   return out;
 }
 
+// The planting wife's first name for leader flags (owner, 28 Oct 2026: "Planting husband. Planting wife."), or the label when unnamed.
+const wifeName = (o) => { const n = o.names?.spouse; return n && n !== "Planting wife" ? String(n).trim().split(/\s+/)[0] : "The planting wife"; };
 function buildFlags(o) {
   const F = [];
   const push = (level, area, title, detail, q, probes, critical = false) => F.push({ level, area, title, detail, q, probes, critical });
@@ -420,15 +422,15 @@ function buildFlags(o) {
   else if (o.validity?.quality === "Some concerns") push("watch", "Response quality", "Some answers look rushed or inconsistent", o.validity.notes.filter((n) => !n.includes("candor")).join(" "), null, []);
   if (o.spouse) {
     const sc = o.spouse.s_call;
-    if (sc && sc.band.id === "growth") push("concern", "Spouse", "Spouse's personal calling is unclear", SPOUSE_SCALES.s_call.growth, SPOUSE_SCALES.s_call.q, SPOUSE_SCALES.s_call.probes, true);
-    else if (sc && sc.band.id === "developing") push("watch", "Spouse", "Spouse's calling is still forming", SPOUSE_SCALES.s_call.growth, SPOUSE_SCALES.s_call.q, SPOUSE_SCALES.s_call.probes);
+    if (sc && sc.band.id === "growth") push("concern", "Planting wife", `${wifeName(o)}'s personal calling is unclear`, SPOUSE_SCALES.s_call.growth, SPOUSE_SCALES.s_call.q, SPOUSE_SCALES.s_call.probes, true);
+    else if (sc && sc.band.id === "developing") push("watch", "Planting wife", `${wifeName(o)}'s calling is still forming`, SPOUSE_SCALES.s_call.growth, SPOUSE_SCALES.s_call.q, SPOUSE_SCALES.s_call.probes);
     const sp = o.spouse.s_partner;
-    if (sp && sp.band.id === "growth") push("concern", "Spouse", "Spouse doesn't feel like a partner", SPOUSE_SCALES.s_partner.growth, SPOUSE_SCALES.s_partner.q, SPOUSE_SCALES.s_partner.probes);
+    if (sp && sp.band.id === "growth") push("concern", "Planting wife", `${wifeName(o)} doesn't feel like a partner`, SPOUSE_SCALES.s_partner.growth, SPOUSE_SCALES.s_partner.q, SPOUSE_SCALES.s_partner.probes);
     const sh = o.spouse.s_health;
-    if (sh && sh.band.id === "growth") push("watch", "Spouse", "Spouse is running low", SPOUSE_SCALES.s_health.growth, SPOUSE_SCALES.s_health.q, SPOUSE_SCALES.s_health.probes);
-    [["s_devotion", "Spouse's walk with God is thin right now"], ["s_support", "Spouse's support is thin"], ["s_ready", "Spouse isn't settled on the practical costs"]].forEach(([k, title]) => {
+    if (sh && sh.band.id === "growth") push("watch", "Planting wife", `${wifeName(o)} is running low`, SPOUSE_SCALES.s_health.growth, SPOUSE_SCALES.s_health.q, SPOUSE_SCALES.s_health.probes);
+    [["s_devotion", `${wifeName(o)}'s walk with God is thin right now`], ["s_support", `${wifeName(o)}'s support is thin`], ["s_ready", `${wifeName(o)} isn't settled on the practical costs`]].forEach(([k, title]) => {
       const v = o.spouse[k];
-      if (v && v.band.id === "growth") push("watch", "Spouse", title, SPOUSE_SCALES[k].growth, SPOUSE_SCALES[k].q, SPOUSE_SCALES[k].probes);
+      if (v && v.band.id === "growth") push("watch", "Planting wife", title, SPOUSE_SCALES[k].growth, SPOUSE_SCALES[k].q, SPOUSE_SCALES[k].probes);
     });
   }
   if (o.couple) {
@@ -441,7 +443,7 @@ function buildFlags(o) {
     const keyGaps = o.couple.gaps.filter((i) => KEY.includes(i.id));
     if (o.couple.gaps.length >= 4 || keyGaps.length) push("watch", "Couple", `${o.couple.gaps.length} gap${o.couple.gaps.length === 1 ? "" : "s"} between their answers`, keyGaps.length ? `Including: ${keyGaps.map((i) => `"${i.t}"`).join(" ")}` : "Several statements were answered differently. See the couple section.", null, []);
   }
-  if (o.safety) push("concern", "Confidential", "Spouse safety answer needs follow-up", "A safety item was answered in a concerning way. Leader-only. Do not raise it with the couple together. Talk with the spouse privately or involve a trained counselor.", null, [], true);
+  if (o.safety) push("concern", "Confidential", "Planting wife's safety answer needs follow-up", "A safety item was answered in a concerning way. Leader-only. Do not raise it with the couple together. Talk with her privately or involve a trained counselor.", null, [], true);
   if (o.refs.follow) {
     const f = o.refs.follow.avg;
     if (f <= 2.5) push("concern", "References", "References are hesitant to follow", `Average Follow Test answer is ${f.toFixed(1)} of 5.`, "Your references were hesitant to join your launch team. Why might that be?", []);
@@ -471,7 +473,7 @@ function decide(o) {
     key = "ready"; why = "No concerns, few watch items, and every pillar Solid or better.";
   }
   if (inc.length && key === "ready") { key = "conditions"; why = "Can't say Ready yet."; }
-  if (inc.length) why += ` Still waiting on ${inc.map((x) => (x === "spouse" ? "the spouse" : "at least 2 references who rated what they've seen")).join(" and ")}.`;
+  if (inc.length) why += ` Still waiting on ${inc.map((x) => (x === "spouse" ? "the planting wife" : "at least 2 references who rated what they've seen")).join(" and ")}.`;
   return { key, ...OUTCOMES[key], why, concerns: concerns.length, watches: watches.length, incomplete: inc };
 }
 
@@ -481,7 +483,7 @@ function interviewGuide(o) {
   if (call) pl.push({ kind: "open", title: AUD.id === "planting" ? "Calling story" : call.name, q: call.q, probes: call.probes, look: call.look });
   o.strengths.slice(0, 2).forEach((k) => pl.push({ kind: "strength", title: `Confirm a strength: ${SCALES[k].name}`, q: `Your results point to ${SCALES[k].name.toLowerCase()} as a strength. Give me a specific example from the last year.`, probes: ["What did you do personally?", "What happened as a result?"], look: SCALES[k].look }));
   const seen = new Set();
-  o.flags.filter((f) => f.q && f.area !== "Spouse" && f.area !== "Couple" && f.area !== "Confidential" && !seen.has(f.q) && seen.add(f.q)).forEach((f) =>
+  o.flags.filter((f) => f.q && f.area !== "Planting wife" && f.area !== "Couple" && f.area !== "Confidential" && !seen.has(f.q) && seen.add(f.q)).forEach((f) =>
     pl.push({ kind: f.level, title: f.title, q: f.q, probes: f.probes, look: Object.values(SCALES).find((s) => s.q === f.q)?.look }));
   const used = new Set(pl.map((x) => x.q));
   const add = (x) => { if (!used.has(x.q) && pl.length < 9) { pl.push(x); used.add(x.q); } };
@@ -495,7 +497,7 @@ function interviewGuide(o) {
       const v = o.spouse[k], sc = SPOUSE_SCALES[k];
       if (k === "s_call" || (v && rank(v.band) <= 2)) sp.push({ kind: v && rank(v.band) <= 2 ? "watch" : "open", title: sc.label, q: sc.q, probes: sc.probes, look: sc.look });
     });
-    sp.push({ kind: "open", title: "Anything else", q: "Is there anything you'd want us to know that's hard to say with your spouse in the room?", probes: [], look: "Freedom to speak. Listen more than you talk." });
+    sp.push({ kind: "open", title: "Anything else", q: "Is there anything you'd want us to know that's hard to say with your husband in the room?", probes: [], look: "Freedom to speak. Listen more than you talk." });
   }
   const cp = [];
   if (o.couple) {
