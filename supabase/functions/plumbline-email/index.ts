@@ -44,6 +44,15 @@ Deno.serve(async (req) => {
       for (const r of data ?? []) (await send(r.email, r.sender_email, personEmail(body.action, { ...r, ...(aud[r.token] || {}) }, site))) ? sent++ : failed++;
       return json({ sent, failed, skipped: ids.length - (data?.length ?? 0) });
     }
+    if (body.action === "my_ref") {
+      // The planter invites a reference they just added from their own link (checked by the link and the person's id)
+      if (typeof body.token !== "string" || body.token.length < 20 || typeof body.id !== "string") return json({ sent: 0 });
+      const { data, error } = await admin.rpc("pl_my_ref_email", { p_token: body.token, p_id: body.id });
+      if (error) return json({ error: "Couldn't send" }, 500);
+      const aud = await audienceByToken(admin, (data ?? []).map((r: any) => r.token));
+      for (const r of data ?? []) (await send(r.email, r.sender_email, personEmail("invite", { ...r, ...(aud[r.token] || {}) }, site))) ? sent++ : failed++;
+      return json({ sent, failed });
+    }
     if (body.action === "team") {
       const { data, error } = await user.rpc("pl_member_invite_email", { p_invite: body.inviteId });
       if (error) return json({ error: error.message }, 403);
