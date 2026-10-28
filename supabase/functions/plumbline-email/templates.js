@@ -66,7 +66,7 @@ export function personEmail(kind, r, site) {
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
       other ? `${other} has a separate link. Please take it on your own, and don't compare answers until you've both finished. The differences are some of the most helpful things you'll learn.` : "",
     ].filter(Boolean);
-    label = reminder ? "Continue my assessment" : "Start my assessment";
+    label = isTeam(r) ? (reminder ? "Pick up where I left off" : "See how I'm wired") : reminder ? "Continue my assessment" : "Start my assessment";
   }
   return { subject, ...layout({ preheader: paragraphs[0].replace(/<[^>]+>/g, ""), heading, paragraphs, button: { href: link, label }, footer: footFor(r), site }) };
 }
@@ -78,10 +78,10 @@ export function teamInviteEmail(r, site) {
   return { subject, ...layout({
     preheader: `${clean(r.sender_name) || "Someone"} invited you to join ${clean(r.network_name)}.`,
     heading: `Join ${esc(r.network_name)} on Plumbline`,
-    paragraphs: [`${esc(r.sender_name || "A teammate")} invited you to help assess church planters as ${role}. You'll see your network's assessments, reports and interview guides.`,
+    paragraphs: [`${esc(r.sender_name || "A teammate")} invited you to join ${esc(r.network_name)} on Plumbline as ${role}. You'll see the same dashboard they do: everyone in progress, the reports and the next steps.`,
       `This invite works for 30 days.`],
     button: { href: link, label: "Join the team" },
-    footer: "Plumbline is a church planter assessment for networks. If you weren't expecting this, you can ignore it.", site,
+    footer: "Plumbline helps churches, networks and organizations assess and grow leaders. If you weren't expecting this, you can ignore it.", site,
   }) };
 }
 
@@ -120,7 +120,7 @@ export function boardEmail(r, site) {
   return { subject: `${owner} shared their Plumbline report with you`, ...layout({
     preheader: `${owner} wants you to see how they're wired.`,
     heading: nm ? `${nm}, ${owner} shared their report with you` : `${owner} shared their report with you`,
-    paragraphs: [`${owner} took Plumbline, an assessment of how they're wired, their strengths, gifts and health, and chose to share their growth report with you.`,
+    paragraphs: [`${owner} took Plumbline Teams, which shows how they're wired, their strengths, gifts and health, and chose to share their growth report with you.`,
       "It's read-only and made for you alone, so please don't forward this email. They can take it back any time."],
     button: { href: link, label: `Open ${owner}'s report` },
     footer: `You're getting this because ${owner} added your email to share their Plumbline report. If you weren't expecting it, you can ignore this email.`, site,
