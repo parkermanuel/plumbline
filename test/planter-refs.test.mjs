@@ -73,5 +73,11 @@ ok(rel.length === 2 && rel.every((r) => r.token && r.email && r.sender_email ===
 const again = await as(OWNER, () => q(`select * from public.pl_release_email($1)`, [cid]));
 ok(again.length === 0, "releasing again doesn't send a second email");
 
+// Should I Plant? (28 Oct 2026): a solo case keeps purpose "self" and is released right away
+const scid = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1,$2,'Solo Sam',false,'{"purpose":"self","audience":"planting"}') returning id, reports_released, settings->>'purpose' as purpose`, [nid, OWNER])))[0];
+ok(scid.purpose === "self" && scid.reports_released === true, "a Should I Plant? case keeps purpose self and opens his report when he finishes");
+const odd = (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, married, settings) values ($1,$2,'X',false,'{"purpose":"bogus"}') returning settings->>'purpose' as purpose, reports_released`, [nid, OWNER])))[0];
+ok(odd.purpose === null && odd.reports_released === false, "unknown purposes are still dropped");
+
 if (failed) { console.error(`${failed} planter-reference check(s) failed`); process.exit(1); }
 console.log("\nAll planter-reference checks passed");

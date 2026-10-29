@@ -45,6 +45,8 @@ export async function makeDb() {
   await db.exec(upd10); await db.exec(upd10);
   const upd11 = readFileSync(new URL("../supabase/update-2026-10-28-pronouns.sql", import.meta.url), "utf8");
   await db.exec(upd11); await db.exec(upd11);
+  const updSolo = readFileSync(new URL("../supabase/update-2026-10-28-should-i-plant.sql", import.meta.url), "utf8");
+  await db.exec(updSolo); await db.exec(updSolo);
   // The existing payment checks run as a day after the free beta; the beta itself is checked on its own below.
   await db.exec(`select set_config('pl.today', '${process.env.PL_TODAY || "2027-02-01"}', false)`);
   return db;
