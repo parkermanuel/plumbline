@@ -61,5 +61,17 @@ const hdr = (await as(null, () => q(`select public.pl_open($1) as j`, [tok.spous
 await q(`update public.cases set settings = settings || '{"planterIs":"wife"}' where id=$1`, [cid]);
 const hdr2 = (await as(null, () => q(`select public.pl_open($1) as j`, [tok.spouse])))[0].j.case;
 ok(hdr.planterIs === "husband" && hdr2.planterIs === "wife", "the link knows whether the planter is the husband or the wife");
+// Release email (28 Oct 2026): only members, only once, only finished planter/spouse with an email
+await q(`update public.participants set status='finished' where case_id=$1 and role in ('planter','spouse')`, [cid]);
+const r0 = await as(OWNER, () => q(`select * from public.pl_release_email($1)`, [cid]));
+ok(r0.length === 0, "nothing is sent before the reports are released");
+await q(`update public.cases set reports_released=true where id=$1`, [cid]);
+ok(/Not allowed/.test(await err(OUTSIDER, `select * from public.pl_release_email($1)`, [cid])), "someone outside the network can't trigger it");
+ok(!!(await err(null, `select * from public.pl_release_email($1)`, [cid])), "the public can't trigger it");
+const rel = await as(OWNER, () => q(`select * from public.pl_release_email($1)`, [cid]));
+ok(rel.length === 2 && rel.every((r) => r.token && r.email && r.sender_email === "owner@net.org") && rel.map((r) => r.role).sort().join() === "planter,spouse", "releasing emails the planting husband and wife their own links, from the leader");
+const again = await as(OWNER, () => q(`select * from public.pl_release_email($1)`, [cid]));
+ok(again.length === 0, "releasing again doesn't send a second email");
+
 if (failed) { console.error(`${failed} planter-reference check(s) failed`); process.exit(1); }
 console.log("\nAll planter-reference checks passed");

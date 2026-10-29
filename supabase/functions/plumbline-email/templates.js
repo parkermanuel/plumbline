@@ -126,3 +126,35 @@ export function boardEmail(r, site) {
     footer: `You're getting this because ${owner} added your email to share their Plumbline report. If you weren't expecting it, you can ignore this email.`, site,
   }) };
 }
+
+// When the leader releases reports (owner, 28 Oct 2026): each person gets their own link. Replies go to the leader.
+export function releasedEmail(r, site) {
+  const link = `${site}/t/${r.token}`;
+  const nm = esc(first(r.name));
+  const net = clean(r.network_name) || "your network";
+  const sender = r.sender_name ? esc(r.sender_name) : "Your network leader";
+  return { subject: "Your Plumbline report is ready", ...layout({
+    preheader: `${clean(r.sender_name) || net} released your report.`,
+    heading: nm ? `${nm}, your report is ready` : "Your report is ready",
+    paragraphs: [`${sender} at ${esc(net)} released your personal Plumbline report. It's written to encourage you and to name a few next steps.`,
+      planting(r) && r.role === "spouse" ? `It's about you, and it includes a short summary of how you and ${esc(first(r.planter_name))} see things together.`
+        : planting(r) && r.spouse_name ? `It's about you, and it includes a short summary of how you and ${esc(first(r.spouse_name))} see things together.`
+        : "It's about you: your strengths, how you're wired and where to grow.",
+      "It opens at the same personal link you used to take the assessment."],
+    button: { href: link, label: "Open my report" },
+    footer: "This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to your network leader.", site,
+  }) };
+}
+
+// In-app feedback (owner, 28 Oct 2026): a rating and an optional note, sent to Parker.
+export function feedbackEmail(r) {
+  const rating = { bad: "Bad", ok: "OK", good: "Good" }[r.rating] || "No rating";
+  const page = String(r.page ?? "").replace(/[^\w\/\-#?=&.]/g, "").slice(0, 120);
+  const note = escHtml(String(r.note ?? "").slice(0, 2000)).replace(/\n/g, "<br>");
+  const app = r.app === "teams" ? "Plumbline Teams" : "Plumbline";
+  const who = escHtml(String(r.who ?? "").slice(0, 40));
+  const subject = `${app} feedback: ${rating}`;
+  const html = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#121212"><p style="margin:0 0 8px"><b>${rating}</b> · ${app}${who ? ` · ${who}` : ""}</p>${page ? `<p style="margin:0 0 12px;color:#6b6b67">Page: ${escHtml(page)}</p>` : ""}<p style="margin:0">${note || "<i>No note</i>"}</p></div>`;
+  const text = `${rating} · ${app}${who ? ` · ${String(r.who).slice(0, 40)}` : ""}\nPage: ${page}\n\n${String(r.note ?? "").slice(0, 2000) || "(No note)"}`;
+  return { subject, html, text };
+}

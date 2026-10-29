@@ -1,7 +1,7 @@
 // Plumbline email function (Supabase Edge Function). Sends invites, reminders, team invites and "finished" notices through Resend.
 // Every permission check lives in the database functions it calls (see supabase/setup.sql).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail, boardEmail } from "./templates.js";
+import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail, boardEmail, releasedEmail, feedbackEmail } from "./templates.js";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
@@ -84,6 +84,26 @@ Deno.serve(async (req) => {
       if (error) return json({ error: "Couldn't send" }, 500);
       for (const r of data ?? []) (await send(r.email, null, reportKeyEmail(r, site))) ? sent++ : failed++;
       return json({ sent, failed });
+    }
+    if (body.action === "released") {
+      // The leader released reports: email the planting husband and wife their own link, once (checked in pl_release_email)
+      if (typeof body.caseId !== "string") return json({ sent: 0 });
+      const { data, error } = await user.rpc("pl_release_email", { p_case: body.caseId });
+      if (error) return json({ error: error.message }, 403);
+      for (const r of data ?? []) (await send(r.email, r.sender_email, releasedEmail(r, site))) ? sent++ : failed++;
+      return json({ sent, failed });
+    }
+    if (body.action === "feedback") {
+      // In-app feedback: a rating and an optional note, emailed to Parker. No answers or personal data are sent.
+      const rating = ["bad", "ok", "good"].includes(body.rating) ? body.rating : "";
+      const note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
+      if (!rating && !note) return json({ sent: 0 });
+      const { count } = await admin.from("email_log").select("id", { count: "exact", head: true }).eq("kind", "feedback").gt("at", new Date(Date.now() - 864e5).toISOString());
+      if ((count ?? 0) >= 200) return json({ sent: 0, failed: 0, limited: true });
+      await admin.from("email_log").insert({ network_id: null, kind: "feedback" });
+      const to = Deno.env.get("FEEDBACK_TO") ?? "hello@parkermanuel.com";
+      const ok = await send(to, null, feedbackEmail({ rating, note, page: body.page, app: body.app, who: body.who }));
+      return json({ sent: ok ? 1 : 0, failed: ok ? 0 : 1 });
     }
     return json({ error: "Unknown action" }, 400);
   } catch (err) {
