@@ -1,4 +1,4 @@
-import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail } from "../supabase/functions/plumbline-email/templates.js";
+import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail, releasedEmail, feedbackEmail } from "../supabase/functions/plumbline-email/templates.js";
 let fail = 0; const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) fail++; };
 const base = { token: "a".repeat(64), network_name: "Front Range", sender_name: "Dana", planter_name: "Josh Kim", spouse_name: "Hannah Kim" };
 const p = personEmail("invite", { ...base, role: "planter", name: "Josh Kim" }, "https://plumblineassessment.com");
@@ -11,6 +11,10 @@ const x = personEmail("invite", { ...base, role: "planter", name: "<script>alert
 ok(!x.html.includes("<script>"), "names are escaped");
 const t = teamInviteEmail({ token: "b".repeat(64), role: "assessor", network_name: "Front Range", sender_name: "Dana" }, "https://x");
 ok(t.html.includes("/join/") && !t.html.includes("/#/") && t.text.includes("an assessor"), "team invite");
+const rel = releasedEmail({ ...base, role: "spouse", name: "Hannah Kim", audience: "planting" }, "https://x");
+ok(rel.subject === "Your Plumbline report is ready" && rel.html.includes("/t/" + "a".repeat(64)) && rel.text.includes("Josh") && rel.text.includes("network leader"), "report-ready email for the planting wife");
+const fb = feedbackEmail({ rating: "good", note: "<b>Loved it</b>\nso smooth", page: "/t/abc", app: "plumbline" });
+ok(fb.subject === "Plumbline feedback: Good" && fb.html.includes("&lt;b&gt;Loved it") && !fb.html.includes("<b>Loved"), "feedback email is escaped");
 const f = finishedEmail({ person_name: "Hannah Kim", person_role: "spouse", planter_name: "Josh Kim", case_id: "c1", all_done: true }, "https://x");
 ok(f.subject.includes("report is ready") && f.html.includes("/case/c1") && !f.html.includes("/#/"), "finished notice");
 const spam = personEmail("invite", { ...base, network_name: "Claim your prize at evil.com/win", role: "planter", name: "Visit www.evil.com now" }, "https://x");
