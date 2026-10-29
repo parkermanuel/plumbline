@@ -76,7 +76,7 @@ jobs:
             supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" STRIPE_WEBHOOK_SECRET="$STRIPE_WEBHOOK_SECRET"
           fi
           if [ -n "$RESEND_API_KEY" ]; then
-            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" RESEND_API_KEY="$RESEND_API_KEY" SITE_URL="${SITE_URL:-https://plumblineassessment.com}" EMAIL_FROM="Plumbline <plumbline@parkermanuel.com>"
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" RESEND_API_KEY="$RESEND_API_KEY" SITE_URL="https://joinplumbline.com" EMAIL_FROM="Plumbline <plumbline@parkermanuel.com>"
           fi
 
       - name: Update the database (through a one-time Supabase function)

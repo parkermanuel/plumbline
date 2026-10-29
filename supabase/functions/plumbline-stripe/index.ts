@@ -40,7 +40,7 @@ const TEAM_PLANS: Record<string, { name: string; seats: number; cents: number; f
 };
 const EXTRA_SEAT_CENTS = 2500, MAX_EXTRA_SEATS = 950;
 // Where to send people back after checkout: only our own sites
-const RETURN_SITES = ["https://plumblineassessment.com", "https://plumblineteams.com"];
+const RETURN_SITES = ["https://joinplumbline.com", "https://joinplumbline.com", "https://plumblineteams.com"];
 // Beta invites: sha256(invite token) -> who it's for and how many free assessments. Each works once (payments row "invite_<hash>").
 const INVITES: Record<string, { label: string; credits: number; planUntil?: string }> = {
   // FRMG (Front Range Multiply Group): Parker's partner network, free through 2027 (unlimited plan), 28 Oct 2026
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   const url = Deno.env.get("SUPABASE_URL")!, anon = Deno.env.get("SUPABASE_ANON_KEY")!, service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const site = (Deno.env.get("SITE_URL") ?? "https://plumblineassessment.com").replace(/\/$/, "");
+  const site = (Deno.env.get("SITE_URL") ?? "https://joinplumbline.com").replace(/\/$/, "");
   const admin = createClient(url, service);
   const raw = await req.text();
 
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         ...(planCoupon ? { discounts: { 0: { coupon: planCoupon } } } : { allow_promotion_codes: true }),
         ...(plan ? { subscription_data: { description: `Plumbline network plan for ${net.name}` } }
                  : { invoice_creation: { enabled: true, invoice_data: { description: `Plumbline assessments for ${net.name}`,
-                     custom_fields: { 0: { name: "Network", value: String(net.name).slice(0, 30) } }, footer: "Plumbline · plumblineassessment.com · Thank you for investing in your planters." } } }),
+                     custom_fields: { 0: { name: "Network", value: String(net.name).slice(0, 30) } }, footer: "Plumbline · joinplumbline.com · Thank you for investing in your planters." } } }),
         success_url: `${site}/leader?paid=1`,
         cancel_url: `${site}/leader`,
       });
