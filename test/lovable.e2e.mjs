@@ -165,7 +165,7 @@ async function answer(p, maxSteps, stopAtPct = 101) {
       const nt = document.querySelector("#netq-text"); if (nt) { nt.value = "BOULDER-CALLING-ANSWER"; document.querySelector('[data-act="netq-next"]').click(); return "netq"; }
       const ans = q('[data-act="ans"]'); if (ans.length) { const o = [...ans].filter((b) => b.dataset.v !== "0"); o[3 % o.length].click(); return "ans"; }
       const ff = q(".ff-row"); if (ff.length) { if (!document.querySelector('.ff-row .m[aria-pressed="true"]')) ff[0].querySelector(".m").click(); else if (!document.querySelector('.ff-row .l[aria-pressed="true"]')) ff[1].querySelector(".l").click(); else document.querySelector('.qcard [data-act="next"]').click(); return "ff"; }
-      const sc = q('[data-act="scen"]'); if (sc.length) { const a = document.querySelector(".tag.best"), w = document.querySelector(".tag.worst"); if (!a) sc[0].click(); else if (!w) sc[2].click(); else document.querySelector('.qcard [data-act="next"]').click(); return "scen"; }
+      const sc = q('[data-act="scen"]'); if (sc.length) { const a = document.querySelector(".choice .tag.best"), w = document.querySelector(".choice .tag.worst"); if (!a) sc[0].click(); else if (!w) sc[2].click(); else document.querySelector('.qcard [data-act="next"]').click(); return "scen"; }
       const bel = document.querySelector('[data-act="belief"][data-v="yes"][aria-pressed="false"]'); if (bel) { bel.click(); return "bel"; }
       const bn = document.querySelector('.qcard [data-act="next"]:not([disabled])'); if (bn && q('[data-act="belief"]').length) { bn.click(); return "beln"; }
       const fact = q('[data-act="fact"]'); if (fact.length) { fact[1].click(); return "fact"; }

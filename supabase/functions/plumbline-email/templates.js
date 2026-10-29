@@ -59,7 +59,7 @@ export function personEmail(kind, r, site) {
     heading = reminder ? `Pick up where you left off, ${nm}` : isTeam(r) ? `${nm}, see how you're wired` : `${nm}, your assessment is ready`;
     paragraphs = reminder ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`] : isTeam(r) ? [
       `${sender} invited ${tm} to take Plumbline together, so you can each see your strengths and grow as a team. It takes about ${mins} minutes.`,
-      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away. It's private to you unless you choose to share it.`,
+      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away. ${r.leader_sees ? "Your team leader will see your full report too, so you can talk it through together." : "It's private to you unless you choose to share it."}`,
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
     ] : [
       planting(r) ? `${sender} at ${esc(net)} invited you to take Plumbline, a church planter assessment. It takes about ${mins} minutes.` : `${sender} at ${esc(net)} invited you to take Plumbline, a leadership assessment, as part of considering you for ${what(r)}. It takes about ${mins} minutes.`,
@@ -73,7 +73,7 @@ export function personEmail(kind, r, site) {
 
 export function teamInviteEmail(r, site) {
   const link = `${site}/join/${r.token}`;
-  const role = r.role === "admin" ? "an admin" : "an assessor";
+  const role = r.role === "admin" ? "an admin" : "a team member";
   const subject = `Join ${clean(r.network_name)} on Plumbline`;
   return { subject, ...layout({
     preheader: `${clean(r.sender_name) || "Someone"} invited you to join ${clean(r.network_name)}.`,
@@ -86,6 +86,18 @@ export function teamInviteEmail(r, site) {
 }
 
 export function finishedEmail(r, site) {
+  // Plumbline Teams (28 Oct 2026): a team member finished growing, not being assessed
+  if (isTeam(r)) {
+    const nm = clean(r.person_name) || "Someone";
+    return { subject: `${nm} finished Plumbline Teams`, ...layout({
+      preheader: `${nm} finished.`,
+      heading: `${esc(nm)} finished`,
+      paragraphs: [`${esc(nm)} finished Plumbline${r.team_name ? ` for ${esc(r.team_name)}` : ""}. Their growth report is ready for them.`,
+        "Your team map fills in as more people finish. It shows once at least 3 have."],
+      button: { href: r.team_id ? `${site}/teams/${encodeURIComponent(r.team_id)}` : `${site}/leader`, label: "Open the team" },
+      footer: "You're getting this because you lead this team on Plumbline Teams.", site,
+    }) };
+  }
   const who = esc(r.person_name || (r.person_role === "reference" ? "A reference" : "Someone"));
   const roleWord = r.person_role === "planter" ? "the planter" : r.person_role === "spouse" ? "the planting wife" : "a reference";
   const subject = r.all_done && r.person_role !== "reference" ? `${first(r.planter_name)}'s Plumbline report is ready` : `${clean(r.person_name) || "Someone"} finished Plumbline`;

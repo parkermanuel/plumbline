@@ -10,7 +10,11 @@ ok(r.subject.startsWith("Reminder") && r.text.includes("8 minutes"), "reference 
 const x = personEmail("invite", { ...base, role: "planter", name: "<script>alert(1)</script>" }, "https://x");
 ok(!x.html.includes("<script>"), "names are escaped");
 const t = teamInviteEmail({ token: "b".repeat(64), role: "assessor", network_name: "Front Range", sender_name: "Dana" }, "https://x");
-ok(t.html.includes("/join/") && !t.html.includes("/#/") && t.text.includes("an assessor"), "team invite");
+ok(t.html.includes("/join/") && !t.html.includes("/#/") && t.text.includes("a team member"), "team invite");
+const tf = finishedEmail({ person_name: "Ana Diaz", person_role: "planter", planter_name: "Ana Diaz", case_id: "c2", all_done: true, purpose: "team", team_name: "Staff", team_id: "t_1" }, "https://x");
+ok(tf.subject === "Ana Diaz finished Plumbline Teams" && tf.html.includes("/teams/t_1") && !/candidate|leader report|recommendation/i.test(tf.text), "Teams finished email has no hiring words");
+const ti = personEmail("invite", { ...base, role: "planter", name: "Ana", purpose: "team", leader_sees: true }, "https://x");
+ok(ti.text.includes("Your team leader will see your full report"), "Teams invite says the leader sees the report when they chose to");
 const rel = releasedEmail({ ...base, role: "spouse", name: "Hannah Kim", audience: "planting" }, "https://x");
 ok(rel.subject === "Your Plumbline report is ready" && rel.html.includes("/t/" + "a".repeat(64)) && rel.text.includes("Josh") && rel.text.includes("network leader"), "report-ready email for the planting wife");
 const fb = feedbackEmail({ rating: "good", note: "<b>Loved it</b>\nso smooth", page: "/t/abc", app: "plumbline" });
