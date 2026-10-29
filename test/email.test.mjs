@@ -17,6 +17,8 @@ const ti = personEmail("invite", { ...base, role: "planter", name: "Ana", purpos
 ok(ti.text.includes("Your team leader will see your full report"), "Teams invite says the leader sees the report when they chose to");
 const selfRef = personEmail("invite", { ...base, role: "reference", name: "Mike Lee", purpose: "self", audience: "planting" }, "https://x");
 ok(selfRef.text.includes("only the averages") && !/network leader/.test(selfRef.text.split("\n").slice(0, 6).join(" ")), "Should I Plant? reference invite says he sees only averages");
+const selfWife = personEmail("invite", { ...base, role: "spouse", name: "Hannah Kim", purpose: "self", audience: "planting" }, "https://x");
+ok(selfWife.subject === "Josh asked you to take Plumbline with him" && selfWife.text.includes("won't see them") && !/network/.test(selfWife.text), "Should I plant? wife invite has no network wording");
 const rel = releasedEmail({ ...base, role: "spouse", name: "Hannah Kim", audience: "planting" }, "https://x");
 ok(rel.subject === "Your Plumbline report is ready" && rel.html.includes("/t/" + "a".repeat(64)) && rel.text.includes("Josh") && rel.text.includes("network leader"), "report-ready email for the planting wife");
 const fb = feedbackEmail({ rating: "good", note: "<b>Loved it</b>\nso smooth", page: "/t/abc", app: "plumbline" });
