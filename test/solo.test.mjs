@@ -30,6 +30,20 @@ await as(null, () => q(`select public.pl_finish($1, $2)`, [tok.spouse, { safety:
 ok((await as(ME, () => q(`select answers from public.participants where case_id=$1 and role='spouse'`, [cid]))).length === 0, "he can't read his wife's answers, private note or safety answers");
 ok(/not allowed|denied|0 rows|^$/i.test(await err(ME, `update public.participants set email='z@z.com' where case_id=$1 and role='spouse'`, [cid])) && (await q(`select email from public.participants where id=$1`, [sid]))[0].email === "brooke@x.com", "he can't edit her row directly");
 
+// Her report is hers until she shares it
+const myRep = async () => (await as(null, () => q(`select public.pl_report($1) as j`, [tok.planter])))[0].j;
+await as(null, () => q(`select public.pl_finish($1, $2)`, [tok.planter, { likert: { a: 4 } }]));
+ok(!(await myRep()).other, "his report shows nothing from her answers until she shares");
+ok((await as(ME, () => q(`select public.pl_self_spouse_report($1) as j`, [cid])))[0].j === null, "and he can't open her report");
+ok(/can't share/.test(await err(null, `select public.pl_self_share($1, true)`, [tok.planter])), "only she can share her report (not with his link)");
+await as(null, () => q(`select public.pl_self_share($1, true)`, [tok.spouse]));
+const herRep = (await as(ME, () => q(`select public.pl_self_spouse_report($1) as j`, [cid])))[0].j;
+ok(herRep && herRep.likert && !herRep.privateNote && !herRep.safety, "once she shares, he can read her report, never her private note or safety answers");
+ok(!!(await myRep()).other, "and his report shows how they fit together");
+ok(/Not allowed/.test(await err(OTHER, `select public.pl_self_spouse_report($1)`, [cid])), "nobody else can read it");
+await as(null, () => q(`select public.pl_self_share($1, false)`, [tok.spouse]));
+ok((await as(ME, () => q(`select public.pl_self_spouse_report($1) as j`, [cid])))[0].j === null && !(await myRep()).other, "she can stop sharing any time");
+
 // References: averages only, and only from 3
 const add = (n, e) => as(null, () => q(`select public.pl_add_my_ref($1,$2,$3,'Mentor','') as id`, [tok.planter, n, e]));
 const r = [];
