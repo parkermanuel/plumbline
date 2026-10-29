@@ -30,7 +30,7 @@ const what = (r) => (r.job_role ? `the ${esc(r.job_role)} role` : AUD_WHAT[r.aud
 const planting = (r) => (!r.audience || r.audience === "planting") && r.purpose !== "team";
 // Plumbline Teams: someone already on a team taking it to grow, not to be hired or approved
 const isTeam = (r) => r.purpose === "team";
-const footFor = (r) => (isTeam(r) ? "Plumbline Teams helps teams grow together. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you." : planting(r) ? FOOT : "Plumbline is a leadership assessment. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.");
+const footFor = (r) => (r.purpose === "self" ? "Plumbline helps people see clearly before they plant a church. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you." : isTeam(r) ? "Plumbline Teams helps teams grow together. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you." : planting(r) ? FOOT : "Plumbline is a leadership assessment. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.");
 const FOOT = "Plumbline is a church planter assessment for networks. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.";
 
 export function personEmail(kind, r, site) {
@@ -58,11 +58,16 @@ export function personEmail(kind, r, site) {
     const mins = r.role === "planter" ? (planting(r) ? 35 : 30) : 25;
     const other = r.role === "planter" ? sn : pn;
     const tm = esc(r.team_name) || esc(net);
-    subject = reminder ? `Pick up where you left off on Plumbline` : isTeam(r) ? `${clean(r.sender_name) || net} invited you to Plumbline Teams` : `Your Plumbline assessment from ${net}`;
+    const selfCase = r.purpose === "self";
+    subject = reminder ? `Pick up where you left off on Plumbline` : isTeam(r) ? `${clean(r.sender_name) || net} invited you to Plumbline Teams` : selfCase ? `${first(r.planter_name)} asked you to take Plumbline with him` : `Your Plumbline assessment from ${net}`;
     heading = reminder ? `Pick up where you left off, ${nm}` : isTeam(r) ? `${nm}, see how you're wired` : `${nm}, your assessment is ready`;
     paragraphs = reminder ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`] : isTeam(r) ? [
       `${sender} invited ${tm} to take Plumbline together, so you can each see your strengths and grow as a team. It takes about ${mins} minutes.`,
       `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away. ${r.leader_sees ? "Your team leader will see your full report too, so you can talk it through together." : "It's private to you unless you choose to share it."}`,
+      `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
+    ] : selfCase ? [
+      `${pn} is asking whether to plant a church, and he wants your view as much as his own. Plumbline takes about ${mins} minutes.`,
+      `Your answers and your report are yours. ${pn} won't see them. You can share your report with him, or talk it through together.`,
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
     ] : [
       planting(r) ? `${sender} at ${esc(net)} invited you to take Plumbline, a church planter assessment. It takes about ${mins} minutes.` : `${sender} at ${esc(net)} invited you to take Plumbline, a leadership assessment, as part of considering you for ${what(r)}. It takes about ${mins} minutes.`,
@@ -110,7 +115,7 @@ export function finishedEmail(r, site) {
     paragraphs: [`${who} (${planting(r) || r.person_role === "reference" ? roleWord : "the candidate"}) just finished ${planting(r) && r.person_role === "spouse" ? "her" : planting(r) && r.person_role === "planter" ? "his" : "their"} Plumbline assessment for ${esc(r.planter_name)}.`,
       r.all_done ? `${!planting(r) ? "The candidate is done." : r.person_role === "spouse" ? `${esc(first(r.planter_name))} and ${esc(first(r.person_name))} are both done.` : "Everyone being assessed is done."} Open the leader report to see the recommendation and the interview guide.` : `You can watch everyone else's progress on your dashboard.`],
     button: { href: `${site}/case/${r.case_id}`, label: "Open the assessment" },
-    footer: "You're getting this because you're on this network's Plumbline team.", site,
+    footer: `You're getting this because you're on this ${planting(r) ? "network" : "organization"}'s Plumbline team.`, site,
   }) };
 }
 
