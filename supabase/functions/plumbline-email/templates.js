@@ -144,7 +144,7 @@ export function releasedEmail(r, site) {
   const link = `${site}/t/${r.token}`;
   const nm = esc(first(r.name));
   const net = clean(r.network_name) || "your network";
-  const sender = r.sender_name ? esc(r.sender_name) : "Your network leader";
+  const sender = r.sender_name ? esc(r.sender_name) : planting(r) ? "Your network leader" : "The person who invited you";
   return { subject: "Your Plumbline report is ready", ...layout({
     preheader: `${clean(r.sender_name) || net} released your report.`,
     heading: nm ? `${nm}, your report is ready` : "Your report is ready",
@@ -154,7 +154,7 @@ export function releasedEmail(r, site) {
         : "It's about you: your strengths, how you're wired and where to grow.",
       "It opens at the same personal link you used to take the assessment."],
     button: { href: link, label: "Open my report" },
-    footer: "This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to your network leader.", site,
+    footer: `This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to ${planting(r) ? "your network leader" : "the person who invited you"}.`, site,
   }) };
 }
 
