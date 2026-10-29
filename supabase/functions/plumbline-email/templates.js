@@ -46,9 +46,12 @@ export function personEmail(kind, r, site) {
     heading = reminder ? `A quick reminder, ${nm}` : `${pn} named you as a reference`;
     paragraphs = [
       reminder ? `${sender} is still hoping to hear from you about ${pn}. It takes about 8 minutes, and it picks up where you left off.`
+               : r.purpose === "self" ? `${esc(r.planter_name)} named you as someone who knows him well.`
                : planting(r) ? `${esc(r.planter_name)} is being assessed for church planting by ${esc(net)}, and you were named as someone who knows them well.`
                : `${esc(r.planter_name)} is being considered for ${what(r)} at ${esc(net)}, and you were named as someone who knows them well.`,
-      `Your answers go straight to ${planting(r) ? "the network leader" : "the people hiring"}. ${pn} never sees them. Rate only what you've actually seen.`,
+      r.purpose === "self"
+        ? `${pn} is asking whether to plant a church and wants an honest read. Your ratings are combined with at least two others, and ${pn} sees only the averages, never your answers or what you write. Rate only what you've actually seen.`
+        : `Your answers go straight to ${planting(r) ? "the network leader" : "the people hiring"}. ${pn} never sees them. Rate only what you've actually seen.`,
     ];
     label = reminder ? "Finish my reference" : "Start the reference";
   } else {

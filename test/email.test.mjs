@@ -15,6 +15,8 @@ const tf = finishedEmail({ person_name: "Ana Diaz", person_role: "planter", plan
 ok(tf.subject === "Ana Diaz finished Plumbline Teams" && tf.html.includes("/teams/t_1") && !/candidate|leader report|recommendation/i.test(tf.text), "Teams finished email has no hiring words");
 const ti = personEmail("invite", { ...base, role: "planter", name: "Ana", purpose: "team", leader_sees: true }, "https://x");
 ok(ti.text.includes("Your team leader will see your full report"), "Teams invite says the leader sees the report when they chose to");
+const selfRef = personEmail("invite", { ...base, role: "reference", name: "Mike Lee", purpose: "self", audience: "planting" }, "https://x");
+ok(selfRef.text.includes("only the averages") && !/network leader/.test(selfRef.text.split("\n").slice(0, 6).join(" ")), "Should I Plant? reference invite says he sees only averages");
 const rel = releasedEmail({ ...base, role: "spouse", name: "Hannah Kim", audience: "planting" }, "https://x");
 ok(rel.subject === "Your Plumbline report is ready" && rel.html.includes("/t/" + "a".repeat(64)) && rel.text.includes("Josh") && rel.text.includes("network leader"), "report-ready email for the planting wife");
 const fb = feedbackEmail({ rating: "good", note: "<b>Loved it</b>\nso smooth", page: "/t/abc", app: "plumbline" });
