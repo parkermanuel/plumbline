@@ -3,6 +3,8 @@
 //                      Stripe emails a paid invoice and receipt with the network's name on it.
 //   action "teams"     a network owner/admin buys a Plumbline Teams yearly plan: Starter (8 people) $249, Team (15) $449,
 //                      Staff (50) $1,299, plus $25 a person a year past 50. Returns a Stripe Checkout URL.
+//   action "self"      someone buys Should I plant? for himself ($49 alone, $99 with his wife and references, or $50 to add
+//                      them later) or personal development ($29). Founders get a third off through 2027. One purchase, one assessment.
 //   action "portal"    a network owner/admin opens Stripe's billing page to see invoices, change the card or cancel.
 //   action "codes"     the platform admin lists, creates or switches off discount codes (Stripe promotion codes).
 //   Stripe webhook     checkout.session.completed and invoice.paid add credits or extend the plan, once per payment.
@@ -39,8 +41,15 @@ const TEAM_PLANS: Record<string, { name: string; seats: number; cents: number; f
   staff: { name: "Staff", seats: 50, cents: 129900, founderOff: 43300 },   // founders $866 (people past 50 stay $25)
 };
 const EXTRA_SEAT_CENTS = 2500, MAX_EXTRA_SEATS = 950;
+// Should I plant? and personal development (owner, 29 Oct 2026). Founders pay a third less in 2027 (rounded to whole dollars).
+const SELF_TIERS: Record<string, { cents: number; founderCents: number; kind: string; name: string; page: string }> = {
+  solo: { cents: 4900, founderCents: 3300, kind: "self_solo", name: "Should I plant? (just me)", page: "should-i-plant" },
+  full: { cents: 9900, founderCents: 6600, kind: "self_full", name: "Should I plant? (with my wife and references)", page: "should-i-plant" },
+  upgrade: { cents: 5000, founderCents: 3300, kind: "self_upgrade", name: "Should I plant?: add my wife and references", page: "should-i-plant" },
+  personal: { cents: 2900, founderCents: 1900, kind: "personal", name: "Plumbline personal development", page: "personal" },
+};
 // Where to send people back after checkout: only our own sites
-const RETURN_SITES = ["https://joinplumbline.com", "https://joinplumbline.com", "https://plumblineteams.com"];
+const RETURN_SITES = ["https://joinplumbline.com", "https://www.joinplumbline.com", "https://plumblineteams.com"];
 // Beta invites: sha256(invite token) -> who it's for and how many free assessments. Each works once (payments row "invite_<hash>").
 const INVITES: Record<string, { label: string; credits: number; planUntil?: string }> = {
   // FRMG (Front Range Multiply Group): Parker's partner network, free through 2027 (unlimited plan), 28 Oct 2026
@@ -109,6 +118,12 @@ Deno.serve(async (req) => {
     try {
       if (ev.type === "checkout.session.completed" && (o.payment_status === "paid" || o.payment_status === "no_payment_required")) {
         const plan = o.mode === "subscription";
+        if (!plan && o.metadata?.kind === "self" && SELF_TIERS[o.metadata?.tier]) {
+          const { error } = await admin.rpc("pl_record_payment", { p_id: o.id, p_network: o.client_reference_id || null, p_kind: SELF_TIERS[o.metadata.tier].kind, p_qty: 1,
+            p_amount: o.amount_total ?? 0, p_currency: o.currency ?? "usd", p_email: o.customer_details?.email ?? null, p_promo: null, p_customer: o.customer ?? null });
+          if (error) throw error;
+          return json({ received: true });
+        }
         if (plan && o.metadata?.kind === "teams") {
           const seats = Math.max(0, Number(o.metadata.seats) || 0);
           const { error } = await admin.rpc("pl_record_payment", { p_id: o.id, p_network: o.client_reference_id || null, p_kind: "teams", p_qty: seats,
@@ -207,6 +222,34 @@ Deno.serve(async (req) => {
         subscription_data: { description: `Plumbline Teams ${tier.name} plan for ${net.name} (up to ${seats} people)`, metadata: meta },
         success_url: `${back}/teams/new?paid=1`,
         cancel_url: `${back}/teams/new`,
+      });
+      return json({ url: session.url });
+    }
+
+    if (body.action === "self") {
+      const { data: isAdmin } = await user.rpc("pl_is_admin", { p_network: body.networkId });
+      if (!isAdmin) return json({ error: "Only the account's owner can buy this" }, 403);
+      const t = SELF_TIERS[String(body.tier)];
+      if (!t) return json({ error: "Choose what you'd like to buy" }, 400);
+      if (today() <= BETA_UNTIL) return json({ error: "It's free during the beta through December 31, 2026, so there's nothing to buy yet." }, 400);
+      const { data: net } = await admin.from("networks").select("id,name,stripe_customer,founding,created_at,settings,self_plan").eq("id", body.networkId).single();
+      if (!net) return json({ error: "Account not found" }, 404);
+      const personal = body.tier === "personal";
+      if (personal ? net.settings?.personal !== true : net.settings?.solo !== true) return json({ error: "This account can't buy that" }, 400);
+      if (body.tier === "upgrade" ? net.self_plan !== "solo" : !!net.self_plan) return json({ error: net.self_plan === "full" ? "You already have your wife and references included." : "You've already paid. Go back and begin." }, 400);
+      const founding = isFounder(net);
+      const back = RETURN_SITES.includes(String(body.returnTo)) ? String(body.returnTo) : site;
+      const session = await stripe("checkout/sessions", {
+        mode: "payment",
+        client_reference_id: net.id,
+        ...(net.stripe_customer ? { customer: net.stripe_customer } : { customer_email: me.user.email, customer_creation: "always" }),
+        line_items: { 0: { quantity: 1, price_data: { currency: "usd", unit_amount: founding ? t.founderCents : t.cents,
+          product_data: { name: `${t.name}${founding ? ", founder price" : ""}` } } } },
+        allow_promotion_codes: true,
+        metadata: { kind: "self", tier: String(body.tier), network: net.id },
+        invoice_creation: { enabled: true, invoice_data: { description: t.name, footer: "Plumbline · joinplumbline.com · Thank you." } },
+        success_url: `${back}/${t.page}?paid=1`,
+        cancel_url: `${back}/${t.page}`,
       });
       return json({ url: session.url });
     }

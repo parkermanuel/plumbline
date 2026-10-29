@@ -128,4 +128,38 @@ env.PL_TODAY = "2027-03-01"; NET.created_at = "2027-01-02T18:00:00Z";
 await call({ action: "teams", tier: "starter", networkId: "net1" });
 ok(!("discounts[0][coupon]" in sent.at(-1).fields), "founders: a network that joined after the beta (Jan 2) pays regular prices");
 
+// 6. Should I plant? and personal development (29 Oct 2026)
+env.PL_TODAY = "2027-03-01"; NET.created_at = "2027-02-01T18:00:00Z"; NET.founding = false; NET.stripe_customer = null; NET.settings = { solo: true }; NET.self_plan = null;
+r = await call({ action: "self", tier: "solo", networkId: "net1", returnTo: "https://joinplumbline.com" }); j = await r.json();
+let sf = sent.at(-1).fields;
+ok(r.status === 200 && sf.mode === "payment" && sf["line_items[0][price_data][unit_amount]"] === "4900" && sf["metadata[kind]"] === "self" && sf["metadata[tier]"] === "solo", "Should I plant?, just me: $49");
+ok(sf.success_url === "https://joinplumbline.com/should-i-plant?paid=1" && sf.customer_creation === "always", "after paying he comes back to his Should I plant? page");
+await call({ action: "self", tier: "full", networkId: "net1" });
+ok(sent.at(-1).fields["line_items[0][price_data][unit_amount]"] === "9900", "with his wife and references: $99");
+r = await call({ action: "self", tier: "upgrade", networkId: "net1" }); ok(r.status === 400, "the $50 upgrade needs the $49 first");
+r = await call({ action: "self", tier: "personal", networkId: "net1" }); ok(r.status === 400, "a Should I plant? account can't buy personal development by mistake");
+NET.self_plan = "solo";
+r = await call({ action: "self", tier: "solo", networkId: "net1" }); ok(r.status === 400, "he can't pay twice");
+await call({ action: "self", tier: "upgrade", networkId: "net1" });
+ok(sent.at(-1).fields["line_items[0][price_data][unit_amount]"] === "5000", "adding his wife and references later: $50");
+NET.settings = { personal: true }; NET.self_plan = null;
+await call({ action: "self", tier: "personal", networkId: "net1" });
+sf = sent.at(-1).fields;
+ok(sf["line_items[0][price_data][unit_amount]"] === "2900" && sf.success_url.endsWith("/personal?paid=1"), "personal development: $29, back to the Personal page");
+NET.created_at = "2026-12-01T18:00:00Z";
+await call({ action: "self", tier: "personal", networkId: "net1" });
+ok(sent.at(-1).fields["line_items[0][price_data][unit_amount]"] === "1900", "founders in 2027: $19 instead of $29 (a third off)");
+r = await call({ action: "self", tier: "personal", networkId: "net2" }); ok(r.status === 403, "only the account's owner can buy");
+env.PL_TODAY = "2026-11-20"; n0 = sent.length;
+r = await call({ action: "self", tier: "solo", networkId: "net1" }); ok(r.status === 400 && sent.length === n0, "beta: nothing to buy before Jan 1, 2027");
+rpcs.length = 0;
+[raw, h] = signed({ type: "checkout.session.completed", data: { object: { id: "cs_s1", mode: "payment", payment_status: "paid", client_reference_id: "net1", amount_total: 4900, currency: "usd", metadata: { kind: "self", tier: "solo" }, customer_details: { email: "r@x.com" } } } });
+r = await call(raw, h);
+const sr1 = rpcs.find((x) => x.fn === "pl_record_payment");
+ok(r.status === 200 && sr1?.args.p_kind === "self_solo" && sr1.args.p_network === "net1" && sr1.args.p_qty === 1, "a paid $49 checkout is recorded as Should I plant? (just me)");
+rpcs.length = 0;
+[raw, h] = signed({ type: "checkout.session.completed", data: { object: { id: "cs_s2", mode: "payment", payment_status: "paid", client_reference_id: "net1", amount_total: 2900, currency: "usd", metadata: { kind: "self", tier: "personal" } } } });
+await call(raw, h);
+ok(rpcs.find((x) => x.fn === "pl_record_payment")?.args.p_kind === "personal", "a paid $29 checkout is recorded as personal development");
+
 process.exit(failed ? 1 : 0);
