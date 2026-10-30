@@ -9,8 +9,15 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 // Who each assessment is for (church planting, church staff, nonprofit or business), looked up by link token.
 async function audienceByToken(admin: any, tokens: string[]) {
   if (!tokens.length) return {};
-  const { data } = await admin.from("participants").select("token, cases(settings)").in("token", tokens);
-  return Object.fromEntries((data ?? []).map((p: any) => [p.token, { audience: p.cases?.settings?.audience || "planting", job_role: p.cases?.settings?.role || "", purpose: p.cases?.settings?.purpose || "decide", team_name: p.cases?.settings?.team?.name || "", leader_sees: p.cases?.settings?.leaderSees === true }]));
+  const { data } = await admin.from("participants").select("token, status, cases(settings)").in("token", tokens);
+  // status: a reminder to someone who never started reads like the invite. faith: only nonprofit and business teams can
+  // leave the faith questions off (church staff and planting always include them), which shortens the estimate.
+  return Object.fromEntries((data ?? []).map((p: any) => {
+    const st = p.cases?.settings || {};
+    const audience = st.audience || "planting";
+    return [p.token, { audience, job_role: st.role || "", purpose: st.purpose || "decide", team_name: st.team?.name || "", leader_sees: st.leaderSees === true,
+      status: p.status || "", faith: !((audience === "nonprofit" || audience === "business") && (st.faith === false || st.faith === "false")) }];
+  }));
 }
 
 Deno.serve(async (req) => {

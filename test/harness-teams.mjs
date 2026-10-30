@@ -100,8 +100,9 @@ async function storage(route) {
   } catch (e) { calls.push({ storageErr: e.message }); return json(403, { error: "Unauthorized", message: e.message }); }
 }
 // What the real email function looks up about each case (see supabase/functions/plumbline-email/index.ts)
-const caseInfo = (st) => ({ audience: st?.audience || "planting", job_role: st?.role || "", purpose: st?.purpose || "decide", team_name: st?.team?.name || "", team_id: st?.team?.id || "", leader_sees: st?.leaderSees === true });
-const byToken = async (tok) => caseInfo((await asService(() => db.query(`select c.settings from public.participants p join public.cases c on c.id = p.case_id where p.token = $1`, [tok]))).rows[0]?.settings);
+const caseInfo = (st) => ({ audience: st?.audience || "planting", job_role: st?.role || "", purpose: st?.purpose || "decide", team_name: st?.team?.name || "", team_id: st?.team?.id || "", leader_sees: st?.leaderSees === true,
+  faith: !((st?.audience === "nonprofit" || st?.audience === "business") && (st?.faith === false || st?.faith === "false")) });
+const byToken = async (tok) => { const row = (await asService(() => db.query(`select c.settings, p.status from public.participants p join public.cases c on c.id = p.case_id where p.token = $1`, [tok]))).rows[0]; return { ...caseInfo(row?.settings), status: row?.status || "" }; };
 const byCase = async (id) => caseInfo((await asService(() => db.query(`select settings from public.cases where id = $1`, [id]))).rows[0]?.settings);
 async function fnEmail(route) {
   const req = route.request(); const uid = uidFrom(req.headers()["authorization"] || ""); const body = JSON.parse(req.postData() || "{}");

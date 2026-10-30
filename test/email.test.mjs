@@ -49,4 +49,26 @@ const fp = finishedEmail({ person_name: "Ava Stone", person_role: "planter", pla
 ok(!/report is ready|report|ready/i.test(fp.subject + fp.text.split("\n").slice(0, 4).join(" ")) && /Ava Stone finished/.test(fp.text), "Teams finished email for a private report: just 'finished', no hint of a report for the leader");
 const fs = finishedEmail({ person_name: "Ava Stone", person_role: "planter", planter_name: "Ava Stone", case_id: "c3", all_done: true, purpose: "team", team_name: "Staff", team_id: "t_1", leader_sees: true }, "https://x");
 ok(/shared with you/.test(fs.text), "Teams finished email on a leader-sees team says the report is shared");
+// Final audit fixes (30 Oct 2026)
+const nsTeam = personEmail("remind", { ...tm, sender_name: "Parker Manuel", network_name: "Pinewood Church", status: "invited" }, "https://x");
+ok(!/pick up where you left off|answers are saved/i.test(nsTeam.text + nsTeam.subject) && nsTeam.subject.startsWith("Reminder") && nsTeam.text.includes("A quick reminder") && nsTeam.text.includes("See how I'm wired"), "a reminder to someone who never started reads like the invite, not 'pick up where you left off'");
+ok(nsTeam.text.includes("It's private to you unless you choose to share it."), "not-started Teams reminder keeps the private line");
+const nsPlant = personEmail("remind", { ...base, role: "planter", name: "Josh Kim", status: "invited" }, "https://x");
+ok(!/answers are saved|pick up where/i.test(nsPlant.text + nsPlant.subject) && nsPlant.text.includes("Start my assessment") && nsPlant.subject === "Reminder: your Plumbline assessment from Front Range", "not-started planter reminder reads like the invite");
+const stTeam = personEmail("remind", { ...tm, status: "started", leader_sees: true }, "https://x");
+ok(stTeam.text.includes("Your answers are saved") && stTeam.text.includes("Your team leader will see your full report"), "started Teams reminder adds the leader-sees line");
+const stPriv = personEmail("remind", { ...tm, status: "started" }, "https://x");
+ok(stPriv.text.includes("It's private to you unless you choose to share it."), "started Teams reminder adds the private line");
+const stPlant = personEmail("remind", { ...base, role: "planter", name: "Josh Kim", status: "started" }, "https://x");
+ok(stPlant.text.includes("Your answers are saved") && !/private to you/.test(stPlant.text), "planter reminder unchanged once they've started");
+const noFaith = personEmail("invite", { ...tm, audience: "business", faith: false }, "https://x"), noFaithR = personEmail("remind", { ...tm, audience: "business", faith: false, status: "started" }, "https://x");
+ok(noFaith.text.includes("about 30 minutes") && noFaithR.text.includes("about 30 minutes") && !noFaith.text.includes("35"), "faith-off Teams emails say about 30 minutes");
+const org = personEmail("invite", { ...tm, sender_name: "Parker Manuel", network_name: "Pinewood Church", team_name: "Pinewood Staff" }, "https://x");
+ok(org.text.includes("Parker Manuel invited you to join Pinewood Staff at Pinewood Church"), "team invite names the team and the organization");
+const same = personEmail("invite", { ...tm, sender_name: "Parker Manuel", network_name: "Pinewood", team_name: "Pinewood" }, "https://x");
+ok(same.text.includes("Parker Manuel invited Pinewood to take Plumbline together"), "team invite doesn't repeat a team named after the organization");
+ok(ct.subject === "Join Pinewood on Plumbline Teams" && ct.text.includes("reports shared with leaders") && !/the reports and/.test(ct.text), "co-leader invite for Teams: Plumbline Teams subject, only shared reports");
+ok(t.subject === "Join Front Range on Plumbline" && t.text.includes("the reports and the next steps"), "co-leader invite for Plumbline unchanged");
+const rr = personEmail("invite", { ...tm, role: "reference", name: "Jordan" }, "https://x"), rrR = personEmail("remind", { ...tm, role: "reference", name: "Jordan" }, "https://x");
+ok(rr.text.includes("4 minutes") && /average/.test(rr.text) && !/hiring|reference|readiness|network/i.test(rr.text + rr.subject) && !/hiring|readiness/i.test(rrR.text + rrR.subject), "teammate rating email uses team words");
 process.exit(fail ? 1 : 0);
