@@ -99,6 +99,10 @@ async function storage(route) {
     return json(404, { message: "not mocked" });
   } catch (e) { calls.push({ storageErr: e.message }); return json(403, { error: "Unauthorized", message: e.message }); }
 }
+// What the real email function looks up about each case (see supabase/functions/plumbline-email/index.ts)
+const caseInfo = (st) => ({ audience: st?.audience || "planting", job_role: st?.role || "", purpose: st?.purpose || "decide", team_name: st?.team?.name || "", team_id: st?.team?.id || "", leader_sees: st?.leaderSees === true });
+const byToken = async (tok) => caseInfo((await asService(() => db.query(`select c.settings from public.participants p join public.cases c on c.id = p.case_id where p.token = $1`, [tok]))).rows[0]?.settings);
+const byCase = async (id) => caseInfo((await asService(() => db.query(`select settings from public.cases where id = $1`, [id]))).rows[0]?.settings);
 async function fnEmail(route) {
   const req = route.request(); const uid = uidFrom(req.headers()["authorization"] || ""); const body = JSON.parse(req.postData() || "{}");
   const json = (s, b) => route.fulfill({ status: s, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(b) });
@@ -107,13 +111,15 @@ async function fnEmail(route) {
     let rows = [];
     if (body.action === "invite" || body.action === "remind") {
       rows = (await asUser(uid, () => db.query(`select * from public.pl_email_people(${lit(body.ids)}, ${lit(body.action)})`))).rows;
-      rows.forEach((r) => emails.push({ to: r.email, ...personEmail(body.action, r, SITE), kind: body.action }));
+      for (const r of rows) emails.push({ to: r.email, ...personEmail(body.action, { ...r, ...(await byToken(r.token)) }, SITE), kind: body.action });
     } else if (body.action === "team") {
       rows = (await asUser(uid, () => db.query(`select * from public.pl_member_invite_email(${lit(body.inviteId)})`))).rows;
-      rows.forEach((r) => emails.push({ to: r.email, ...teamInviteEmail(r, SITE), kind: "team" }));
+      const kinds = (await asService(() => db.query(`select n.settings->'kinds' k from public.network_invites i join public.networks n on n.id = i.network_id where i.id = $1`, [body.inviteId]))).rows[0]?.k;
+      const teams = Array.isArray(kinds) && kinds.length > 0 && kinds.every((k) => k === "teams");
+      rows.forEach((r) => emails.push({ to: r.email, ...teamInviteEmail({ ...r, teams }, SITE), kind: "team" }));
     } else if (body.action === "finished") {
       rows = (await asService(() => db.query(`select * from public.pl_finish_notice(${lit(body.token)})`))).rows;
-      rows.forEach((r) => emails.push({ to: r.email, ...finishedEmail(r, SITE), kind: "finished" }));
+      for (const r of rows) emails.push({ to: r.email, ...finishedEmail({ ...r, ...(await byCase(r.case_id)) }, SITE), kind: "finished" });
     } else if (body.action === "report_key") {
       rows = (await asService(() => db.query(`select * from public.pl_report_key_email(${lit(body.token)})`))).rows;
       rows.forEach((r) => emails.push({ to: r.email, ...reportKeyEmail(r, SITE), kind: "report_key" }));

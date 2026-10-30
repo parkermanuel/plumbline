@@ -56,7 +56,11 @@ Deno.serve(async (req) => {
     if (body.action === "team") {
       const { data, error } = await user.rpc("pl_member_invite_email", { p_invite: body.inviteId });
       if (error) return json({ error: error.message }, 403);
-      for (const r of data ?? []) (await send(r.email, r.sender_email, teamInviteEmail(r, site))) ? sent++ : failed++;
+      // A Plumbline Teams organization (set up from the Teams front door) gets the Teams footer
+      const { data: inv } = (data ?? []).length ? await admin.from("network_invites").select("networks(settings)").eq("id", body.inviteId).maybeSingle() : { data: null };
+      const kinds = (inv as any)?.networks?.settings?.kinds;
+      const teams = Array.isArray(kinds) && kinds.length > 0 && kinds.every((k: string) => k === "teams");
+      for (const r of data ?? []) (await send(r.email, r.sender_email, teamInviteEmail({ ...r, teams }, site))) ? sent++ : failed++;
       return json({ sent, failed });
     }
     if (body.action === "finished") {
@@ -65,7 +69,7 @@ Deno.serve(async (req) => {
       if (error) return json({ error: "Couldn't send" }, 500);
       const ids = [...new Set((data ?? []).map((r: any) => r.case_id))];
       const { data: cs } = ids.length ? await admin.from("cases").select("id, settings").in("id", ids) : { data: [] };
-      const byCase = Object.fromEntries((cs ?? []).map((c: any) => [c.id, { audience: c.settings?.audience || "planting", job_role: c.settings?.role || "", purpose: c.settings?.purpose || "decide", team_name: c.settings?.team?.name || "", team_id: c.settings?.team?.id || "" }]));
+      const byCase = Object.fromEntries((cs ?? []).map((c: any) => [c.id, { audience: c.settings?.audience || "planting", job_role: c.settings?.role || "", purpose: c.settings?.purpose || "decide", team_name: c.settings?.team?.name || "", team_id: c.settings?.team?.id || "", leader_sees: c.settings?.leaderSees === true }]));
       for (const r of data ?? []) (await send(r.email, null, finishedEmail({ ...r, ...(byCase[r.case_id] || {}) }, site))) ? sent++ : failed++;
       return json({ sent, failed });
     }
@@ -74,7 +78,9 @@ Deno.serve(async (req) => {
       if (typeof body.key !== "string" || body.key.length < 20 || typeof body.id !== "string") return json({ sent: 0 });
       const { data, error } = await admin.rpc("pl_viewer_email", { p_key: body.key, p_id: body.id });
       if (error) return json({ error: "Couldn't send" }, 500);
-      for (const r of data ?? []) (await send(r.email, null, boardEmail(r, site))) ? sent++ : failed++;
+      // A team that turned faith questions off has no gifts section, so the email doesn't mention gifts
+      const { data: faith } = (data ?? []).length ? await admin.rpc("pl_viewer_faith", { p_id: body.id }) : { data: true };
+      for (const r of data ?? []) (await send(r.email, null, boardEmail({ ...r, faith: faith !== false }, site))) ? sent++ : failed++;
       return json({ sent, failed });
     }
     if (body.action === "report_key") {

@@ -3,13 +3,15 @@
 const clean = (s) => String(s ?? "").replace(/\b(?:https?:\/\/|www\.)\S+/gi, "").replace(/\b[\w-]+\.(?:com|org|net|io|co|app|xyz|info|church|link|ly)\b\S*/gi, "").trim();
 const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const esc = (s) => escHtml(clean(s));
+// Preheaders are sometimes built from already-escaped paragraphs: turn them back into plain text before escaping once
+const unesc = (s) => String(s ?? "").replace(/<[^>]+>/g, "").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 const first = (n) => clean(n).split(/\s+/)[0] || "";
 
 function layout({ preheader, heading, paragraphs, button, footer, site }) {
   const logo = `${site}/plumbline-email-logo.png`;
   const p = paragraphs.map((t) => `<p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.55;color:#4a4a48">${t}</p>`).join("");
   const html = `<!doctype html><html><body style="margin:0;background:#f7f7f5">
-<span style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</span>
+<span style="display:none;max-height:0;overflow:hidden">${esc(unesc(preheader))}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f5;padding:32px 16px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #dcdcd7;border-radius:14px">
 <tr><td style="padding:28px 32px 8px"><img src="${logo}" width="146" height="30" alt="Plumbline" style="display:block;border:0"></td></tr>
@@ -35,8 +37,8 @@ const FOOT = "Plumbline is a church planter assessment for networks. This link i
 
 export function personEmail(kind, r, site) {
   const link = `${site}/t/${r.token}`;
-  const net = clean(r.network_name) || "your network";
-  const sender = r.sender_name ? esc(r.sender_name) : "Your network leader";
+  const net = clean(r.network_name) || (isTeam(r) ? "your team" : "your network");
+  const sender = r.sender_name ? esc(r.sender_name) : isTeam(r) ? "Your team leader" : "Your network leader";
   const nm = esc(first(r.name));
   const pn = esc(first(r.planter_name)), sn = esc(first(r.spouse_name));
   const reminder = kind === "remind";
@@ -55,7 +57,7 @@ export function personEmail(kind, r, site) {
     ];
     label = reminder ? "Finish my reference" : "Start the reference";
   } else {
-    const mins = r.role === "planter" ? (planting(r) ? 35 : 30) : 25;
+    const mins = r.role === "planter" ? (planting(r) || isTeam(r) ? 35 : 30) : 25;
     const other = r.role === "planter" ? sn : pn;
     const tm = esc(r.team_name) || esc(net);
     const selfCase = r.purpose === "self";
@@ -63,7 +65,7 @@ export function personEmail(kind, r, site) {
     heading = reminder ? `Pick up where you left off, ${nm}` : isTeam(r) ? `${nm}, see how you're wired` : `${nm}, your assessment is ready`;
     paragraphs = reminder ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`] : isTeam(r) ? [
       `${sender} invited ${tm} to take Plumbline together, so you can each see your strengths and grow as a team. It takes about ${mins} minutes.`,
-      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away. ${r.leader_sees ? "Your team leader will see your full report too, so you can talk it through together." : "It's private to you unless you choose to share it."}`,
+      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away. ${r.leader_sees ? "Your team leader will see your full report and answers, including health and family, so you can talk it through together." : "It's private to you unless you choose to share it."}`,
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
     ] : selfCase ? [
       `${pn} is asking whether to plant a church, and he wants your view as much as his own. Plumbline takes about ${mins} minutes.`,
@@ -89,7 +91,7 @@ export function teamInviteEmail(r, site) {
     paragraphs: [`${esc(r.sender_name || "A teammate")} invited you to join ${esc(r.network_name)} on Plumbline as ${role}. You'll see the same dashboard they do: everyone in progress, the reports and the next steps.`,
       `This invite works for 30 days.`],
     button: { href: link, label: "Join the team" },
-    footer: "Plumbline helps churches, networks and organizations assess and grow leaders. If you weren't expecting this, you can ignore it.", site,
+    footer: r.teams ? "Plumbline Teams helps teams grow together. If you weren't expecting this, you can ignore it." : "Plumbline helps churches, networks and organizations assess and grow leaders. If you weren't expecting this, you can ignore it.", site,
   }) };
 }
 
@@ -100,7 +102,8 @@ export function finishedEmail(r, site) {
     return { subject: `${nm} finished Plumbline Teams`, ...layout({
       preheader: `${nm} finished.`,
       heading: `${esc(nm)} finished`,
-      paragraphs: [`${esc(nm)} finished Plumbline${r.team_name ? ` for ${esc(r.team_name)}` : ""}. Their growth report is ready for them.`,
+      // No hint that a private report is available to the leader; only a "leader sees" team says it's shared
+      paragraphs: [`${esc(nm)} finished Plumbline${r.team_name ? ` for ${esc(r.team_name)}` : ""}.${r.leader_sees ? " Their growth report is shared with you, as this team was set up." : ""}`,
         "Your team map fills in as more people finish. It shows once at least 3 have."],
       button: { href: r.team_id ? `${site}/teams/${encodeURIComponent(r.team_id)}` : `${site}/leader`, label: "Open the team" },
       footer: "You're getting this because you lead this team on Plumbline Teams.", site,
@@ -127,7 +130,7 @@ export function reportKeyEmail(r, site) {
     preheader: "Your growth report link. It's yours alone.",
     heading: nm ? `${nm}, here's your growth report` : "Here's your growth report",
     paragraphs: [`This is your own private link to your Plumbline growth report${r.team_name ? ` for ${esc(r.team_name)}` : ""}. Only this link opens it, so keep this email and don't forward it.`,
-      "Who else can see it (your team leader, or anyone you share it with) was explained when you started, and you can see it on your report."],
+      "Your report shows who can see it."],
     button: { href: link, label: "Open my growth report" },
     footer: "You're getting this because someone asked for your report link from your Plumbline Teams page. Only you receive it. If that wasn't you, you can ignore this email; your report is still private.", site,
   }) };
@@ -140,7 +143,7 @@ export function boardEmail(r, site) {
   return { subject: `${owner} shared their Plumbline report with you`, ...layout({
     preheader: `${owner} wants you to see how they're wired.`,
     heading: nm ? `${nm}, ${owner} shared their report with you` : `${owner} shared their report with you`,
-    paragraphs: [`${owner} took Plumbline Teams, which shows how they're wired, their strengths, gifts and health, and chose to share their growth report with you.`,
+    paragraphs: [`${owner} took Plumbline Teams, which shows how they're wired, ${r.faith === false ? "their strengths and health" : "their strengths, gifts and health"}, and chose to share their growth report with you.`,
       "It's read-only and made for you alone, so please don't forward this email. They can take it back any time."],
     button: { href: link, label: `Open ${owner}'s report` },
     footer: `You're getting this because ${owner} added your email to share their Plumbline report. If you weren't expecting it, you can ignore this email.`, site,

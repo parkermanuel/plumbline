@@ -1,4 +1,4 @@
-import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail, releasedEmail, feedbackEmail } from "../supabase/functions/plumbline-email/templates.js";
+import { personEmail, teamInviteEmail, finishedEmail, reportKeyEmail, releasedEmail, feedbackEmail, boardEmail } from "../supabase/functions/plumbline-email/templates.js";
 let fail = 0; const ok = (c, m) => { console.log(c ? "ok -" : "FAIL -", m); if (!c) fail++; };
 const base = { token: "a".repeat(64), network_name: "Front Range", sender_name: "Dana", planter_name: "Josh Kim", spouse_name: "Hannah Kim" };
 const p = personEmail("invite", { ...base, role: "planter", name: "Josh Kim" }, "https://plumblineassessment.com");
@@ -32,4 +32,21 @@ const sr = personEmail("invite", { ...base, spouse_name: null, role: "reference"
 ok(st.text.includes("Student pastor") && !/plant/i.test(st.text + st.subject) && !/plant/i.test(sr.text + sr.subject), "church staff and business emails never mention planting");
 const rk = reportKeyEmail({ email: "ava@t.org", name: "Ava Stone", report_key: "k".repeat(64), team_name: "Pinewood staff" }, "https://x");
 ok(rk.html.includes("https://x/my/" + "k".repeat(64)) && /private/.test(rk.text) && /Ava/.test(rk.text) && !rk.text.includes("/t/"), "team report key email: private link to their report, not the assessment link");
+// Teams fixes (30 Oct 2026)
+const tm = { token: "a".repeat(64), role: "planter", name: "Ava Stone", planter_name: "Ava Stone", purpose: "team", audience: "staff", team_name: "Pinewood staff" };
+const tInv = personEmail("invite", { ...tm, sender_name: null, network_name: null }, "https://x"), tRem = personEmail("remind", tm, "https://x");
+ok(tInv.text.includes("35 minutes") && tRem.text.includes("35 minutes"), "Teams invite and reminder say about 35 minutes");
+ok(tInv.text.includes("Your team leader invited") && !/network/i.test(tInv.text + tInv.subject), "Teams fallbacks say team leader and team, never network");
+const dq = personEmail("invite", { ...tm, sender_name: "D'Andre Hill", leader_sees: true }, "https://x");
+ok(dq.html.includes("D&#39;Andre") && !dq.html.includes("&amp;#39;"), "names with apostrophes are escaped once in the preheader");
+ok(dq.text.includes("your full report and answers, including health and family"), "leader-sees invite names what the leader sees");
+ok(rk.text.includes("Your report shows who can see it.") && !/was explained when you started/.test(rk.text), "report-key email says the report shows who can see it");
+const ct = teamInviteEmail({ token: "b".repeat(64), role: "admin", network_name: "Pinewood", sender_name: "Parker", teams: true }, "https://x");
+ok(ct.text.includes("helps teams grow together") && !/assess/.test(ct.text), "co-leader invite for a Teams organization says it helps teams grow together");
+const bf = boardEmail({ token: "c".repeat(64), owner_name: "Ava Stone", name: "Bob", faith: false }, "https://x"), bg = boardEmail({ token: "c".repeat(64), owner_name: "Ava Stone", name: "Bob" }, "https://x");
+ok(!/gifts/.test(bf.text) && bf.text.includes("their strengths and health") && /gifts/.test(bg.text), "board email leaves out gifts when faith is off");
+const fp = finishedEmail({ person_name: "Ava Stone", person_role: "planter", planter_name: "Ava Stone", case_id: "c3", all_done: true, purpose: "team", team_name: "Staff", team_id: "t_1" }, "https://x");
+ok(!/report is ready|report|ready/i.test(fp.subject + fp.text.split("\n").slice(0, 4).join(" ")) && /Ava Stone finished/.test(fp.text), "Teams finished email for a private report: just 'finished', no hint of a report for the leader");
+const fs = finishedEmail({ person_name: "Ava Stone", person_role: "planter", planter_name: "Ava Stone", case_id: "c3", all_done: true, purpose: "team", team_name: "Staff", team_id: "t_1", leader_sees: true }, "https://x");
+ok(/shared with you/.test(fs.text), "Teams finished email on a leader-sees team says the report is shared");
 process.exit(fail ? 1 : 0);

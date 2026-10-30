@@ -42,6 +42,10 @@ ok(/Your Teams plan covers 8 people/.test(await text(owner)) && /0 on teams now,
 }
 await owner.fill("#t-name", "Front Range staff");
 await owner.fill("#t-people", "Ava Stone, ava@fr.church\nBen Cole, ben@fr.church\nCara Diaz, cara@fr.church\nDev Patel, dev@fr.church");
+// "Private unless they share", so the share flow below is covered (a "leader sees" team has no share switch)
+await owner.waitForSelector("#t-sees-private", { timeout: 10000 }).catch(() => {});
+ok(!!(await owner.$("#t-sees-private")), "the leader can choose 'Private unless they share'");
+await owner.check("#t-sees-private");
 await submit(owner, "#newteam");
 await owner.waitForURL(/\/teams\/t_[a-f0-9]+/, { timeout: 20000 }).catch(() => {});
 const teamUrl = owner.url();
