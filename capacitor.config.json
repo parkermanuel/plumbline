@@ -3,8 +3,10 @@
   "appName": "Plumbline",
   "webDir": "app-shell",
   "server": {
-    "url": "https://plumblineassessment.com",
+    "url": "https://joinplumbline.com",
     "allowNavigation": [
+      "joinplumbline.com",
+      "*.joinplumbline.com",
       "plumblineassessment.com",
       "*.plumblineassessment.com",
       "plumblineteams.com",
