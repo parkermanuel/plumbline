@@ -33,6 +33,11 @@ const planting = (r) => (!r.audience || r.audience === "planting") && r.purpose 
 // Plumbline Teams: someone already on a team taking it to grow, not to be hired or approved
 const isTeam = (r) => r.purpose === "team";
 const footFor = (r) => (r.purpose === "self" ? "Plumbline helps people see clearly before they plant a church. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you." : isTeam(r) ? "Plumbline Teams helps teams grow together. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you." : planting(r) ? FOOT : "Plumbline is a leadership assessment. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.");
+// Plumbline Teams minutes come from the app's chapter estimates (plumbline-starter src/lib/plumbline/minutes.ts, whose test
+// checks 35 and 30): faith-off nonprofit and business teams skip the gifts, so they take about 30 minutes.
+const teamMins = (r) => (r.faith === false ? 30 : 35);
+// The same privacy line the team invite uses, so a reminder says it too
+const teamPrivacy = (r) => (r.leader_sees ? "Your team leader will see your full report and answers, including health and family, so you can talk it through together." : "It's private to you unless you choose to share it.");
 const FOOT = "Plumbline is a church planter assessment for networks. This link is personal to you; please don't forward it. Questions? Reply to this email and it goes to the person who invited you.";
 
 export function personEmail(kind, r, site) {
@@ -43,7 +48,17 @@ export function personEmail(kind, r, site) {
   const pn = esc(first(r.planter_name)), sn = esc(first(r.spouse_name));
   const reminder = kind === "remind";
   let subject, heading, paragraphs, label;
-  if (r.role === "reference") {
+  if (r.role === "reference" && isTeam(r)) {
+    // Plumbline Teams: a teammate rating what they've seen (not sent by email today; the person shares a link instead)
+    subject = reminder ? `Reminder: ${first(r.planter_name)} would value your view` : `Would you help ${first(r.planter_name)} grow?`;
+    heading = reminder ? `A quick reminder, ${nm}` : `${pn} asked for your view`;
+    paragraphs = [
+      reminder ? `${pn} is still hoping to hear what you've seen. It takes about 4 minutes, and it picks up where you left off.`
+               : `${pn} asked a few people they work with to rate what they've seen, so they can grow. It takes about 4 minutes.`,
+      `${pn} sees only the average of everyone's ratings, once at least three people answer, never your own answers. Neither ${pn} nor their leader sees who answered. Rate only what you've actually seen.`,
+    ];
+    label = reminder ? "Finish my ratings" : "Rate what I've seen";
+  } else if (r.role === "reference") {
     subject = reminder ? `Reminder: your reference for ${first(r.planter_name)}` : (planting(r) ? `Would you speak into ${first(r.planter_name)}'s readiness to plant?` : `Would you speak into ${first(r.planter_name)}'s readiness for ${r.job_role ? `the ${clean(r.job_role)} role` : "a new role"}?`);
     heading = reminder ? `A quick reminder, ${nm}` : `${pn} named you as a reference`;
     paragraphs = [
@@ -57,26 +72,35 @@ export function personEmail(kind, r, site) {
     ];
     label = reminder ? "Finish my reference" : "Start the reference";
   } else {
-    const mins = r.role === "planter" ? (planting(r) || isTeam(r) ? 35 : 30) : 25;
+    const mins = r.role === "planter" ? (isTeam(r) ? teamMins(r) : planting(r) ? 35 : 30) : 25;
     const other = r.role === "planter" ? sn : pn;
     const tm = esc(r.team_name) || esc(net);
     const selfCase = r.purpose === "self";
-    subject = reminder ? `Pick up where you left off on Plumbline` : isTeam(r) ? `${clean(r.sender_name) || net} invited you to Plumbline Teams` : selfCase ? `${first(r.planter_name)} asked you to take Plumbline with him` : `Your Plumbline assessment from ${net}`;
-    heading = reminder ? `Pick up where you left off, ${nm}` : isTeam(r) ? `${nm}, see how you're wired` : `${nm}, your assessment is ready`;
-    paragraphs = reminder ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`] : isTeam(r) ? [
-      `${sender} invited ${tm} to take Plumbline together, so you can each see your strengths and grow as a team. It takes about ${mins} minutes.`,
-      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away. ${r.leader_sees ? "Your team leader will see your full report and answers, including health and family, so you can talk it through together." : "It's private to you unless you choose to share it."}`,
+    // A reminder to someone who never opened their link isn't "pick up where you left off": it's the invite again
+    const notStarted = reminder && r.status === "invited";
+    const invite = !reminder || notStarted;
+    // Name the organization with the team: "invited you to join Pinewood Staff at Pinewood Church"
+    const org = clean(r.network_name), team = clean(r.team_name);
+    const teamLine = team && org && team.toLowerCase() !== org.toLowerCase()
+      ? `${sender} invited you to join ${esc(team)} at ${esc(org)} and take Plumbline together, so you can each see your strengths and grow as a team.`
+      : `${sender} invited ${tm} to take Plumbline together, so you can each see your strengths and grow as a team.`;
+    subject = notStarted ? (isTeam(r) ? `Reminder: ${clean(r.sender_name) || net} invited you to Plumbline Teams` : selfCase ? `Reminder: ${first(r.planter_name)} asked you to take Plumbline with him` : `Reminder: your Plumbline assessment from ${net}`)
+      : reminder ? `Pick up where you left off on Plumbline` : isTeam(r) ? `${clean(r.sender_name) || net} invited you to Plumbline Teams` : selfCase ? `${first(r.planter_name)} asked you to take Plumbline with him` : `Your Plumbline assessment from ${net}`;
+    heading = notStarted ? (isTeam(r) ? `${nm}, see how you're wired` : `${nm}, your assessment is still waiting`) : reminder ? `Pick up where you left off, ${nm}` : isTeam(r) ? `${nm}, see how you're wired` : `${nm}, your assessment is ready`;
+    paragraphs = !invite ? [`Your answers are saved. Open your link to keep going on any device. It takes about ${mins} minutes in all.`, isTeam(r) ? teamPrivacy(r) : ""].filter(Boolean) : isTeam(r) ? [
+      `${notStarted ? "A quick reminder: " : ""}${teamLine} It takes about ${mins} minutes.`,
+      `This isn't a test you pass or fail, and it isn't part of a hiring decision. When you finish, you'll get your own growth report right away. ${teamPrivacy(r)}`,
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
     ] : selfCase ? [
-      `${pn} is asking whether to plant a church, and he wants your view as much as his own. Plumbline takes about ${mins} minutes.`,
+      `${notStarted ? "A quick reminder: " : ""}${pn} is asking whether to plant a church, and he wants your view as much as his own. Plumbline takes about ${mins} minutes.`,
       `Your answers and your report are yours. ${pn} won't see them. You can share your report with him, or talk it through together.`,
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
     ] : [
-      planting(r) ? `${sender} at ${esc(net)} invited you to take Plumbline, a church planter assessment. It takes about ${mins} minutes.` : `${sender} at ${esc(net)} invited you to take Plumbline, a leadership assessment, as part of considering you for ${what(r)}. It takes about ${mins} minutes.`,
+      (notStarted ? "A quick reminder: " : "") + (planting(r) ? `${sender} at ${esc(net)} invited you to take Plumbline, a church planter assessment. It takes about ${mins} minutes.` : `${sender} at ${esc(net)} invited you to take Plumbline, a leadership assessment, as part of considering you for ${what(r)}. It takes about ${mins} minutes.`),
       `Every answer saves as you go, so you can stop and finish later on your phone or computer.`,
       other ? `${other} has a separate link. Please take it on your own, and don't compare answers until you've both finished. The differences are some of the most helpful things you'll learn.` : "",
     ].filter(Boolean);
-    label = isTeam(r) ? (reminder ? "Pick up where I left off" : "See how I'm wired") : reminder ? "Continue my assessment" : "Start my assessment";
+    label = isTeam(r) ? (invite ? "See how I'm wired" : "Pick up where I left off") : invite ? "Start my assessment" : "Continue my assessment";
   }
   return { subject, ...layout({ preheader: paragraphs[0].replace(/<[^>]+>/g, ""), heading, paragraphs, button: { href: link, label }, footer: footFor(r), site }) };
 }
@@ -84,11 +108,15 @@ export function personEmail(kind, r, site) {
 export function teamInviteEmail(r, site) {
   const link = `${site}/join/${r.token}`;
   const role = r.role === "admin" ? "an admin" : "a team member";
-  const subject = `Join ${clean(r.network_name)} on Plumbline`;
+  const app = r.teams ? "Plumbline Teams" : "Plumbline";
+  const subject = `Join ${clean(r.network_name)} on ${app}`;
   return { subject, ...layout({
     preheader: `${clean(r.sender_name) || "Someone"} invited you to join ${clean(r.network_name)}.`,
-    heading: `Join ${esc(r.network_name)} on Plumbline`,
-    paragraphs: [`${esc(r.sender_name || "A teammate")} invited you to join ${esc(r.network_name)} on Plumbline as ${role}. You'll see the same dashboard they do: everyone in progress, the reports and the next steps.`,
+    heading: `Join ${esc(r.network_name)} on ${app}`,
+    // Teams can keep reports private: a co-leader sees only the reports shared with leaders, never a private one
+    paragraphs: [`${esc(r.sender_name || "A teammate")} invited you to join ${esc(r.network_name)} on ${app} as ${role}. ${r.teams
+        ? "You'll see the same dashboard they do: who's finished, each team map and the reports shared with leaders."
+        : "You'll see the same dashboard they do: everyone in progress, the reports and the next steps."}`,
       `This invite works for 30 days.`],
     button: { href: link, label: "Join the team" },
     footer: r.teams ? "Plumbline Teams helps teams grow together. If you weren't expecting this, you can ignore it." : "Plumbline helps churches, networks and organizations assess and grow leaders. If you weren't expecting this, you can ignore it.", site,
