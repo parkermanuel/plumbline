@@ -24,6 +24,8 @@ await submit(owner, "#onboard form"); await owner.waitForSelector("#t-people", {
 ok(!!(await owner.$("#t-people")), "then the start-a-team form");
 await owner.fill("#t-name", "Front Range staff");
 await owner.fill("#t-people", "Ava Stone, ava@fr.church\nBen Cole <ben@fr.church>\nCara Diaz\tcara@fr.church\nDev Patel, dev@fr.church\nno email here");
+// The newer app keeps "Start a team" off until the leader picks who sees reports: pick "Private unless they share"
+if (await owner.$("#t-sees-private")) await owner.check("#t-sees-private");
 await wait(300);
 let t = await text(owner);
 ok(/4 people/.test(t) && /1 line need/.test(t), "it reads 4 people and flags the line without an email");
