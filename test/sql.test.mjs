@@ -53,6 +53,8 @@ export async function makeDb() {
   await db.exec(updSelfPay); await db.exec(updSelfPay);
   const updShare = readFileSync(new URL("../supabase/update-2026-10-29-wife-shares.sql", import.meta.url), "utf8");
   await db.exec(updShare); await db.exec(updShare);
+  const updTeamFix = readFileSync(new URL("../supabase/update-2026-10-30-teams-fixes.sql", import.meta.url), "utf8");
+  await db.exec(updTeamFix); await db.exec(updTeamFix);
   // The existing payment checks run as a day after the free beta; the beta itself is checked on its own below.
   await db.exec(`select set_config('pl.today', '${process.env.PL_TODAY || "2027-02-01"}', false)`);
   return db;
@@ -142,7 +144,10 @@ async function main() {
   let rows = await as(OWNER, () => q(`select * from public.pl_email_people($1, 'invite')`, [[soloId]]));
   ok(rows.length === 1 && rows[0].email === "solo@p.com" && rows[0].network_name === "Front Range Planting" && rows[0].sender_email === "owner@net.org", "invite targets come back with sender");
   rows = await as(OWNER, () => q(`select * from public.pl_email_people($1, 'remind')`, [[soloId]]));
-  ok(rows.length === 1, "first reminder goes out");
+  ok(rows.length === 0, "no reminder right after the invite (within 20 hours)");
+  await q(`update public.participants set invited_at = now() - interval '21 hours' where id=$1`, [soloId]);
+  rows = await as(OWNER, () => q(`select * from public.pl_email_people($1, 'remind')`, [[soloId]]));
+  ok(rows.length === 1, "first reminder goes out 20+ hours after the invite");
   rows = await as(OWNER, () => q(`select * from public.pl_email_people($1, 'remind')`, [[soloId]]));
   ok(rows.length === 0, "second reminder within 20 hours is skipped");
   rows = await as(OUTSIDER, () => q(`select * from public.pl_email_people($1, 'invite')`, [[soloId]]));
@@ -382,9 +387,10 @@ async function main() {
   for (const [c, h] of [[t2, 60], [t3, 70]]) { await q(`select public.pl_finish($1, '{"meta":{}}')`, [await tok(c)]); await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [await key(c), sum(h)]); }
   ok(!!(await key(t2)), "team: a key is made even if they finished through the older finish call");
   m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
-  ok(m.combined && m.combined.n === 3 && Number(m.combined.pillars.character) === 70 && m.combined.wiring.pace.right === 2 && m.combined.wiring.pace.mid === 1 && Number(m.combined.healthLow) === 2, "team map: combined averages and counts once 3 finish");
+  ok(m.combined && m.combined.n === 3 && Number(m.combined.pillars.character) === 70 && Number(m.combined.wiringAvg.pace) === 70, "team map: combined averages once 3 finish");
+  ok(m.combined.countsShown === false && m.combined.countsMin === 5 && m.combined.wiring === null && m.combined.healthLow === null && m.combined.giftsTop === null && m.combined.giftsStrong === null && m.combined.strengths === null && m.combined.growth === null && m.combined.teamLow === null, "team map: below 5 people, no counts (no 3 of 3, no wiring splits)");
   ok(!JSON.stringify(m).includes("Tia") && m.shared.length === 0, "team map: no names unless someone shares");
-  ok(Number(m.combined.teamN) === 3 && Number(m.combined.team.th_trust) === 70 && Number(m.combined.team.th_care) === 30 && Number(m.combined.teamLow.th_care) === 3 && Number(m.combined.teamLow.th_trust) === 0, "our team: the team map shows the team's average and how many rate an area low");
+  ok(Number(m.combined.teamN) === 3 && Number(m.combined.team.th_trust) === 70 && Number(m.combined.team.th_care) === 30, "our team: the team map shows the team's average");
   ok((await as(OWNER, () => q(`select * from public.pl_team_people($1)`, [t1])))[0].answers.likert === undefined, "team: unshared, the leader can't see their report");
   ok(await as(null, () => q(`select public.pl_team_share($1, true) as ok`, [k1])).then((r) => r[0].ok), "team: the person can share with their key");
   m = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_priv') as j`, [nid])))[0].j;
@@ -409,6 +415,71 @@ async function main() {
   const tk1 = await tok(t1);
   ok((await as(OWNER, () => q(`select public.pl_result_team($1 || '/f.pdf', false) as ok`, [tk1])))[0].ok === false, "team: files they uploaded stay private unless shared");
   ok((await as(OWNER, () => q(`select count(*)::int n from public.participants where case_id=$1`, [other.case_id])))[0].n >= 1, "hiring and planting assessments still show their people to the leader");
+
+  // Teams fixes (30 Oct 2026)
+  {
+    const fixCase = async (name, team = "t_fix") => (await as(OWNER, () => q(`insert into public.cases(network_id, created_by, planter_name, planter_email, married, settings) values ($1, $2, $3, 'f@t.org', false, $4::jsonb) returning id`, [nid, OWNER, name, JSON.stringify({ audience: "staff", purpose: "team", team: { id: team, name: "Fix" } })])))[0].id;
+    const tokOf = async (cid) => (await q(`select token from public.participants where case_id=$1 and role='planter'`, [cid]))[0].token;
+    // 1. Two browsers
+    const fc = await fixCase("Two Browsers"); const ft = await tokOf(fc);
+    await as(null, () => q(`select public.pl_save($1,$2,50,100,'Wiring')`, [ft, { meta: { name: "Two Browsers", pageTimes: { a: 1 } }, likert: { a: 1 }, wiring: { pace: [5, null, 3] }, fivefold: [{ most: "x", least: "y" }], scenarios: { s1: { best: 1, worst: 2 } }, facts: { f: [0, 2] }, safety: { sf1: 2 }, privateNote: "keep" }]));
+    await as(null, () => q(`select public.pl_save($1,$2,10,100,'Start')`, [ft, { meta: { name: "Two Browsers", pageTimes: { b: 2 } }, likert: { b: 2 }, wiring: { pace: [null, 4] }, fivefold: [], scenarios: { s1: {} }, facts: { f: [0] } }]));
+    const fr = (await q(`select answers a, step, progress, chapter from public.participants where token=$1`, [ft]))[0];
+    ok(fr.a.likert.a === 1 && fr.a.likert.b === 2 && JSON.stringify(fr.a.wiring.pace) === "[5,4,3]" && fr.a.fivefold[0].most === "x", "two browsers: a stale save adds its answers and keeps the other browser's");
+    ok(JSON.stringify(fr.a.scenarios.s1) === "{}" && JSON.stringify(fr.a.facts.f) === "[0]" && fr.a.meta.pageTimes.b === 2 && fr.a.safety.sf1 === 2 && fr.a.privateNote === "keep", "two browsers: one question's own answer is replaced whole, so un-ticking still works; private parts kept");
+    ok(fr.step === 50 && fr.progress === 50 && fr.chapter === "Wiring", "two browsers: the step and progress never go backwards");
+    await as(null, () => q(`select public.pl_finish_team($1,$2)`, [ft, { meta: { name: "Two Browsers" }, likert: { c: 3 } }]));
+    const ff = (await q(`select answers a from public.participants where token=$1`, [ft]))[0].a;
+    ok(ff.likert.a === 1 && ff.likert.b === 2 && ff.likert.c === 3, "two browsers: finishing keeps answers from both browsers");
+    ok((await as(null, () => q(`select public.pl_save($1,$2,99,100,'x') r`, [ft, { likert: { a: 5 } }])))[0].r === false && (await q(`select answers a from public.participants where token=$1`, [ft]))[0].a.likert.a === 1, "two browsers: once finished, a save from the other browser changes nothing");
+
+    // 2 and 4. Raters: hidden from leaders, no duplicates, idle ones free their place
+    const rc = await fixCase("Rated Person", "t_rate");
+    const rref = (await q(`select ref_token from public.cases where id=$1`, [rc]))[0].ref_token;
+    const j1 = (await as(null, () => q(`select public.pl_join_reference($1,'Mia Lane') t`, [rref])))[0].t;
+    const j2 = (await as(null, () => q(`select public.pl_join_reference($1,'  mia   LANE ') t`, [rref])))[0].t;
+    ok(j1 && j1 === j2, "raters: the same name joining again gets their own link back, not a second one");
+    ok((await as(OWNER, () => q(`select count(*)::int n from public.participant_status where case_id=$1`, [rc])))[0].n === 1 && (await q(`select count(*)::int n from public.participant_status where case_id=$1 and role='reference'`, [rc]))[0].n === 0, "raters: a leader's live progress never lists who is rating a team member");
+    ok((await as(OWNER, () => q(`select count(*)::int n from public.participant_status s join public.cases c on c.id = s.case_id where s.role='reference' and c.settings->>'purpose' = 'team'`)))[0].n === 0, "raters: no team rater rows reach any leader");
+    await q(`update public.participants set status='finished', finished_at=now() - interval '1 hour', answers='{"items":{"rf_x":1}}' where token=$1`, [j1]);
+    const j3 = (await as(null, () => q(`select public.pl_join_reference($1,'Mia Lane') t`, [rref])))[0].t;
+    ok(j3 && j3 !== j1, "raters: after finishing, joining again makes a new link");
+    await q(`update public.participants set status='finished', finished_at=now(), answers='{"items":{"rf_x":5}}' where token=$1`, [j3]);
+    for (const [nm, v] of [["Ana", 5], ["Bo", 5]]) { const t = (await as(null, () => q(`select public.pl_join_reference($1,$2) t`, [rref, nm])))[0].t; await q(`update public.participants set status='finished', finished_at=now(), answers=$2::jsonb where token=$1`, [t, JSON.stringify({ items: { rf_x: v } })]); }
+    const rpid = (await q(`update public.participants set status='finished' where case_id=$1 and role='planter' returning id`, [rc]))[0].id;
+    const RK = (await q(`select key from public.report_keys where participant_id=$1`, [rpid]))[0].key;
+    let pe = (await as(null, () => q(`select public.pl_team_peers($1) p`, [RK])))[0].p;
+    ok(pe.finished === 3 && pe.asked === 3 && Number(pe.items.rf_x.avg) === 5 && pe.items.rf_x.n === 3, "raters: a name that rated twice counts once (their latest rating)");
+    for (let i = 0; i < 9; i++) await as(null, () => q(`select public.pl_join_reference($1,$2)`, [rref, "Idle " + i]));
+    ok((await as(null, () => q(`select public.pl_join_reference($1,'One Too Many') t`, [rref])))[0].t === null, "raters: 12 places at most");
+    await q(`update public.participants set updated_at = now() - interval '8 days' where case_id=$1 and name like 'Idle %'`, [rc]);
+    ok(!!(await as(null, () => q(`select public.pl_join_reference($1,'Now Room') t`, [rref])))[0].t, "raters: unfinished raters idle for 7 days no longer take a place");
+
+    // 3. Team map counts only from 5 people
+    const sumOf = (h) => ({ pillars: { character: h, health: h - 10 }, wiring: { pace: h }, giftsTop: ["lead"], giftsStrong: ["lead"], strengths: ["integrity"], growth: ["load"], team: { th_trust: h } });
+    for (const [i, h] of [70, 70, 80, 80, 30].entries()) {
+      const c = await fixCase("Five " + i, "t_five"); const t = await tokOf(c);
+      const k = (await q(`select public.pl_finish_team($1, '{"meta":{}}') k`, [t]))[0].k;
+      await q(`select public.pl_team_save_summary($1, $2::jsonb)`, [k, JSON.stringify(sumOf(h))]);
+      if (i === 3) { const m4 = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_five') j`, [nid])))[0].j; ok(m4.combined.n === 4 && m4.combined.countsShown === false && m4.combined.wiring === null, "team map: still no counts at 4 people"); }
+    }
+    const m5 = (await as(OWNER, () => q(`select public.pl_team_map($1, 't_five') j`, [nid])))[0].j;
+    ok(m5.combined.n === 5 && m5.combined.countsShown === true && m5.combined.wiring.pace.right === 4 && Number(m5.combined.healthLow) === 3 && Number(m5.combined.giftsTop.lead) === 5 && Number(m5.combined.teamLow.th_trust) === 1 && Number(m5.combined.wiringAvg.pace) === 66, "team map: counts show once 5 have finished");
+
+    // 5 and 6. A mistyped email: new link, old one stops, invite can go right away; no reminder right after
+    const ec = await fixCase("Typo Person", "t_typo");
+    const ep = (await q(`select id, token from public.participants where case_id=$1 and role='planter'`, [ec]))[0];
+    ok((await as(OWNER, () => q(`select * from public.pl_email_people($1, 'invite')`, [[ep.id]]))).length === 1, "typo: the first invite goes out");
+    ok((await as(OWNER, () => q(`select * from public.pl_email_people($1, 'remind')`, [[ep.id]]))).length === 0, "typo: 'remind everyone' right after the invite skips them");
+    await as(OWNER, () => q(`select public.pl_team_set_email($1, 'F@T.org ')`, [ep.id]));
+    ok((await q(`select token from public.participants where id=$1`, [ep.id]))[0].token === ep.token, "typo: only changing capitals keeps the same link");
+    await as(OWNER, () => q(`select public.pl_team_set_email($1, 'right@t.org')`, [ep.id]));
+    const np = (await q(`select token, email, invited_at from public.participants where id=$1`, [ep.id]))[0];
+    ok(np.token !== ep.token && np.email === "right@t.org" && np.invited_at === null && (await as(null, () => q(`select public.pl_open($1) j`, [ep.token])))[0].j === null, "typo: a new address gets a new link and the old link stops working");
+    const ri = await as(OWNER, () => q(`select * from public.pl_email_people($1, 'invite')`, [[ep.id]]));
+    ok(ri.length === 1 && ri[0].email === "right@t.org" && ri[0].token === np.token, "typo: the new address can be invited right away");
+    ok((await as(OWNER, () => q(`select token from public.pl_team_people($1)`, [ec])))[0].token === np.token, "typo: the leader's list has the new link");
+  }
 
   // Plumbline Teams yearly plans
   const pnet = (await as(ASSESSOR, () => q(`select public.pl_create_network('Plan Test Church', 'Pat') as id`)))[0].id;
